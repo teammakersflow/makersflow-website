@@ -1,0 +1,289 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * MakersFlow design system
+ * Brand: futuristic, energetic, tech-forward, trustworthy, youthful.
+ * All color values use oklch (converted from the brand hex palette).
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-light: var(--primary-light);
+  --color-primary-dark: var(--primary-dark);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-light: var(--accent-light);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --shadow-glow-primary: 0 10px 40px -10px color-mix(in oklab, var(--primary) 45%, transparent);
+  --shadow-glow-accent: 0 10px 40px -10px color-mix(in oklab, var(--accent) 45%, transparent);
+  --shadow-elegant: 0 12px 32px -12px color-mix(in oklab, var(--foreground) 18%, transparent);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* Brand palette — converted from spec hex */
+  --background: oklch(0.978 0.005 270); /* #F8F9FC */
+  --foreground: oklch(0.18 0.04 270); /* #1A1A2E */
+
+  --card: oklch(1 0 0); /* #FFFFFF */
+  --card-foreground: oklch(0.18 0.04 270);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.04 270);
+
+  --primary: oklch(0.524 0.232 277); /* #4F46E5 Deep Indigo */
+  --primary-foreground: oklch(0.99 0.003 270);
+  --primary-light: oklch(0.595 0.214 278); /* #6366F1 */
+  --primary-dark: oklch(0.402 0.198 278); /* #3730A3 */
+
+  --secondary: oklch(0.96 0.012 270);
+  --secondary-foreground: oklch(0.22 0.04 270);
+
+  --muted: oklch(0.955 0.008 270);
+  --muted-foreground: oklch(0.45 0.03 265); /* Darkened for accessibility contrast */
+
+  --accent: oklch(0.703 0.183 42); /* #FF6B35 Vibrant Orange */
+  --accent-foreground: oklch(0.99 0.003 60);
+  --accent-light: oklch(0.755 0.16 45); /* #FF8A50 */
+
+  --success: oklch(0.708 0.156 162); /* #10B981 */
+  --success-foreground: oklch(0.99 0.003 160);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.99 0.003 270);
+
+  --border: oklch(0.92 0.012 265);
+  --input: oklch(0.92 0.012 265);
+  --ring: oklch(0.524 0.232 277);
+
+  --chart-1: oklch(0.524 0.232 277);
+  --chart-2: oklch(0.703 0.183 42);
+  --chart-3: oklch(0.708 0.156 162);
+  --chart-4: oklch(0.595 0.214 278);
+  --chart-5: oklch(0.755 0.16 45);
+
+  --sidebar: oklch(0.99 0.003 270);
+  --sidebar-foreground: oklch(0.18 0.04 270);
+  --sidebar-primary: oklch(0.524 0.232 277);
+  --sidebar-primary-foreground: oklch(0.99 0.003 270);
+  --sidebar-accent: oklch(0.955 0.008 270);
+  --sidebar-accent-foreground: oklch(0.22 0.04 270);
+  --sidebar-border: oklch(0.92 0.012 265);
+  --sidebar-ring: oklch(0.524 0.232 277);
+}
+
+.dark {
+  --background: oklch(0.16 0.03 270);
+  --foreground: oklch(0.97 0.005 270);
+
+  --card: oklch(0.21 0.035 270);
+  --card-foreground: oklch(0.97 0.005 270);
+  --popover: oklch(0.21 0.035 270);
+  --popover-foreground: oklch(0.97 0.005 270);
+
+  --primary: oklch(0.62 0.22 278);
+  --primary-foreground: oklch(0.12 0.03 270);
+  --primary-light: oklch(0.7 0.18 278);
+  --primary-dark: oklch(0.45 0.21 278);
+
+  --secondary: oklch(0.26 0.035 270);
+  --secondary-foreground: oklch(0.97 0.005 270);
+
+  --muted: oklch(0.26 0.035 270);
+  --muted-foreground: oklch(0.72 0.02 265);
+
+  --accent: oklch(0.74 0.18 42);
+  --accent-foreground: oklch(0.14 0.03 60);
+  --accent-light: oklch(0.78 0.16 45);
+
+  --success: oklch(0.74 0.15 162);
+  --success-foreground: oklch(0.14 0.03 160);
+
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.97 0.005 270);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.62 0.22 278);
+
+  --chart-1: oklch(0.62 0.22 278);
+  --chart-2: oklch(0.74 0.18 42);
+  --chart-3: oklch(0.74 0.15 162);
+  --chart-4: oklch(0.7 0.18 278);
+  --chart-5: oklch(0.78 0.16 45);
+
+  --sidebar: oklch(0.21 0.035 270);
+  --sidebar-foreground: oklch(0.97 0.005 270);
+  --sidebar-primary: oklch(0.62 0.22 278);
+  --sidebar-primary-foreground: oklch(0.12 0.03 270);
+  --sidebar-accent: oklch(0.26 0.035 270);
+  --sidebar-accent-foreground: oklch(0.97 0.005 270);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.62 0.22 278);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html,
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-numeric {
+    font-family: var(--font-display);
+    font-feature-settings:
+      "tnum" 1,
+      "ss01" 1;
+    font-weight: 600;
+  }
+
+  /* Floating/breathing animation for empty states */
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+    50% {
+      transform: translateY(-12px);
+    }
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+}
+
+.cpu-architecture {
+  offset-anchor: 10px 0px;
+  animation: animation-path;
+  animation-iteration-count: infinite;
+  animation-timing-function: cubic-bezier(0.75, -0.01, 0, 0.99);
+}
+
+.cpu-line-1 {
+  offset-path: path("M 10 20 h 79.5 q 5 0 5 5 v 30");
+  animation-duration: 5s;
+  animation-delay: 1s;
+}
+
+.cpu-line-2 {
+  offset-path: path("M 180 10 h -69.7 q -5 0 -5 5 v 40");
+  animation-delay: 6s;
+  animation-duration: 2s;
+}
+
+.cpu-line-3 {
+  offset-path: path("M 130 20 v 21.8 q 0 5 -5 5 h -25");
+  animation-delay: 4s;
+  animation-duration: 6s;
+}
+
+.cpu-line-4 {
+  offset-path: path("M 170 80 v -21.8 q 0 -5 -5 -5 h -65");
+  animation-delay: 3s;
+  animation-duration: 3s;
+}
+
+.cpu-line-5 {
+  offset-path: path("M 135 65 h 15 q 5 0 5 5 v 10 q 0 5 -5 5 h -39.8 q -5 0 -5 -5 v -35");
+  animation-delay: 9s;
+  animation-duration: 4s;
+}
+
+.cpu-line-6 {
+  offset-path: path("M 94.8 95 v -46");
+  animation-delay: 3s;
+  animation-duration: 7s;
+}
+
+.cpu-line-7 {
+  offset-path: path("M 88 88 v -15 q 0 -5 -5 -5 h -10 q -5 0 -5 -5 v -5 q 0 -5 5 -5 h 28");
+  animation-delay: 4s;
+  animation-duration: 4s;
+}
+
+.cpu-line-8 {
+  offset-path: path("M 30 30 h 25 q 5 0 5 5 v 6.5 q 0 5 5 5 h 35");
+  animation-delay: 3s;
+  animation-duration: 3s;
+}
+
+@keyframes animation-path {
+  0% {
+    offset-distance: 0%;
+  }
+  100% {
+    offset-distance: 100%;
+  }
+}

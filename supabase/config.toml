@@ -1,0 +1,7 @@
+[project]
+# Shared MakersFlow project — used by mobile (React Native/Expo) AND this web app.
+# Do NOT create a new project or alter the live schema.
+ref = "zhizdoryndbcwpjaasnn"
+
+[functions.create-razorpay-order]
+verify_jwt = true

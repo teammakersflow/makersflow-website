@@ -19,6 +19,7 @@ import { useAuth } from "@/integrations/supabase/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCourseDetail } from "@/lib/explore-data";
 import { useCart, type CartItem } from "@/lib/cart";
+import { runRazorpayCheckout } from "@/lib/razorpay-checkout";
 
 export const Route = createFileRoute("/checkout")({
   validateSearch: (search: Record<string, unknown>): { course?: string } => ({
@@ -261,57 +262,17 @@ function CheckoutPage() {
         totalAmount: total,
         userId: user.id,
         onSuccess: async (orderId) => {
-          const orderRow = {
-            user_id: user.id,
-            total_amount: total,
-            status: "paid",
-            razorpay_order_id: orderId,
-            coupon_code: couponState.code ?? null,
-            discount_amount: couponState.discount,
-            tax_amount: tax,
-            items: items.map((i) => ({
-              id: i.id,
-              title: i.title,
-              price: i.price,
-              qty: i.qty,
-              is_course: i.is_course,
-              course_id: i.course_id,
-            })),
-            shipping_address: shipping,
-          };
-          const { data: inserted } = await supabase
-            .from("orders")
-            .insert(orderRow)
-            .select("id")
-            .maybeSingle();
-          // Full enrollment shape shared with the mobile app: 1-year access
-          // window (expires_at) + completed payment status.
-          const enrolledAt = new Date();
-          const expiresAt = new Date(enrolledAt.getTime() + 365 * 24 * 60 * 60 * 1000);
-          const courseEnrollments = items
-            .filter((i) => i.is_course && i.course_id)
-            .map((i) => ({
-              user_id: user.id,
-              course_id: i.course_id!,
-              payment_status: "completed",
-              status: "active",
-              enrolled_at: enrolledAt.toISOString(),
-              expires_at: expiresAt.toISOString(),
-            }));
+          // Save demo course enrollments to localStorage (client-side fallback)
+          const demoCourseIds = items
+            .filter((i) => i.is_course && i.course_id && i.course_id.startsWith("demo-"))
+            .map((i) => i.course_id!);
 
-          const dbCourseEnrollments = courseEnrollments.filter(
-            (e) => !e.course_id.startsWith("demo-"),
-          );
-          const demoCourseEnrollments = courseEnrollments.filter((e) =>
-            e.course_id.startsWith("demo-"),
-          );
-
-          if (demoCourseEnrollments.length > 0) {
+          if (demoCourseIds.length > 0) {
             try {
               const key = `demo_enrollments_${user.id}`;
               const current = JSON.parse(localStorage.getItem(key) || "[]");
-              for (const e of demoCourseEnrollments) {
-                if (!current.includes(e.course_id)) current.push(e.course_id);
+              for (const id of demoCourseIds) {
+                if (!current.includes(id)) current.push(id);
               }
               localStorage.setItem(key, JSON.stringify(current));
             } catch (e) {
@@ -319,15 +280,29 @@ function CheckoutPage() {
             }
           }
 
-          if (dbCourseEnrollments.length > 0)
-            await supabase
-              .from("enrollments")
-              .upsert(dbCourseEnrollments, { onConflict: "user_id,course_id" });
+          // Poll orders table for server-created order row from Edge Function / webhook (service-role)
+          let fetchedDbOrderId: string | null = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const { data } = await supabase
+              .from("orders")
+              .select("id")
+              .eq("razorpay_order_id", orderId)
+              .maybeSingle();
+
+            if (data?.id) {
+              fetchedDbOrderId = String(data.id);
+              break;
+            }
+            if (attempt < 2) {
+              await new Promise((res) => setTimeout(res, 500));
+            }
+          }
+
           // Redirect to dedicated success page
           navigate({
             to: "/payment-success",
             search: {
-              order_id: (inserted as { id?: string } | null)?.id ?? orderId,
+              order_id: fetchedDbOrderId ?? orderId,
               total,
             },
           });
@@ -447,121 +422,4 @@ function CheckoutPage() {
   );
 }
 
-/* ── Razorpay helpers ─────────────────────────────────────────────────────── */
 
-type RazorpayWindow = typeof window & {
-  Razorpay?: new (opts: Record<string, unknown>) => { open: () => void };
-};
-
-async function loadRazorpayScript(): Promise<boolean> {
-  if (typeof window === "undefined") return false;
-  if ((window as RazorpayWindow).Razorpay) return true;
-  return new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
-
-async function runRazorpayCheckout(opts: {
-  items: CartItem[];
-  shipping: ShippingAddress;
-  userEmail: string;
-  userName: string;
-  userPhone: string;
-  couponCode?: string;
-  couponId?: string;
-  discountAmount?: number;
-  taxAmount?: number;
-  totalAmount?: number;
-  userId?: string;
-  onSuccess: (orderId: string) => Promise<void> | void;
-}) {
-  const ok = await loadRazorpayScript();
-  if (!ok) throw new Error("Could not load Razorpay. Check your connection.");
-
-  const { data: orderData, error: orderErr } = await supabase.functions.invoke(
-    "create-razorpay-order",
-    {
-      body: {
-        items: opts.items.map((i) => ({
-          id: i.is_course ? (i.course_id ?? i.id) : i.id,
-          qty: i.qty,
-          is_course: i.is_course,
-          price: i.price,
-        })),
-        total_amount: opts.totalAmount,
-        include_shipping: true,
-        currency: "INR",
-        receipt: `web_${Date.now()}`,
-        notes: { source: "web", items: opts.items.length },
-      },
-    },
-  );
-  if (orderErr || !orderData)
-    throw new Error(orderErr?.message ?? "Could not create payment order");
-
-  const order = orderData as {
-    id?: string;
-    order_id?: string;
-    key?: string;
-    key_id?: string;
-    amount?: number;
-    currency?: string;
-  };
-  const razorpayOrderId = order.id ?? order.order_id;
-  const keyId =
-    order.key ?? order.key_id ?? (import.meta.env.VITE_RAZORPAY_KEY_ID as string | undefined);
-  if (!razorpayOrderId) throw new Error("Payment order missing id");
-  if (!keyId) throw new Error("Missing Razorpay key");
-  if (!order.amount) throw new Error("Payment order missing amount");
-
-  await new Promise<void>((resolve, reject) => {
-    const rzp = new (window as RazorpayWindow).Razorpay!({
-      key: keyId,
-      amount: order.amount,
-      currency: order.currency ?? "INR",
-      order_id: razorpayOrderId,
-      name: "MakersFlow",
-      description: `${opts.items.length} item(s)`,
-      prefill: { name: opts.userName, email: opts.userEmail, contact: opts.userPhone },
-      theme: { color: "#4F46E5" },
-      handler: async (resp: {
-        razorpay_payment_id: string;
-        razorpay_order_id: string;
-        razorpay_signature: string;
-      }) => {
-        try {
-          const { data: verify, error: verifyErr } = await supabase.functions.invoke(
-            "verify-razorpay-payment",
-            {
-              body: {
-                razorpay_payment_id: resp.razorpay_payment_id,
-                razorpay_order_id: resp.razorpay_order_id,
-                razorpay_signature: resp.razorpay_signature,
-                user_id: opts.userId,
-                amount: order.amount ? order.amount / 100 : 0,
-                coupon_code: opts.couponCode,
-                coupon_id: opts.couponId,
-                discount_amount: opts.discountAmount ?? 0,
-                tax_amount: opts.taxAmount ?? 0,
-              },
-            },
-          );
-          if (verifyErr) throw new Error(verifyErr.message);
-          const v = verify as { verified?: boolean; success?: boolean } | null;
-          if (v && (v.verified === false || v.success === false))
-            throw new Error("Payment verification failed");
-          await opts.onSuccess(resp.razorpay_order_id);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      },
-      modal: { ondismiss: () => reject(new Error("Payment cancelled")) },
-    });
-    rzp.open();
-  });
-}

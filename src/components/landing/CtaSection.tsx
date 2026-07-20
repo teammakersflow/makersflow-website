@@ -34,7 +34,7 @@ export function CtaSection() {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="relative z-10 mt-9"
         >
-          <Button variant="accent" size="xl" className="gap-2" asChild>
+          <Button variant="accent" size="xl" className="gap-2 rounded-[var(--radius-buttons)]" asChild>
             <Link to="/register">
               Sign Up Free
               <ArrowRight />

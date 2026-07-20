@@ -38,7 +38,7 @@ export function Footer() {
     <footer className="border-t border-border bg-card/40">
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
         {/* Partners strip */}
-        <div className="mb-12 rounded-2xl border border-border bg-background p-6">
+        <div className="mb-12 rounded-[var(--radius-cards)] border border-border bg-background p-6">
           <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             Our partners & brands
           </p>
@@ -70,7 +70,7 @@ export function Footer() {
                   key={i}
                   href="#"
                   aria-label="Social link"
-                  className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground transition-all hover:-translate-y-0.5 hover:border-accent/60 hover:text-accent"
+                  className="grid h-9 w-9 place-items-center rounded-[var(--radius-small)] border border-border text-muted-foreground transition-all hover:-translate-y-0.5 hover:border-accent/60 hover:text-accent"
                 >
                   <Icon className="h-4 w-4" />
                 </a>

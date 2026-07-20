@@ -1,11 +1,13 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
   Check,
+  ChevronDown,
   CreditCard,
+  Loader2,
   Lock,
   Minus,
   Plus,
@@ -198,6 +200,7 @@ export function Field({
   required,
   autoComplete,
   name,
+  loading,
 }: {
   label: string;
   value: string;
@@ -207,12 +210,20 @@ export function Field({
   required?: boolean;
   autoComplete?: string;
   name?: string;
+  loading?: boolean;
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label} {required && <span className="text-accent">*</span>}
-      </span>
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {label} {required && <span className="text-accent">*</span>}
+        </span>
+        {loading && (
+          <span className="flex items-center gap-1 text-[11px] text-primary font-normal">
+            <Loader2 className="h-3 w-3 animate-spin" /> Locating…
+          </span>
+        )}
+      </div>
       <input
         type={type}
         value={value}
@@ -229,16 +240,134 @@ export function Field({
 // ─── Indian States & UTs ──────────────────────────────────────────────────────
 
 const INDIAN_STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
-  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
-  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
-  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
-  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
   // Union Territories
-  "Andaman and Nicobar Islands", "Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir",
-  "Ladakh", "Lakshadweep", "Puducherry",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry",
 ];
+
+// ─── State Combobox ──────────────────────────────────────────────────────────
+
+function StateCombobox({
+  value,
+  onChange,
+  invalid,
+}: {
+  value: string;
+  onChange: (state: string) => void;
+  invalid?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredStates = useMemo(() => {
+    if (!search.trim()) return INDIAN_STATES;
+    const q = search.toLowerCase();
+    return INDIAN_STATES.filter((s) => s.toLowerCase().includes(q));
+  }, [search]);
+
+  return (
+    <div className="relative">
+      <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+        State / UT <span className="text-accent">*</span>
+      </label>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={cn(
+          "h-11 w-full flex items-center justify-between rounded-xl border bg-background px-3.5 text-sm text-foreground outline-none transition focus:ring-2 focus:ring-primary/20 text-left",
+          invalid && !value
+            ? "border-red-400 focus:border-red-400 focus:ring-red-200"
+            : "border-border focus:border-primary focus:shadow-[var(--shadow-glow-primary)]",
+        )}
+      >
+        <span className={cn(value ? "text-foreground font-medium" : "text-muted-foreground")}>
+          {value || "Select state / UT…"}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 mt-1.5 max-h-60 w-full overflow-hidden rounded-xl border border-border bg-popover shadow-xl">
+            <div className="p-2 border-b border-border">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search state / UT…"
+                autoFocus
+                className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+              />
+            </div>
+            <div className="max-h-44 overflow-y-auto p-1 space-y-0.5">
+              {filteredStates.length === 0 ? (
+                <div className="p-3 text-center text-xs text-muted-foreground">
+                  No matching state / UT
+                </div>
+              ) : (
+                filteredStates.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      onChange(s);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    className={cn(
+                      "w-full text-left px-3 py-2 text-sm rounded-lg flex items-center justify-between transition-colors",
+                      value === s
+                        ? "bg-primary/10 text-primary font-semibold"
+                        : "text-foreground hover:bg-secondary",
+                    )}
+                  >
+                    <span>{s}</span>
+                    {value === s && <Check className="h-4 w-4 text-primary" />}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // ─── ShippingForm ─────────────────────────────────────────────────────────────
 
@@ -249,7 +378,44 @@ export function ShippingForm({
   value: ShippingAddress;
   onChange: (v: ShippingAddress) => void;
 }) {
+  const [pincodeLoading, setPincodeLoading] = useState(false);
   const set = (k: keyof ShippingAddress) => (v: string) => onChange({ ...value, [k]: v });
+
+  // Pincode auto-fill lookup
+  useEffect(() => {
+    const code = value.pincode.trim();
+    if (code.length !== 6 || !/^\d{6}$/.test(code)) return;
+
+    const timer = setTimeout(async () => {
+      setPincodeLoading(true);
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${code}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data[0]?.Status === "Success" && data[0]?.PostOffice?.length) {
+          const po = data[0].PostOffice[0];
+          const foundState = INDIAN_STATES.find(
+            (s) => s.toLowerCase() === (po.State ?? "").toLowerCase(),
+          );
+          const cityToSet = po.District || po.Name || po.Block || "";
+          const stateToSet = foundState || po.State || "";
+
+          onChange({
+            ...value,
+            city: cityToSet || value.city,
+            state: stateToSet || value.state,
+          });
+        }
+      } catch {
+        /* Fail silently without toast error */
+      } finally {
+        setPincodeLoading(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.pincode]);
 
   // Phone: strip +91 prefix for display, validate 10 digits
   const phoneDigits = value.phone.replace(/^\+91\s*/, "");
@@ -274,15 +440,20 @@ export function ShippingForm({
       <h2 className="font-display text-xl font-semibold text-foreground">Shipping information</h2>
       <p className="mt-1 text-sm text-muted-foreground">We deliver all across India 🇮🇳</p>
       <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-
         {/* Full Name */}
-        <Field label="Full Name" value={value.full_name} onChange={set("full_name")} required
-          autoComplete="name" name="fullname" />
+        <Field
+          label="Full Name"
+          value={value.full_name}
+          onChange={set("full_name")}
+          required
+          autoComplete="name"
+          name="fullname"
+        />
 
         {/* Phone with +91 prefix */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">
-            Mobile Number <span className="text-red-500">*</span>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+            Mobile Number <span className="text-accent">*</span>
           </label>
           <div className="flex">
             <span className="flex items-center px-3.5 rounded-l-xl border border-r-0 border-border bg-secondary text-sm font-medium text-muted-foreground select-none">
@@ -310,7 +481,15 @@ export function ShippingForm({
 
         {/* Email */}
         <div className="sm:col-span-2">
-          <Field label="Email Address" value={value.email} onChange={set("email")} type="email" required autoComplete="email" name="email" />
+          <Field
+            label="Email Address"
+            value={value.email}
+            onChange={set("email")}
+            type="email"
+            required
+            autoComplete="email"
+            name="email"
+          />
         </div>
 
         {/* Address Line 1 */}
@@ -332,48 +511,44 @@ export function ShippingForm({
           />
         </div>
 
-        {/* City */}
-        <Field label="City / Town" value={value.city} onChange={set("city")} required autoComplete="address-level2" name="city" />
-
-        {/* State Dropdown */}
-        <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">
-            State / UT <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={value.state}
-            onChange={(e) => onChange({ ...value, state: e.target.value })}
-            className={inputClass(!value.state)}
-          >
-            <option value="">Select state…</option>
-            {INDIAN_STATES.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-
         {/* Pincode */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">
-            PIN Code <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={6}
-            placeholder="6-digit PIN code"
+          <Field
+            label="PIN Code"
             value={value.pincode}
-            onChange={(e) => onChange({ ...value, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })}
-            className={inputClass(!pincodeValid && value.pincode.length > 0)}
+            onChange={(v) => set("pincode")(v.replace(/\D/g, "").slice(0, 6))}
+            required
+            placeholder="6-digit PIN code"
+            loading={pincodeLoading}
           />
           {!pincodeValid && value.pincode.length > 0 && (
             <p className="mt-1 text-xs text-red-500">PIN code must be 6 digits</p>
           )}
         </div>
 
+        {/* City */}
+        <Field
+          label="City / Town"
+          value={value.city}
+          onChange={set("city")}
+          required
+          autoComplete="address-level2"
+          name="city"
+          loading={pincodeLoading}
+        />
+
+        {/* Searchable State Combobox */}
+        <StateCombobox
+          value={value.state}
+          onChange={(s) => onChange({ ...value, state: s })}
+          invalid={!value.state}
+        />
+
         {/* Country — fixed India */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Country</label>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
+            Country
+          </label>
           <input
             type="text"
             value="India"
@@ -381,7 +556,6 @@ export function ShippingForm({
             className="h-11 w-full rounded-xl border border-border bg-secondary px-3.5 text-sm text-muted-foreground cursor-not-allowed"
           />
         </div>
-
       </div>
     </div>
   );
@@ -422,9 +596,12 @@ export function PaymentPanel({
         </div>
       </div>
       <button
-        onClick={onPay}
+        onClick={() => {
+          if (paying) return;
+          onPay();
+        }}
         disabled={paying}
-        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-light px-6 py-3.5 font-semibold text-primary-foreground shadow-[var(--shadow-glow-primary)] transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-70"
+        className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-light px-6 py-3.5 font-semibold text-primary-foreground shadow-[var(--shadow-glow-primary)] transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
       >
         {paying ? (
           <>
@@ -473,26 +650,27 @@ export function OrderSummary({
   const [promo, setPromo] = useState<PromoState>({ status: "idle" });
   const [applying, setApplying] = useState(false);
 
-  const discount  = promo.status === "applied" ? promo.amount : 0;
+  const discount = promo.status === "applied" ? promo.amount : 0;
   const itemCount = items.reduce((s, i) => s + i.qty, 0);
 
   // ── Per-item GST (uses gst_rate from each product) ─────────────────────
   const tax = Math.round(
     items.reduce((sum, item) => {
-      const itemSubtotal  = item.price * item.qty;
+      const itemSubtotal = item.price * item.qty;
       const discountShare = subtotal > 0 ? (itemSubtotal / subtotal) * discount : 0;
-      const itemTaxable   = Math.max(0, itemSubtotal - discountShare);
+      const itemTaxable = Math.max(0, itemSubtotal - discountShare);
       return sum + itemTaxable * ((item.gst_rate ?? 18) / 100);
     }, 0),
   );
 
   const taxable = Math.max(0, subtotal - discount);
-  const total   = taxable + tax + shippingFee;
+  const total = taxable + tax + shippingFee;
 
   // For display label — weighted average GST rate across items
-  const avgGstRate = itemCount > 0
-    ? Math.round(items.reduce((s, i) => s + (i.gst_rate ?? 18) * i.qty, 0) / itemCount)
-    : 18;
+  const avgGstRate =
+    itemCount > 0
+      ? Math.round(items.reduce((s, i) => s + (i.gst_rate ?? 18) * i.qty, 0) / itemCount)
+      : 18;
 
   const applyPromo = async () => {
     const key = promoInput.trim().toUpperCase();
@@ -535,12 +713,11 @@ export function OrderSummary({
   };
 
   return (
-    // lg:sticky + lg:top-6 → sticks on desktop; full-width block on mobile
     <aside className="h-fit w-full overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-elegant)] lg:sticky lg:top-6">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
         <h3 className="font-display text-base font-bold text-foreground">Order summary</h3>
-        <span className="rounded-full bg-[#4F46E5]/10 px-2.5 py-0.5 text-xs font-semibold text-[#4F46E5] dark:bg-[#4F46E5]/20">
+        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary dark:bg-primary/20">
           {itemCount} {itemCount === 1 ? "item" : "items"}
         </span>
       </div>
@@ -560,7 +737,7 @@ export function OrderSummary({
               <div className="flex items-center gap-3 px-5 py-3">
                 {/* Thumbnail */}
                 <div
-                  className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-[#4F46E5]/15 to-[#6366F1]/10"
+                  className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/15 to-primary-light/10"
                   style={{
                     backgroundImage: item.thumbnail_url ? `url(${item.thumbnail_url})` : undefined,
                     backgroundSize: "cover",
@@ -569,13 +746,13 @@ export function OrderSummary({
                 >
                   {/* Qty badge */}
                   {item.qty > 1 && (
-                    <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-[#4F46E5] text-[10px] font-bold text-white shadow">
+                    <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-primary text-[10px] font-bold text-white shadow">
                       {item.qty}
                     </span>
                   )}
                   {/* Course indicator */}
                   {item.is_course && !item.thumbnail_url && (
-                    <span className="absolute inset-0 grid place-items-center text-[#4F46E5] opacity-40">
+                    <span className="absolute inset-0 grid place-items-center text-primary opacity-40">
                       <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
                         <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3z" />
                         <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" />
@@ -610,7 +787,6 @@ export function OrderSummary({
         <div>
           <AnimatePresence mode="wait">
             {promo.status === "applied" ? (
-              // Applied state
               <motion.div
                 key="applied"
                 initial={{ opacity: 0, y: -6 }}
@@ -639,7 +815,6 @@ export function OrderSummary({
                 </button>
               </motion.div>
             ) : (
-              // Input state
               <motion.div
                 key="input"
                 initial={{ opacity: 0, y: 6 }}
@@ -662,7 +837,7 @@ export function OrderSummary({
                       spellCheck={false}
                       className={cn(
                         "h-10 w-full rounded-xl border bg-background px-3.5 font-mono text-sm tracking-widest text-foreground outline-none transition placeholder:font-sans placeholder:tracking-normal placeholder:text-muted-foreground",
-                        "focus:ring-2 focus:ring-[#4F46E5]/25 focus:border-[#4F46E5]",
+                        "focus:ring-2 focus:ring-primary/25 focus:border-primary",
                         promo.status === "error"
                           ? "border-destructive focus:ring-destructive/20"
                           : "border-border",
@@ -672,10 +847,10 @@ export function OrderSummary({
                   <button
                     onClick={applyPromo}
                     disabled={applying || !promoInput.trim()}
-                    className="h-10 shrink-0 rounded-xl border border-[#4F46E5] bg-[#4F46E5]/8 px-4 text-sm font-semibold text-[#4F46E5] transition hover:bg-[#4F46E5] hover:text-white disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#4F46E5]/15 dark:hover:bg-[#4F46E5]"
+                    className="h-10 shrink-0 rounded-xl border border-primary bg-primary/8 px-4 text-sm font-semibold text-primary transition hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-40 dark:bg-primary/15 dark:hover:bg-primary"
                   >
                     {applying ? (
-                      <span className="block h-4 w-4 animate-spin rounded-full border-2 border-[#4F46E5]/30 border-t-[#4F46E5]" />
+                      <span className="block h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
                     ) : (
                       "Apply"
                     )}
@@ -700,13 +875,11 @@ export function OrderSummary({
 
         {/* ── Price breakdown ───────────────────────────────────────────── */}
         <div className="space-y-2.5 rounded-xl bg-secondary/50 p-4 dark:bg-secondary/30">
-          {/* Subtotal */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-medium text-foreground">{formatPrice(subtotal)}</span>
           </div>
 
-          {/* Discount (only when promo applied) */}
           <AnimatePresence>
             {discount > 0 && (
               <motion.div
@@ -729,13 +902,11 @@ export function OrderSummary({
             )}
           </AnimatePresence>
 
-          {/* Tax */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">GST ({avgGstRate}%)</span>
             <span className="font-medium text-foreground">{formatPrice(tax)}</span>
           </div>
 
-          {/* Shipping */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
               Shipping
@@ -753,10 +924,8 @@ export function OrderSummary({
             </span>
           </div>
 
-          {/* Divider */}
           <div className="h-px bg-border" />
 
-          {/* Total */}
           <div className="flex items-end justify-between">
             <span className="text-sm font-bold text-foreground">Total</span>
             <div className="text-right">
@@ -774,7 +943,6 @@ export function OrderSummary({
           </div>
         </div>
 
-        {/* Free-shipping nudge */}
         {subtotal > 0 && subtotal < freeShippingThreshold && shippingFee > 0 && (
           <motion.p
             initial={{ opacity: 0 }}
@@ -788,15 +956,13 @@ export function OrderSummary({
 
         {/* ── Trust badges ──────────────────────────────────────────────── */}
         <div className="space-y-2 border-t border-border pt-4">
-          {/* Razorpay row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#4F46E5]/10 dark:bg-[#4F46E5]/20">
-                <Lock className="h-3.5 w-3.5 text-[#4F46E5]" />
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-primary/10 dark:bg-primary/20">
+                <Lock className="h-3.5 w-3.5 text-primary" />
               </span>
               <span className="text-xs font-medium text-muted-foreground">Secured by Razorpay</span>
             </div>
-            {/* Razorpay wordmark — inline SVG so no network dep */}
             <svg
               viewBox="0 0 80 20"
               className="h-4 w-auto opacity-60 dark:opacity-40"
@@ -817,10 +983,9 @@ export function OrderSummary({
             </svg>
           </div>
 
-          {/* Payment method icons */}
           <div className="flex items-center gap-2">
             {[
-              { label: "UPI", bg: "#4F46E5" },
+              { label: "UPI", bg: "var(--primary, #4F46E5)" },
               { label: "VISA", bg: "#1A1F71" },
               { label: "MC", bg: "#EB001B" },
               { label: "NB", bg: "#FF6B35" },
@@ -836,7 +1001,6 @@ export function OrderSummary({
             <span className="text-[11px] text-muted-foreground">+ more</span>
           </div>
 
-          {/* SSL */}
           <div className="flex items-center gap-1.5">
             <svg viewBox="0 0 16 16" className="h-3 w-3 text-emerald-500" fill="currentColor">
               <path d="M8 1a3.5 3.5 0 0 0-3.5 3.5V6H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1.5V4.5A3.5 3.5 0 0 0 8 1zm-2 3.5a2 2 0 1 1 4 0V6H6V4.5z" />
@@ -862,7 +1026,7 @@ export function OrderConfirmation({ orderId, total }: { orderId: string; total: 
           Order confirmed!
         </h1>
         <p className="mt-3 text-muted-foreground">
-          Thank you for your purchase. We've sent a confirmation email with your order details.
+          Thank you for your purchase. You'll receive a confirmation email shortly.
         </p>
         <div className="mt-6 inline-flex flex-col items-center gap-1 rounded-2xl bg-card px-6 py-4">
           <span className="text-xs uppercase tracking-wide text-muted-foreground">Order ID</span>

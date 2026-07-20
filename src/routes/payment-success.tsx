@@ -78,7 +78,7 @@ function PaymentSuccessPage() {
               Payment Successful!
             </h1>
             <p className="mt-3 text-muted-foreground">
-              Thank you for your purchase. Your order has been confirmed.
+              Thank you for your purchase. You'll receive a confirmation email shortly.
             </p>
 
             {/* Order details card */}

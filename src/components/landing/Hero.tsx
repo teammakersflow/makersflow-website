@@ -86,7 +86,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-4 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-md"
+            className="mb-6 inline-flex items-center gap-2 rounded-[var(--radius-pill)] border border-border/70 bg-card/70 px-4 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-md"
           >
             <Sparkles className="h-3.5 w-3.5 text-accent" />
             India's 1st Futuristic Lab on Wheels
@@ -134,12 +134,12 @@ export function Hero() {
             transition={{ duration: 0.7, delay: 0.75 }}
             className="mt-9 flex flex-wrap items-center gap-3"
           >
-            <Button variant="hero" size="xl" asChild>
+            <Button variant="hero" size="xl" className="rounded-[var(--radius-buttons)]" asChild>
               <Link to="/register">Start Learning Free</Link>
             </Button>
-            <Button variant="ghost" size="xl" className="gap-2.5" asChild>
+            <Button variant="ghost" size="xl" className="gap-2.5 rounded-[var(--radius-buttons)]" asChild>
               <Link to="/login">
-                <span className="grid h-7 w-7 place-items-center rounded-full bg-accent/15 text-accent">
+                <span className="grid h-7 w-7 place-items-center rounded-[var(--radius-pill)] bg-accent/15 text-accent">
                   <Play className="h-3.5 w-3.5 fill-current" />
                 </span>
                 Watch Demo
@@ -167,7 +167,7 @@ export function Hero() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative w-full max-w-md aspect-square rounded-3xl border border-border bg-card/40 p-6 shadow-[var(--shadow-elegant)] backdrop-blur-md flex flex-col justify-center items-center overflow-hidden"
+            className="relative w-full max-w-md aspect-square rounded-[var(--radius-cards)] border border-border bg-card/40 p-6 shadow-[var(--shadow-elegant)] backdrop-blur-md flex flex-col justify-center items-center overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 pointer-events-none" />
             <CpuArchitecture className="w-full h-full text-primary" text="CPU" />
@@ -184,7 +184,7 @@ export function Hero() {
           opacity: { delay: 1.4, duration: 0.6 },
           y: reduce ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" },
         }}
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full border border-border/70 bg-card/60 p-2 text-muted-foreground backdrop-blur-md transition hover:text-foreground"
+        className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-[var(--radius-pill)] border border-border/70 bg-card/60 p-2 text-muted-foreground backdrop-blur-md transition hover:text-foreground"
       >
         <ChevronDown className="h-5 w-5" />
       </motion.a>

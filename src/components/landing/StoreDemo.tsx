@@ -24,7 +24,7 @@ export function StoreDemo() {
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-6 mb-12">
           <div>
-            <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
+            <p className="mb-3 inline-flex items-center gap-2 rounded-[var(--radius-pill)] bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
               <ShoppingBag className="h-3.5 w-3.5" />
               Hands-On Kits & Books
             </p>
@@ -50,7 +50,7 @@ export function StoreDemo() {
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="h-[420px] animate-pulse rounded-2xl bg-card border border-border"
+                className="h-[420px] animate-pulse rounded-[var(--radius-cards)] bg-card border border-border"
               />
             ))}
           </div>

@@ -36,10 +36,10 @@ export function Header() {
           <Logo />
 
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex" asChild>
+            <Button variant="ghost" size="sm" className="hidden sm:inline-flex rounded-[var(--radius-buttons)]" asChild>
               <Link to="/login">Sign in</Link>
             </Button>
-            <Button variant="hero" size="sm" asChild>
+            <Button variant="hero" size="sm" className="rounded-[var(--radius-buttons)]" asChild>
               <Link to="/register">Get started</Link>
             </Button>
           </div>

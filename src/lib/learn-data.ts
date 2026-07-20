@@ -1,5 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { FALLBACK, DEMO_MODULES, type Module } from "./explore-data";
+import {
+  mapDbLessonToDetail,
+  mapDbLessonResource,
+  mapDbLessonProgress,
+  type RawDbLessonProgress,
+} from "./db-mappers";
 
 export type LessonDetail = {
   id: string;
@@ -73,18 +79,7 @@ export async function fetchLesson(courseId: string, lessonId: string): Promise<L
     throw new Error(`Lesson ${lessonId} not found`);
   }
 
-  return {
-    id: String(data.id),
-    course_id: courseId,
-    module_id: data.module_id ? String(data.module_id) : null,
-    title: data.title ?? "Untitled Lesson",
-    description: null,
-    video_url: data.video_url ?? null,
-    content: data.content ?? null,
-    notes: data.notes ?? data.content ?? null,
-    duration_minutes: data.duration_secs ? Math.round(data.duration_secs / 60) : null,
-    position: data.order_index ?? 0,
-  };
+  return mapDbLessonToDetail(data, courseId);
 }
 
 export async function fetchLessonResources(lessonId: string): Promise<LessonResource[]> {
@@ -103,7 +98,7 @@ export async function fetchLessonResources(lessonId: string): Promise<LessonReso
       return [];
     }
 
-    if (data && data.length) return data as LessonResource[];
+    if (data && data.length) return data.map((r) => mapDbLessonResource(r));
   } catch (err) {
     console.warn(`[makersflow] fetchLessonResources threw:`, err);
   }
@@ -133,8 +128,9 @@ export async function fetchCourseProgressMap(
       .eq("user_id", userId)
       .eq("course_id", courseId);
     const map: Record<string, LessonProgressRow> = {};
-    for (const row of (data ?? []) as LessonProgressRow[]) {
-      map[row.lesson_id] = row;
+    for (const row of (data ?? []) as RawDbLessonProgress[]) {
+      const mapped = mapDbLessonProgress(row);
+      map[mapped.lesson_id] = mapped;
     }
     return map;
   } catch (err) {
@@ -579,7 +575,6 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
     console.warn(`[makersflow] fetchProgressOverview streaks threw:`, err);
   }
 
-  // FIX 3: return statement and total_enrolled field were missing
   return {
     total_enrolled: totalEnrolled,
     total_completed: totalCompleted,

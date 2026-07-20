@@ -1,15 +1,16 @@
 import { createFileRoute, Link, useNavigate, useBlocker } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence } from "framer-motion";
-import { ArrowLeft, Menu, ChevronLeft, ChevronRight, Lock } from "lucide-react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { VideoPlayer } from "@/components/learn/VideoPlayer";
 import { Confetti } from "@/components/learn/Confetti";
 import { LessonSidebar } from "@/components/learn/LessonSidebar";
 import { Quiz } from "@/components/learn/Quiz";
+import { LessonHeaderNav } from "@/components/learn/LessonHeaderNav";
+import { LessonUpNextCard } from "@/components/learn/LessonUpNextCard";
+import { LessonLockedView } from "@/components/learn/LessonLockedView";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LessonTabBar,
@@ -30,13 +31,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import {
-  fetchLesson,
-  fetchLessonResources,
-  fetchCourseProgressMap,
-  upsertLessonProgress,
-  markLessonComplete,
-} from "@/lib/learn-data";
+  useLesson,
+  useLessonResources,
+  useCourseProgressMap,
+  useMarkLessonComplete,
+} from "@/hooks/useLearnData";
+import { upsertLessonProgress } from "@/lib/learn-data";
 import { fetchCourseDetail, fetchCourseModules } from "@/lib/explore-data";
+import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/learn/$courseId/$lessonId")({
   head: () => ({ meta: [{ title: "Lesson — MakersFlow" }] }),
@@ -68,13 +70,18 @@ function LessonPlayerPage() {
     blockerFn: () => true,
   });
 
+  const markCompleteMutation = useMarkLessonComplete();
+
   // ── Course access gate ─────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
     async function checkAccess() {
       // Always allow if course is free
       const { data: course } = await supabase
-        .from("courses").select("is_free, price").eq("id", courseId).maybeSingle();
+        .from("courses")
+        .select("is_free, price")
+        .eq("id", courseId)
+        .maybeSingle();
 
       if (!course || course.is_free || course.price === 0) {
         setAccessGranted(true);
@@ -83,10 +90,17 @@ function LessonPlayerPage() {
 
       // Check enrollments table (legacy) OR course_purchases
       const [{ count: enrollCount }, { count: purchaseCount }] = await Promise.all([
-        supabase.from("enrollments").select("id", { count: "exact", head: true })
-          .eq("user_id", user!.id).eq("course_id", courseId),
-        supabase.from("course_purchases").select("id", { count: "exact", head: true })
-          .eq("user_id", user!.id).eq("course_id", courseId).eq("status", "active"),
+        supabase
+          .from("enrollments")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("course_id", courseId),
+        supabase
+          .from("course_purchases")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("course_id", courseId)
+          .eq("status", "active"),
       ]);
 
       if ((enrollCount ?? 0) > 0 || (purchaseCount ?? 0) > 0) {
@@ -141,10 +155,8 @@ function LessonPlayerPage() {
 
   const isDialogOpen = showLeaveDialog || blocker.status === "blocked";
 
-  const lessonQ = useQuery({
-    queryKey: ["lesson", courseId, lessonId],
-    queryFn: () => fetchLesson(courseId, lessonId),
-  });
+  // Data fetching hooks
+  const lessonQ = useLesson(courseId, lessonId);
   const courseQ = useQuery({
     queryKey: ["course", courseId],
     queryFn: () => fetchCourseDetail(courseId),
@@ -153,15 +165,8 @@ function LessonPlayerPage() {
     queryKey: ["course", courseId, "modules"],
     queryFn: () => fetchCourseModules(courseId),
   });
-  const progressQ = useQuery({
-    queryKey: ["lesson_progress", user?.id, courseId],
-    queryFn: () => fetchCourseProgressMap(user!.id, courseId),
-    enabled: !!user?.id,
-  });
-  const resourcesQ = useQuery({
-    queryKey: ["lesson_resources", lessonId],
-    queryFn: () => fetchLessonResources(lessonId),
-  });
+  const progressQ = useCourseProgressMap(user?.id, courseId);
+  const resourcesQ = useLessonResources(lessonId);
 
   const lesson = lessonQ.data;
   const course = courseQ.data;
@@ -230,6 +235,7 @@ function LessonPlayerPage() {
     }, 1000);
   }
 
+  // Handle video ticks — fire-and-forget raw upsert to avoid triggering refetches/invalidations on every tick
   const handleTick = (p: {
     current_time_secs: number;
     duration_secs: number;
@@ -253,9 +259,13 @@ function LessonPlayerPage() {
       return;
     }
     setCelebrating(true);
-    await markLessonComplete(user.id, lesson.course_id, lesson.id);
+    await markCompleteMutation.mutateAsync({
+      userId: user.id,
+      courseId: lesson.course_id,
+      lessonId: lesson.id,
+    });
     qc.setQueryData(
-      ["lesson_progress", user.id, courseId],
+      ["course-progress-map", user.id, courseId],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (old: Record<string, any> | undefined) => ({
         ...(old ?? {}),
@@ -271,7 +281,7 @@ function LessonPlayerPage() {
     }
   };
 
-  // ── Access gate renders (AFTER all hooks) ─────────────────────────────
+  // ── Access gate renders ─────────────────────────────────────────────
   if (accessGranted === null) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -281,31 +291,7 @@ function LessonPlayerPage() {
   }
 
   if (accessGranted === false) {
-    return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-background">
-        <div className="max-w-sm text-center space-y-4 p-8">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-primary/10">
-            <Lock className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Course Locked</h1>
-          <p className="text-muted-foreground text-sm">
-            You need to purchase this course to access the lessons.
-          </p>
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={() => navigate({ to: `/course/${courseId}` })}
-              className="w-full rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors">
-              View Course & Enrol
-            </button>
-            <button
-              onClick={() => navigate({ to: "/explore" })}
-              className="w-full rounded-xl border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-secondary transition-colors">
-              Browse Other Courses
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <LessonLockedView courseId={courseId} />;
   }
 
   if (lessonQ.isLoading) {
@@ -380,71 +366,16 @@ function LessonPlayerPage() {
       </AnimatePresence>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur">
-          {/* Left section: Back button, Course Title, Lesson position */}
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              aria-label="Open curriculum"
-              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-foreground lg:hidden shrink-0"
-            >
-              <Menu className="h-4 w-4" />
-            </button>
-            <Link
-              to="/course/$id"
-              params={{ id: courseId }}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 text-xs font-semibold text-primary hover:bg-primary hover:text-white transition-all duration-200 shrink-0 shadow-sm"
-              title="Back to course"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Back to Course</span>
-            </Link>
-            <div className="hidden h-4 w-px bg-border sm:block shrink-0" />
-            <div className="flex min-w-0 items-center gap-2.5 text-sm font-medium">
-              <span className="truncate font-semibold text-foreground hidden sm:inline">
-                {course?.title ?? "Course"}
-              </span>
-              <span className="text-xs text-muted-foreground bg-secondary/80 px-2.5 py-0.5 rounded-full shrink-0 font-numeric">
-                Lesson {idx + 1} of {flatLessons.length}
-              </span>
-            </div>
-          </div>
-
-          {/* Right section: Unified navigation controls */}
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
-              <Link
-                to="/learn/$courseId/$lessonId"
-                params={{ courseId, lessonId: prevLesson?.id ?? lessonId }}
-                disabled={!prevLesson}
-                className={cn(
-                  "inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-semibold transition-colors",
-                  prevLesson
-                    ? "text-foreground hover:bg-secondary"
-                    : "text-muted-foreground/45 pointer-events-none",
-                )}
-              >
-                <ChevronLeft className="mr-0.5 h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Previous</span>
-              </Link>
-              <div className="h-4 w-px bg-border" />
-              <Link
-                to="/learn/$courseId/$lessonId"
-                params={{ courseId, lessonId: nextLesson?.id ?? lessonId }}
-                disabled={!nextLesson}
-                className={cn(
-                  "inline-flex h-8 items-center justify-center rounded-md px-3 text-xs font-semibold transition-colors",
-                  nextLesson
-                    ? "text-primary hover:bg-secondary"
-                    : "text-muted-foreground/45 pointer-events-none",
-                )}
-              >
-                <span className="hidden sm:inline">Next</span>
-                <ChevronRight className="ml-0.5 h-3.5 w-3.5" />
-              </Link>
-            </div>
-          </div>
-        </header>
+        <LessonHeaderNav
+          courseId={courseId}
+          lessonId={lessonId}
+          courseTitle={course?.title ?? "Course"}
+          lessonIndex={idx}
+          totalLessons={flatLessons.length}
+          prevLesson={prevLesson}
+          nextLesson={nextLesson}
+          onOpenSidebar={() => setSidebarOpen(true)}
+        />
 
         <main className="mx-auto w-full max-w-5xl space-y-6 px-3 py-4 sm:px-5 sm:py-6">
           <VideoPlayer
@@ -483,7 +414,9 @@ function LessonPlayerPage() {
                 {lesson.title}
               </h1>
               {lesson.description && (
-                <p className="mt-2 text-sm text-muted-foreground max-w-3xl">{lesson.description}</p>
+                <p className="mt-2 text-sm text-muted-foreground max-w-3xl font-normal">
+                  {lesson.description}
+                </p>
               )}
             </div>
             <div className="shrink-0 pt-2 md:pt-0">
@@ -504,31 +437,12 @@ function LessonPlayerPage() {
             </div>
 
             {nextLesson && (
-              <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-elegant)] space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#FF6B35] bg-[#FF6B35]/10 px-2.5 py-0.5 rounded-full">
-                    Up Next
-                  </span>
-                  <span className="text-xs text-muted-foreground font-numeric">
-                    Lesson {idx + 2} of {flatLessons.length}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <h4 className="font-display text-sm font-semibold text-foreground line-clamp-2">
-                    {nextLesson.title}
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    Ready for the next lesson? Keep the momentum going!
-                  </p>
-                </div>
-                <Link
-                  to="/learn/$courseId/$lessonId"
-                  params={{ courseId, lessonId: nextLesson.id }}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-[#4F46E5] hover:text-white transition-all duration-200"
-                >
-                  Go to next lesson →
-                </Link>
-              </div>
+              <LessonUpNextCard
+                courseId={courseId}
+                nextLesson={nextLesson}
+                nextIndex={idx + 1}
+                totalLessons={flatLessons.length}
+              />
             )}
           </div>
         </main>

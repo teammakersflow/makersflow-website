@@ -32,7 +32,7 @@ export function FeaturedCourses() {
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
+            <p className="mb-3 inline-flex items-center gap-2 rounded-[var(--radius-pill)] bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
               Popular right now
             </p>
@@ -169,10 +169,10 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
         <div className="relative cursor-pointer" onClick={handleCardClick}>
           <div
             aria-hidden
-            className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-br ${grad} opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-70`}
+            className={`absolute -inset-0.5 rounded-[var(--radius-cards)] bg-gradient-to-br ${grad} opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-70`}
           />
           <div
-            className="relative aspect-[4/3] overflow-hidden rounded-2xl"
+            className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-cards)]"
             style={{
               backgroundImage: c.thumbnail_url ? `url(${c.thumbnail_url})` : undefined,
               backgroundSize: "cover",
@@ -194,14 +194,14 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
               </div>
             )}
             {c.is_free || c.price === 0 ? (
-              <span className="absolute right-3 top-3 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-success-foreground shadow">
+              <span className="absolute right-3 top-3 rounded-[var(--radius-pill)] bg-success px-2.5 py-1 text-xs font-bold text-success-foreground shadow">
                 FREE
               </span>
             ) : (
               c.original_price &&
               c.price != null &&
               c.price < c.original_price && (
-                <span className="absolute right-3 top-3 rounded-full bg-accent px-2.5 py-1 text-xs font-bold text-accent-foreground shadow">
+                <span className="absolute right-3 top-3 rounded-[var(--radius-pill)] bg-accent px-2.5 py-1 text-xs font-bold text-accent-foreground shadow">
                   {Math.round(((c.original_price - c.price) / c.original_price) * 100)}% OFF
                 </span>
               )
@@ -258,7 +258,7 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
             onClick={handleEnroll}
             disabled={loading}
             type="button"
-            className="w-full bg-primary hover:bg-primary/95 text-primary-foreground font-semibold rounded-xl py-2 flex items-center justify-center gap-1.5 group-hover:bg-primary-dark transition-all text-center text-sm shadow-[var(--shadow-glow-primary)] disabled:opacity-50"
+            className="w-full bg-primary hover:bg-primary/95 text-primary-foreground font-semibold rounded-[var(--radius-buttons)] py-2 flex items-center justify-center gap-1.5 group-hover:bg-primary-dark transition-all text-center text-sm shadow-[var(--shadow-glow-primary)] disabled:opacity-50"
           >
             {loading ? "Enrolling..." : enrolled ? "Continue Learning" : "Enroll Now"}
           </button>
@@ -271,7 +271,7 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
 function CourseSkeleton() {
   return (
     <div className="w-[280px] shrink-0 sm:w-[320px]">
-      <div className="aspect-[4/3] animate-pulse rounded-2xl bg-secondary" />
+      <div className="aspect-[4/3] animate-pulse rounded-[var(--radius-cards)] bg-secondary" />
       <div className="mt-4 space-y-2 px-1">
         <div className="h-3 w-24 animate-pulse rounded bg-secondary" />
         <div className="h-5 w-full animate-pulse rounded bg-secondary" />

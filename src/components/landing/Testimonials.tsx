@@ -48,7 +48,7 @@ export function Testimonials() {
     <section className="relative overflow-hidden py-20 sm:py-28">
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="mb-3 inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
+          <p className="mb-3 inline-flex items-center gap-2 rounded-[var(--radius-pill)] bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
             Student stories
           </p>
           <h2 className="font-display text-3xl font-bold tracking-tight text-foreground sm:text-5xl">
@@ -74,11 +74,11 @@ export function Testimonials() {
           {row.map((q, i) => (
             <article
               key={i}
-              className="w-[320px] shrink-0 rounded-2xl border border-border bg-card p-6 transition-transform hover:-translate-y-1"
+              className="w-[320px] shrink-0 rounded-[var(--radius-cards)] border border-border bg-card p-6 transition-transform hover:-translate-y-1"
             >
               <div className="flex items-center gap-3">
                 <div
-                  className={`grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br ${
+                  className={`grid h-11 w-11 place-items-center rounded-[var(--radius-pill)] bg-gradient-to-br ${
                     COLORS[i % COLORS.length]
                   } font-display font-bold text-white`}
                 >

@@ -1,4 +1,4 @@
-﻿# Logs
+# Logs
 logs
 *.log
 npm-debug.log*
@@ -35,3 +35,4 @@ dist-ssr
 .env.local
 
 .agents/
+.worktrees/

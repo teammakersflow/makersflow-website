@@ -37,7 +37,10 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user }, error: authErr } = await userClient.auth.getUser();
+    const {
+      data: { user },
+      error: authErr,
+    } = await userClient.auth.getUser();
     if (authErr || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -53,13 +56,13 @@ Deno.serve(async (req) => {
     // Delete user-owned rows from every relevant table
     // (order matters for FK constraints — children before parents)
     const tables: Array<{ table: string; column: string }> = [
-      { table: "lesson_progress",  column: "user_id" },
-      { table: "quiz_attempts",    column: "user_id" },
-      { table: "enrollments",      column: "user_id" },
-      { table: "order_items",      column: "user_id" },
-      { table: "orders",           column: "user_id" },
-      { table: "announcements",    column: "id" },   // skip — not user-owned
-      { table: "profiles",         column: "id" },
+      { table: "lesson_progress", column: "user_id" },
+      { table: "quiz_attempts", column: "user_id" },
+      { table: "enrollments", column: "user_id" },
+      { table: "order_items", column: "user_id" },
+      { table: "orders", column: "user_id" },
+      { table: "announcements", column: "id" }, // skip — not user-owned
+      { table: "profiles", column: "id" },
     ];
 
     for (const { table, column } of tables) {
@@ -81,11 +84,10 @@ Deno.serve(async (req) => {
       status: 200,
       headers: { ...CORS, "Content-Type": "application/json" },
     });
-
   } catch (err) {
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
-      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } },
     );
   }
 });

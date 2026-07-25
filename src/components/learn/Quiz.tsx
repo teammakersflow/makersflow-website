@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import {
   Card,
   CardContent,
@@ -263,12 +264,13 @@ export function Quiz({ lessonId, userId, onStateChange }: QuizProps) {
   return (
     <Card className="border border-border/80 bg-card shadow-elegant rounded-2xl relative overflow-hidden">
       {/* Top progress line indicator */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-muted">
-        <div
-          className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-300"
-          style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-        />
-      </div>
+      <Slider
+        value={[((currentIndex + 1) / questions.length) * 100]}
+        max={100}
+        step={1}
+        disabled
+        className="absolute top-0 left-0 right-0 pointer-events-none"
+      />
 
       <CardHeader className="pt-6">
         <div className="flex items-center justify-between">

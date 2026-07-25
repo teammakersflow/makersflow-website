@@ -19,9 +19,7 @@ export function cartAdd(
   const existing = items.find((c) => c.id === id);
   if (existing) {
     // Update qty AND refresh gst_rate in case admin changed it
-    return items.map((c) =>
-      c.id === id ? { ...c, qty: c.qty + qty, gst_rate } : c
-    );
+    return items.map((c) => (c.id === id ? { ...c, qty: c.qty + qty, gst_rate } : c));
   }
   return [...items, { id, title, price, gst_rate, thumbnail_url, qty, is_course, course_id }];
 }

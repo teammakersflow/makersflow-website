@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { Logo } from "@/components/brand/Logo";
-import { Github, Instagram, Linkedin, Youtube, Twitter } from "lucide-react";
+import { CursorGrid } from "@/components/CursorGrid";
+import LogoLoop from "@/components/LogoLoop";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface NavItem {
   name: string;
@@ -10,52 +12,108 @@ interface NavItem {
 
 const NAV: Record<string, NavItem[]> = {
   Learn: [
-    { name: "Courses", href: "#" },
-    { name: "Categories", href: "#" },
-    { name: "Free lessons", href: "#" },
-    { name: "Roadmaps", href: "#" },
-  ],
-  Company: [
-    { name: "About us", href: "#" },
-    { name: "Lab on Wheels", href: "#" },
-    { name: "Careers", href: "#" },
-    { name: "Press", href: "#" },
+    { name: "Courses", to: "/explore" },
+    { name: "Explore Topics", href: "/#featured" },
   ],
   Support: [
-    { name: "Help center", href: "#" },
     { name: "Community", to: "/community" },
     { name: "Contact", to: "/contact" },
-    { name: "Privacy policy", to: "/privacy" },
-    { name: "Terms of service", to: "/terms" },
-    { name: "Status", href: "#" },
   ],
 };
 
-const PARTNERS = ["Arduino", "Raspberry Pi", "NVIDIA", "Espressif", "STMicro", "MakerBot"];
+const PARTNER_LOGOS = [
+  {
+    title: "Arduino",
+    node: (
+      <span className="font-display text-base font-bold tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+        ARDUINO
+      </span>
+    ),
+  },
+  {
+    title: "Raspberry Pi",
+    node: (
+      <span className="font-display text-base font-bold tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+        RASPBERRY PI
+      </span>
+    ),
+  },
+  {
+    title: "NVIDIA AI",
+    node: (
+      <span className="font-display text-base font-bold tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+        NVIDIA JETSON
+      </span>
+    ),
+  },
+  {
+    title: "Espressif",
+    node: (
+      <span className="font-display text-base font-bold tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+        ESPRESSIF ESP32
+      </span>
+    ),
+  },
+  {
+    title: "STM32",
+    node: (
+      <span className="font-display text-base font-bold tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+        STM32
+      </span>
+    ),
+  },
+  {
+    title: "MakerBot",
+    node: (
+      <span className="font-display text-base font-bold tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+        MAKERBOT
+      </span>
+    ),
+  },
+  {
+    title: "OpenAI",
+    node: (
+      <span className="font-display text-base font-bold tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+        OPENAI
+      </span>
+    ),
+  },
+  {
+    title: "Python",
+    node: (
+      <span className="font-display text-base font-bold tracking-wider text-muted-foreground transition-colors hover:text-foreground">
+        PYTHON 3
+      </span>
+    ),
+  },
+];
 
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-card/40">
-      <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8">
+    <footer className="relative isolate border-t border-border bg-card/60 backdrop-blur-md overflow-hidden">
+      {/* Interactive Cursor Grid Background */}
+      <CursorGrid gridSize={44} />
+
+      <div className="relative z-10 mx-auto max-w-7xl px-5 py-14 lg:px-8">
         {/* Partners strip */}
-        <div className="mb-12 rounded-[var(--radius-cards)] border border-border bg-background p-6">
-          <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        <div className="mb-12 overflow-hidden rounded-[var(--radius-cards)] border border-border bg-background/80 backdrop-blur-md p-6">
+          <p className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             Our partners & brands
           </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-            {PARTNERS.map((p) => (
-              <span
-                key={p}
-                className="font-display text-lg font-semibold tracking-tight text-muted-foreground transition-colors hover:text-foreground"
-              >
-                {p}
-              </span>
-            ))}
-          </div>
+          <LogoLoop
+            logos={PARTNER_LOGOS}
+            speed={60}
+            gap={48}
+            logoHeight={28}
+            fadeOut={true}
+            fadeOutColor="transparent"
+            pauseOnHover={true}
+            ariaLabel="Our partners & brands"
+          />
         </div>
 
-        <div className="grid grid-cols-2 gap-10 md:grid-cols-5">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-4">
+          <div className="col-span-1 md:col-span-2">
             <Logo />
             <p className="mt-4 max-w-sm text-sm text-muted-foreground">
               The Real Education. India's 1st Futuristic Lab on Wheels — empowering the next
@@ -64,18 +122,6 @@ export function Footer() {
             <p className="mt-4 font-display text-sm italic text-foreground/80">
               "Be curious and never stop learning."
             </p>
-            <div className="mt-5 flex gap-2">
-              {[Instagram, Youtube, Twitter, Linkedin, Github].map((Icon, i) => (
-                <a
-                  key={i}
-                  href="#"
-                  aria-label="Social link"
-                  className="grid h-9 w-9 place-items-center rounded-[var(--radius-small)] border border-border text-muted-foreground transition-all hover:-translate-y-0.5 hover:border-accent/60 hover:text-accent"
-                >
-                  <Icon className="h-4 w-4" />
-                </a>
-              ))}
-            </div>
           </div>
           {Object.entries(NAV).map(([heading, items]) => (
             <div key={heading}>
@@ -107,15 +153,18 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row">
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row">
           <div>© {new Date().getFullYear()} MakersFlow. All rights reserved.</div>
-          <div className="flex gap-5">
+          <div className="flex items-center gap-5">
             <Link to="/privacy" className="hover:text-foreground">
               Privacy Policy
             </Link>
             <Link to="/terms" className="hover:text-foreground">
               Terms of Service
             </Link>
+            <div className="border-l border-border pl-4">
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </div>

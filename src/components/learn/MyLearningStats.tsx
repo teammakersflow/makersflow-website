@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { BookOpen, Zap, Trophy, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CountUp from "@/components/CountUp";
 
 interface MyLearningStatsProps {
   coursesCount: number;
@@ -66,16 +67,13 @@ export function MyLearningStats({
               s.color,
             )}
           >
-            <div
-              className={cn(
-                "grid h-10 w-10 shrink-0 place-items-center rounded-xl",
-                s.iconBg,
-              )}
-            >
+            <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", s.iconBg)}>
               <Icon className="h-5 w-5" aria-hidden />
             </div>
             <div>
-              <div className="font-display text-2xl font-bold leading-none">{s.value}</div>
+              <div className="font-display text-2xl font-bold leading-none">
+                <CountUp to={s.value} duration={1.5} />
+              </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">{s.label}</div>
             </div>
           </motion.div>

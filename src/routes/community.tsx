@@ -1,23 +1,11 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Users,
-  MessageSquare,
-  Award,
-  Compass,
-  Mail,
-  Youtube,
-  Linkedin,
-  Instagram,
-  Twitter,
-  Github,
-} from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Users, MessageSquare, Award, Compass } from "lucide-react";
 import { toast } from "sonner";
-import { Logo } from "@/components/brand/Logo";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/landing/Header";
 import { Footer } from "@/components/landing/Footer";
 
@@ -54,21 +42,25 @@ function CommunityPage() {
     }
 
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const { error: dbError } = await supabase
+      .from("waitlist_signups")
+      .insert({ email: email.trim().toLowerCase() });
+
     setIsSubmitting(false);
 
-    toast.success("Success! You've been added to the community waitlist.");
+    if (dbError) {
+      if (dbError.code === "23505") {
+        toast.info("You are already on the community waitlist! 🎉");
+        setEmail("");
+        return;
+      }
+      toast.error("Could not save waitlist entry. Please try again.");
+      return;
+    }
+
+    toast.success("Success! You've been added to the community waitlist. 🎉");
     setEmail("");
   };
-
-  const SOCIALS = [
-    { name: "LinkedIn", icon: Linkedin, placeholder: "[Add your LinkedIn profile link]" },
-    { name: "Instagram", icon: Instagram, placeholder: "[Add your Instagram profile link]" },
-    { name: "YouTube", icon: Youtube, placeholder: "[Add your YouTube channel link]" },
-    { name: "Twitter / X", icon: Twitter, placeholder: "[Add your Twitter profile link]" },
-    { name: "GitHub", icon: Github, placeholder: "[Add your GitHub organization link]" },
-  ];
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col justify-between pt-16">
@@ -188,33 +180,6 @@ function CommunityPage() {
                 </form>
               </div>
             </Card>
-          </div>
-
-          {/* Social Links Section */}
-          <div className="mt-20 border-t border-border/80 pt-12 text-center">
-            <h2 className="font-display text-xl font-bold">Follow Our Journey</h2>
-            <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
-              Check out our social channels for updates, student projects highlights, and STEM
-              inspiration.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-4 max-w-3xl mx-auto">
-              {SOCIALS.map((soc) => {
-                const Icon = soc.icon;
-                return (
-                  <div
-                    key={soc.name}
-                    className="flex items-center gap-2 px-4 py-3 rounded-xl border border-border bg-card text-muted-foreground text-xs select-none transition-all hover:border-primary/25 hover:text-primary"
-                    title={soc.placeholder}
-                  >
-                    <Icon className="h-4 w-4 shrink-0 text-primary" />
-                    <span className="font-semibold text-foreground">{soc.name}</span>
-                    <span className="text-[10px] text-muted-foreground italic font-normal">
-                      {soc.placeholder}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
           </div>
         </main>
       </div>

@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { CheckCircle2, Clock, Sparkles, Play, Download } from "lucide-react";
+import { CheckCircle2, Clock, Sparkles, Play, Download, Award } from "lucide-react";
 import type { EnrolledCourse } from "@/lib/learn-data";
 import { cn } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 
 const CATEGORY_GRADIENT: Record<string, string> = {
   Robotics: "from-[#4F46E5] via-[#6366F1] to-[#FF6B35]",
@@ -29,8 +30,9 @@ const LEVEL_STYLE: Record<string, string> = {
 export function CourseProgressCard({ c, index }: { c: EnrolledCourse; index: number }) {
   const grad = (c.category && CATEGORY_GRADIENT[c.category]) || "from-primary to-accent";
   const icon = (c.category && CATEGORY_ICON[c.category]) || "📚";
-  const levelStyle = (c.level && LEVEL_STYLE[c.level]) || "bg-white/20 text-white border-white/30";
-  const pct = c.progress;
+  const rawPct = Number(c.progress);
+  const pct =
+    isNaN(rawPct) || !isFinite(rawPct) ? 0 : Math.min(100, Math.max(0, Math.round(rawPct)));
   const isCompleted = pct >= 100;
   const isStarted = pct > 0;
   const enrolledDate = c.enrolled_at
@@ -83,7 +85,7 @@ export function CourseProgressCard({ c, index }: { c: EnrolledCourse; index: num
             <span
               className={cn(
                 "rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide backdrop-blur-sm",
-                levelStyle,
+                LEVEL_STYLE[c.level] || "bg-primary/20 text-primary border-primary/30",
               )}
             >
               {c.level}
@@ -137,23 +139,13 @@ export function CourseProgressCard({ c, index }: { c: EnrolledCourse; index: num
           </div>
 
           {/* Progress bar */}
-          <div
-            className="h-2 overflow-hidden rounded-full bg-secondary"
-            role="progressbar"
-            aria-valuenow={pct}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${pct}%` }}
-              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1], delay: index * 0.04 }}
-              className={cn(
-                "h-full rounded-full",
-                isCompleted ? "bg-emerald-500" : "bg-gradient-to-r from-primary to-accent",
-              )}
-            />
-          </div>
+          <Slider
+            value={[pct]}
+            max={100}
+            step={1}
+            disabled
+            className="pointer-events-none py-1"
+          />
 
           {/* Status label */}
           <p className="text-[11px] text-muted-foreground">
@@ -201,15 +193,17 @@ export function CourseProgressCard({ c, index }: { c: EnrolledCourse; index: num
               </Link>
             )}
 
-            {/* Certificate download — shown only for completed */}
+            {/* Certificate button — shown for completed courses */}
             {isCompleted && (
-              <button
-                title="Download certificate"
-                aria-label="Download certificate"
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-500/30 bg-emerald-500/8 text-emerald-600 hover:bg-emerald-500/15 transition-colors"
+              <Link
+                to="/certificate/$id"
+                params={{ id: c.certificate_id ?? "demo" }}
+                title="View & Download Certificate"
+                aria-label="View & Download Certificate"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 transition-colors"
               >
-                <Download className="h-4 w-4" aria-hidden />
-              </button>
+                <Award className="h-4 w-4" aria-hidden />
+              </Link>
             )}
           </div>
         </div>

@@ -22,7 +22,7 @@ export async function hmacSha256(secret: string, message: string): Promise<strin
     enc.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
   const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
   return Array.from(new Uint8Array(sig))

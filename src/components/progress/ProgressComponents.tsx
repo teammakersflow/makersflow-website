@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
+import CountUp from "@/components/CountUp";
 import {
   BookOpen,
   Clock,
@@ -202,7 +203,7 @@ function StatCard({
           animate={{ opacity: 1 }}
           transition={{ delay: delay + 0.1 }}
         >
-          {displayed}
+          <CountUp to={value} duration={1.8} />
           <span className="text-xl font-semibold opacity-70">{def.suffix}</span>
         </motion.p>
       )}

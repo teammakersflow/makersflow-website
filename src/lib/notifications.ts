@@ -4,24 +4,38 @@ import { supabase } from "@/integrations/supabase/client";
 export const NOTIFICATIONS_LAST_SEEN_KEY = "notifications_last_seen";
 
 /**
- * Returns true if there's a published notification newer than the last time
- * this browser visited the Notifications page. Used to drive the sidebar's
- * unread dot. This is a lightweight, per-device check (no extra read-tracking
- * table) — good enough for "has something new arrived from the admin panel".
+ * Returns true if the authenticated user has unread notifications in the `notifications` table.
  */
 export async function hasUnreadNotifications(): Promise<boolean> {
-  const { data } = await supabase
-    .from("announcements")
-    .select("created_at")
-    .eq("status", "published")
-    .order("created_at", { ascending: false })
-    .limit(1);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
 
-  const latest = (data as { created_at: string }[] | null)?.[0]?.created_at;
-  if (!latest) return false;
+  const { count, error } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("is_read", false);
 
-  const lastSeen = localStorage.getItem(NOTIFICATIONS_LAST_SEEN_KEY);
-  if (!lastSeen) return true;
+  if (error) return false;
+  return (count ?? 0) > 0;
+}
 
-  return new Date(latest).getTime() > new Date(lastSeen).getTime();
+/**
+ * Marks all unread notifications for the given user as read in Supabase
+ * and updates the local last-seen timestamp.
+ */
+export async function markNotificationsAsRead(userId: string): Promise<void> {
+  try {
+    await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", userId)
+      .eq("is_read", false);
+  } catch (e) {
+    console.warn("Could not mark notifications as read:", e);
+  } finally {
+    localStorage.setItem(NOTIFICATIONS_LAST_SEEN_KEY, new Date().toISOString());
+  }
 }

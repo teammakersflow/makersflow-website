@@ -3,28 +3,29 @@ import { useEffect, useState } from "react";
 import { Bell, Info, CheckCircle2, AlertTriangle, Megaphone, ArrowUpRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
-import { NOTIFICATIONS_LAST_SEEN_KEY } from "@/lib/notifications";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { markNotificationsAsRead } from "@/lib/notifications";
 
-type NotificationType = "info" | "success" | "warning" | "announcement";
+type NotificationType = "info" | "success" | "warning" | "announcement" | string;
 
 type Notification = {
   id: string;
   title: string;
-  message: string;
+  body: string | null;
   type: NotificationType;
   link_url: string | null;
+  is_read: boolean;
   created_at: string;
 };
 
-const TYPE_META: Record<
-  NotificationType,
-  { icon: typeof Info; label: string; className: string }
-> = {
+const TYPE_META: Record<string, { icon: typeof Info; label: string; className: string }> = {
   info: { icon: Info, label: "Info", className: "bg-blue-500/10 text-blue-600" },
   success: { icon: CheckCircle2, label: "Update", className: "bg-emerald-500/10 text-emerald-600" },
   warning: { icon: AlertTriangle, label: "Alert", className: "bg-amber-500/10 text-amber-600" },
   announcement: { icon: Megaphone, label: "Announcement", className: "bg-primary/10 text-primary" },
 };
+
+const DEFAULT_META = TYPE_META.info;
 
 export const Route = createFileRoute("/notifications")({
   head: () => ({ meta: [{ title: "Notifications — MakersFlow" }] }),
@@ -32,22 +33,35 @@ export const Route = createFileRoute("/notifications")({
 });
 
 function NotificationsPage() {
+  const { user, loading: authLoading } = useRequireAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) return;
+
     supabase
-      .from("announcements")
-      .select("id, title, message, type, link_url, created_at")
-      .eq("status", "published")
+      .from("notifications")
+      .select("id, title, body, type, link_url, is_read, created_at")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .then(({ data }) => {
-        setNotifications((data as any[]) ?? []);
+        setNotifications((data as Notification[]) ?? []);
         setLoading(false);
-        // Mark everything up to "now" as seen so the sidebar badge clears.
-        localStorage.setItem(NOTIFICATIONS_LAST_SEEN_KEY, new Date().toISOString());
+        markNotificationsAsRead(user.id);
       });
-  }, []);
+  }, [user]);
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen w-full bg-background">
+        <AppSidebar />
+        <div className="grid flex-1 place-items-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -62,7 +76,7 @@ function NotificationsPage() {
               Notifications
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Updates sent directly from the MakersFlow team via the admin panel.
+              Updates and account alerts sent directly to you.
             </p>
           </header>
 
@@ -78,22 +92,31 @@ function NotificationsPage() {
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {notifications.map((n) => {
-                const meta = TYPE_META[n.type] ?? TYPE_META.info;
+                const meta = n.type && TYPE_META[n.type] ? TYPE_META[n.type] : DEFAULT_META;
                 const Icon = meta.icon;
                 return (
                   <article
                     key={n.id}
                     className="flex gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
-                    <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${meta.className}`}>
+                    <div
+                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${meta.className}`}
+                    >
                       <Icon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-base font-bold text-foreground">{n.title}</h2>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.className}`}>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${meta.className}`}
+                        >
                           {meta.label}
                         </span>
+                        {!n.is_read && (
+                          <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                            New
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {new Date(n.created_at).toLocaleDateString("en-IN", {
@@ -102,9 +125,11 @@ function NotificationsPage() {
                           year: "numeric",
                         })}
                       </p>
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
-                        {n.message}
-                      </p>
+                      {n.body && (
+                        <p className="mt-2 text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                          {n.body}
+                        </p>
+                      )}
                       {n.link_url && (
                         <a
                           href={n.link_url}

@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchCourseDetail } from "@/lib/explore-data";
 import { useCart, type CartItem } from "@/lib/cart";
 import { runRazorpayCheckout } from "@/lib/razorpay-checkout";
+import Stepper, { Step } from "@/components/Stepper";
 
 export const Route = createFileRoute("/checkout")({
   validateSearch: (search: Record<string, unknown>): { course?: string } => ({
@@ -31,10 +32,18 @@ export const Route = createFileRoute("/checkout")({
 
 // States/UTs with higher delivery costs (remote areas of India)
 const REMOTE_STATES = new Set([
-  "Arunachal Pradesh", "Assam", "Manipur", "Meghalaya", "Mizoram",
-  "Nagaland", "Sikkim", "Tripura",
-  "Andaman and Nicobar Islands", "Lakshadweep",
-  "Jammu and Kashmir", "Ladakh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Sikkim",
+  "Tripura",
+  "Andaman and Nicobar Islands",
+  "Lakshadweep",
+  "Jammu and Kashmir",
+  "Ladakh",
 ]);
 
 function CheckoutPage() {
@@ -45,18 +54,20 @@ function CheckoutPage() {
 
   const [step, setStep] = useState<StepKey>("cart");
   const [couponState, setCouponState] = useState<{
-    discount: number; code: string | null; couponId: string | null;
+    discount: number;
+    code: string | null;
+    couponId: string | null;
   }>({ discount: 0, code: null, couponId: null });
 
   // ── Refresh GST rates from DB when checkout opens ───────────────────────
   // This ensures admin GST changes reflect immediately without re-adding to cart
   useEffect(() => {
-    const productItems = items.filter(i => !i.is_course && !i.id.startsWith("demo-"));
-    const courseItems  = items.filter(i =>  i.is_course && !i.id.startsWith("demo-"));
+    const productItems = items.filter((i) => !i.is_course && !i.id.startsWith("demo-"));
+    const courseItems = items.filter((i) => i.is_course && !i.id.startsWith("demo-"));
     if (productItems.length === 0 && courseItems.length === 0) return;
 
-    const productIds = productItems.map(i => i.id);
-    const courseIds  = courseItems.map(i => i.course_id ?? i.id);
+    const productIds = productItems.map((i) => i.id);
+    const courseIds = courseItems.map((i) => i.course_id ?? i.id);
 
     Promise.all([
       productIds.length > 0
@@ -72,7 +83,7 @@ function CheckoutPage() {
       }
       if (gstMap.size > 0 && updateGstRates) updateGstRates(gstMap);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Dynamic shipping config from DB ────────────────────────────────────
@@ -82,16 +93,19 @@ function CheckoutPage() {
     threshold: 999,
   });
   useEffect(() => {
-    supabase.from("settings")
+    supabase
+      .from("settings")
       .select("key, value")
       .in("key", ["shipping_fee", "shipping_fee_remote", "free_shipping_threshold"])
       .then(({ data }) => {
         if (!data) return;
-        const map = Object.fromEntries(data.map((r: { key: string; value: string }) => [r.key, Number(r.value)]));
+        const map = Object.fromEntries(
+          data.map((r: { key: string; value: string }) => [r.key, Number(r.value)]),
+        );
         setShippingConfig({
-          fee:       map.shipping_fee             ?? 49,
-          remoteFee: map.shipping_fee_remote      ?? 149,
-          threshold: map.free_shipping_threshold  ?? 999,
+          fee: map.shipping_fee ?? 49,
+          remoteFee: map.shipping_fee_remote ?? 149,
+          threshold: map.free_shipping_threshold ?? 999,
         });
       });
   }, []);
@@ -163,17 +177,21 @@ function CheckoutPage() {
   const discount = couponState.discount;
 
   // Per-item GST (mirrors CheckoutComponents.tsx logic)
-  const tax = useMemo(() => Math.round(
-    items.reduce((sum, item) => {
-      const itemSubtotal  = item.price * item.qty;
-      const discountShare = subtotal > 0 ? (itemSubtotal / subtotal) * discount : 0;
-      const itemTaxable   = Math.max(0, itemSubtotal - discountShare);
-      return sum + itemTaxable * ((item.gst_rate ?? 18) / 100);
-    }, 0),
-  ), [items, subtotal, discount]);
+  const tax = useMemo(
+    () =>
+      Math.round(
+        items.reduce((sum, item) => {
+          const itemSubtotal = item.price * item.qty;
+          const discountShare = subtotal > 0 ? (itemSubtotal / subtotal) * discount : 0;
+          const itemTaxable = Math.max(0, itemSubtotal - discountShare);
+          return sum + itemTaxable * ((item.gst_rate ?? 18) / 100);
+        }, 0),
+      ),
+    [items, subtotal, discount],
+  );
 
   const taxable = Math.max(0, subtotal - discount);
-  const total   = taxable + tax + shippingFee;
+  const total = taxable + tax + shippingFee;
   const stepIndex = STEPS.findIndex((s) => s.key === step);
 
   if (loading) {
@@ -188,18 +206,15 @@ function CheckoutPage() {
     if (!shipping.full_name.trim() || shipping.full_name.trim().length < 2)
       return "Please enter your full name (at least 2 characters)";
     const phoneDigits = shipping.phone.replace(/^\+91\s*/, "").replace(/\D/g, "");
-    if (phoneDigits.length !== 10)
-      return "Please enter a valid 10-digit mobile number";
+    if (phoneDigits.length !== 10) return "Please enter a valid 10-digit mobile number";
     if (!shipping.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(shipping.email))
       return "Please enter a valid email address";
     if (!shipping.address_line1.trim() || shipping.address_line1.trim().length < 5)
       return "Please enter your full address (house/flat number and street)";
     if (!shipping.city.trim() || shipping.city.trim().length < 2)
       return "Please enter your city name";
-    if (!shipping.state)
-      return "Please select your state / UT";
-    if (!/^\d{6}$/.test(shipping.pincode))
-      return "Please enter a valid 6-digit PIN code";
+    if (!shipping.state) return "Please select your state / UT";
+    if (!/^\d{6}$/.test(shipping.pincode)) return "Please enter a valid 6-digit PIN code";
     return null;
   };
 
@@ -217,16 +232,17 @@ function CheckoutPage() {
         return;
       }
       // ── Stock check for physical products ──
-      const productItems = items.filter(i => !i.is_course);
+      const productItems = items.filter((i) => !i.is_course);
       if (productItems.length > 0) {
-        const ids = productItems.map(i => i.id);
+        const ids = productItems.map((i) => i.id);
         const { data: stockData } = await supabase
           .from("products")
           .select("id, title, stock_quantity, in_stock")
           .in("id", ids);
 
-        const outOfStock = (stockData ?? []).filter((p: { stock_quantity: number; in_stock: boolean }) =>
-          p.in_stock === false || (p.stock_quantity !== -1 && p.stock_quantity <= 0)
+        const outOfStock = (stockData ?? []).filter(
+          (p: { stock_quantity: number; in_stock: boolean }) =>
+            p.in_stock === false || (p.stock_quantity !== -1 && p.stock_quantity <= 0),
         ) as Array<{ id: string; title: string }>;
 
         if (outOfStock.length > 0) {
@@ -313,7 +329,10 @@ function CheckoutPage() {
       toast.error(err instanceof Error ? err.message : "Payment failed");
       navigate({
         to: "/payment-failed",
-        search: { reason: err instanceof Error ? err.message : "Payment could not be completed.", order_id: "" },
+        search: {
+          reason: err instanceof Error ? err.message : "Payment could not be completed.",
+          order_id: "",
+        },
       });
     } finally {
       setPaying(false);
@@ -421,5 +440,3 @@ function CheckoutPage() {
     </div>
   );
 }
-
-

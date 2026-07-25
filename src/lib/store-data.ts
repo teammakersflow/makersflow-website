@@ -147,10 +147,7 @@ export async function fetchProducts(): Promise<Product[]> {
       .from("products")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error || !data || data.length === 0) {
-      console.warn(`[makersflow] fetchProducts products failed or empty, using fallback:`, error);
-      return FALLBACK;
-    }
+    if (error || !data) return [];
     return (data as Record<string, unknown>[]).map(normalize);
   } catch (err) {
     console.warn(`[makersflow] fetchProducts products threw, using fallback:`, err);

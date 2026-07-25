@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useAuth } from "@/integrations/supabase/auth";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { NavBar } from "@/components/ui/tubelight-navbar";
@@ -15,6 +16,7 @@ const NAV_ITEMS = [
 
 export function Header() {
   const [scrolled, setScrolled] = useState(false);
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -35,13 +37,28 @@ export function Header() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 lg:px-8">
           <Logo />
 
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex rounded-[var(--radius-buttons)]" asChild>
-              <Link to="/login">Sign in</Link>
-            </Button>
-            <Button variant="hero" size="sm" className="rounded-[var(--radius-buttons)]" asChild>
-              <Link to="/register">Get started</Link>
-            </Button>
+          <div className="flex items-center gap-3">
+            {loading ? (
+              <div className="h-9 w-28 rounded-full bg-secondary/50 animate-pulse" />
+            ) : user ? (
+              <Button size="default" className="rounded-full px-5 font-medium shadow-sm" asChild>
+                <Link to="/dashboard">Go to Dashboard</Link>
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="default"
+                  className="hidden sm:inline-flex rounded-full font-medium"
+                  asChild
+                >
+                  <Link to="/login">Sign in</Link>
+                </Button>
+                <Button size="default" className="rounded-full px-5 font-medium shadow-sm" asChild>
+                  <Link to="/register">Get started</Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>

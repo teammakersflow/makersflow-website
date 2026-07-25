@@ -247,6 +247,7 @@ export type EnrolledCourse = {
   next_lesson_id: string | null;
   enrolled_at: string | null;
   completed_at: string | null;
+  certificate_id?: string | null;
 };
 
 function flattenLessons(modules: Module[]) {

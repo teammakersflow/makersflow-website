@@ -1,36 +1,19 @@
 import { motion } from "framer-motion";
 import { useRef, useState } from "react";
 import { Cpu, Brain, Zap, Wifi, Code2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 const CATS = [
-  { name: "Robotics", icon: Cpu, count: "12 courses", from: "from-primary", to: "to-accent" },
-  {
-    name: "AI & ML",
-    icon: Brain,
-    count: "9 courses",
-    from: "from-primary-dark",
-    to: "to-primary-light",
-  },
-  {
-    name: "Electronics",
-    icon: Zap,
-    count: "8 courses",
-    from: "from-accent",
-    to: "to-accent-light",
-  },
-  { name: "IoT", icon: Wifi, count: "7 courses", from: "from-primary-light", to: "to-accent" },
-  {
-    name: "Programming",
-    icon: Code2,
-    count: "14 courses",
-    from: "from-primary",
-    to: "to-primary-light",
-  },
+  { name: "Robotics", icon: Cpu, from: "from-primary", to: "to-accent" },
+  { name: "AI & ML", icon: Brain, from: "from-primary-dark", to: "to-primary-light" },
+  { name: "Electronics", icon: Zap, from: "from-accent", to: "to-accent-light" },
+  { name: "IoT", icon: Wifi, from: "from-primary-light", to: "to-accent" },
+  { name: "Programming", icon: Code2, from: "from-primary", to: "to-primary-light" },
 ];
 
 export function Categories() {
   return (
-    <section id="categories" className="relative py-20 sm:py-28">
+    <section id="categories" className="relative py-20 sm:py-28 scroll-mt-36">
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
         <div className="mb-12 flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -59,14 +42,12 @@ export function Categories() {
 function TiltCard({
   name,
   icon: Icon,
-  count,
   from,
   to,
   index,
 }: {
   name: string;
   icon: React.ComponentType<{ className?: string }>;
-  count: string;
   from: string;
   to: string;
   index: number;
@@ -91,47 +72,49 @@ function TiltCard({
       transition={{ duration: 0.5, delay: index * 0.06 }}
       style={{ perspective: 1000 }}
     >
-      <div
-        ref={ref}
-        onMouseMove={onMove}
-        onMouseLeave={onLeave}
-        style={{
-          transform: `rotateX(${t.rx}deg) rotateY(${t.ry}deg)`,
-          transformStyle: "preserve-3d",
-          transition: "transform 200ms ease-out",
-        }}
-        className="group relative aspect-[4/5] cursor-pointer overflow-hidden rounded-2xl border border-border bg-card p-5"
-      >
+      <Link to="/explore" className="block">
         <div
-          aria-hidden
-          className={`absolute inset-0 -z-10 bg-gradient-to-br ${from} ${to} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
-        />
-        <div
-          aria-hidden
-          className="absolute inset-0 -z-10 opacity-[0.12]"
+          ref={ref}
+          onMouseMove={onMove}
+          onMouseLeave={onLeave}
           style={{
-            backgroundImage:
-              "radial-gradient(circle, color-mix(in oklab, var(--foreground) 50%, transparent) 1px, transparent 1px)",
-            backgroundSize: "16px 16px",
+            transform: `rotateX(${t.rx}deg) rotateY(${t.ry}deg)`,
+            transformStyle: "preserve-3d",
+            transition: "transform 200ms ease-out",
           }}
-        />
-        <div className="flex h-full flex-col justify-between">
+          className="group relative aspect-[4/5] cursor-pointer overflow-hidden rounded-2xl border border-border bg-card p-5"
+        >
           <div
-            style={{ transform: "translateZ(28px)" }}
-            className={`grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br ${from} ${to} text-white shadow-lg`}
-          >
-            <Icon className="h-6 w-6" />
-          </div>
-          <div style={{ transform: "translateZ(20px)" }}>
-            <h3 className="font-display text-xl font-bold text-foreground transition-colors group-hover:text-white">
-              {name}
-            </h3>
-            <p className="mt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-white/80">
-              {count}
-            </p>
+            aria-hidden
+            className={`absolute inset-0 -z-10 bg-gradient-to-br ${from} ${to} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
+          />
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 opacity-[0.12]"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle, color-mix(in oklab, var(--foreground) 50%, transparent) 1px, transparent 1px)",
+              backgroundSize: "16px 16px",
+            }}
+          />
+          <div className="flex h-full flex-col justify-between">
+            <div
+              style={{ transform: "translateZ(28px)" }}
+              className={`grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br ${from} ${to} text-white shadow-lg`}
+            >
+              <Icon className="h-6 w-6" />
+            </div>
+            <div style={{ transform: "translateZ(20px)" }}>
+              <h3 className="font-display text-xl font-bold text-foreground transition-colors group-hover:text-white">
+                {name}
+              </h3>
+              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-white/80">
+                Explore courses →
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </Link>
     </motion.div>
   );
 }

@@ -94,46 +94,68 @@ export async function fetchStreak(userId: string): Promise<StreakInfo> {
 }
 
 export async function fetchStats(userId: string): Promise<DashboardStats> {
-  console.log("[fetchStats] Start, userId:", userId);
   return safe(
     async () => {
-      const { data: enr, error: enrError } = await supabase
-        .from("enrollments")
-        .select("id, course_id, completed_at")
-        .eq("user_id", userId);
-      
-      console.log("[fetchStats] Enrollments result:", enr, "Error:", enrError);
-      
+      const [{ data: enr }, { data: timeData }] = await Promise.all([
+        supabase
+          .from("enrollments")
+          .select("id, course_id, completed_at")
+          .eq("user_id", userId),
+        supabase
+          .from("lesson_progress")
+          .select("time_spent_secs")
+          .eq("user_id", userId),
+      ]);
+
       const enrRows =
         (enr as Array<{
           id: string;
-          course_id: string;
+          course_id: string | number;
           completed_at?: string | null;
         }>) ?? [];
 
+      const totalSecs = (timeData ?? []).reduce(
+        (sum: number, row: any) => sum + (Number(row?.time_spent_secs) || 0),
+        0,
+      );
+      const totalHours = Math.max(0, Math.round(totalSecs / 3600));
+
+      if (enrRows.length === 0) {
+        return { enrolled: 0, completed: 0, avgProgress: 0, totalHours };
+      }
+
       const rows = [];
       for (const r of enrRows) {
-        console.log("[fetchStats] Fetching progress for course:", r.course_id);
+        if (!r?.course_id) continue;
         const courseIdStr = String(r.course_id);
         // Get lesson IDs for this course
-        const { data: modulesData } = await supabase.from("modules").select("id").eq("course_id", courseIdStr);
-        const moduleIds = (modulesData ?? []).map((m: any) => m.id);
+        const { data: modulesData } = await supabase
+          .from("modules")
+          .select("id")
+          .eq("course_id", courseIdStr);
+        const moduleIds = (modulesData ?? []).map((m: any) => m.id).filter(Boolean);
         let percentage = 0;
         if (moduleIds.length > 0) {
-          const { data: lessonsData } = await supabase.from("lessons").select("id").in("module_id", moduleIds);
-          const lessonIds = (lessonsData ?? []).map((l: any) => Number(l.id));
-          if (lessonIds.length > 0) {
+          const { data: lessonsData } = await supabase
+            .from("lessons")
+            .select("id")
+            .in("module_id", moduleIds);
+          const validIds = (lessonsData ?? [])
+            .map((l: any) => l.id)
+            .filter((id: any) => id !== null && id !== undefined);
+          if (validIds.length > 0) {
             const { data: progressData } = await supabase
               .from("lesson_progress")
               .select("lesson_id, is_completed, watch_percentage")
               .eq("user_id", userId)
-              .in("lesson_id", lessonIds);
+              .in("lesson_id", validIds);
             const pRows = progressData ?? [];
-            const completedCount = pRows.filter((p: any) => p.is_completed).length;
-            percentage = lessonIds.length ? Math.round((completedCount / lessonIds.length) * 100) : 0;
+            const completedCount = pRows.filter((p: any) => p?.is_completed).length;
+            percentage = validIds.length
+              ? Math.round((completedCount / validIds.length) * 100)
+              : 0;
           }
         }
-        console.log(`[fetchStats] Course ${r.course_id} progress calculated:`, percentage);
         rows.push({
           progress: percentage,
           completed_at: r.completed_at ?? null,
@@ -141,63 +163,17 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
         });
       }
 
-      let demoEnrollments: string[] = [];
-      try {
-        demoEnrollments = JSON.parse(localStorage.getItem(`demo_enrollments_${userId}`) || "[]");
-      } catch {}
-
-      const demoRows: Array<{
-        progress: number;
-        completed_at: string | null;
-        status: string;
-        time_spent_secs: number;
-      }> = [];
-      for (const demoId of demoEnrollments) {
-        let progressMap: Record<string, any> = {};
-        try {
-          progressMap = JSON.parse(
-            localStorage.getItem(`demo_progress_${userId}_${demoId}`) || "{}",
-          );
-        } catch {}
-        const totalLessons = 12;
-        const completedLessons = Object.values(progressMap).filter(
-          (l: any) => l.is_completed,
-        ).length;
-        const progress = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0;
-        const timeSpent = Object.values(progressMap).reduce(
-          (s: number, l: any) => s + (l.time_spent_secs ?? 0),
-          0,
-        );
-        demoRows.push({
-          progress,
-          completed_at: progress >= 100 ? new Date().toISOString() : null,
-          status: progress >= 100 ? "completed" : "active",
-          time_spent_secs: timeSpent,
-        });
-      }
-
-      const allRows = [
-        ...rows.map((r) => ({
-          progress: r.progress ?? 0,
-          completed_at: r.completed_at ?? null,
-          status: r.status ?? "active",
-          time_spent_secs: 0,
-        })),
-        ...demoRows,
-      ];
-      const enrolled = allRows.length;
-      const completed = allRows.filter(
+      const enrolled = rows.length;
+      const completed = rows.filter(
         (r) => r.completed_at || r.status === "completed" || r.progress >= 100,
       ).length;
-      const avg = enrolled ? Math.round(allRows.reduce((s, r) => s + r.progress, 0) / enrolled) : 0;
-      const totalSecs = allRows.reduce((s, r) => s + r.time_spent_secs, 0);
+      const avg = enrolled ? Math.round(rows.reduce((s, r) => s + r.progress, 0) / enrolled) : 0;
       const statsResult = {
         enrolled,
         completed,
         avgProgress: avg,
-        totalHours: Math.max(0, Math.round(totalSecs / 3600)),
+        totalHours,
       };
-      console.log("[fetchStats] returning statsResult:", statsResult);
       return statsResult;
     },
     { enrolled: 0, completed: 0, avgProgress: 0, totalHours: 0 },
@@ -208,45 +184,6 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
 export async function fetchContinueLesson(userId: string): Promise<ContinueLesson | null> {
   return safe(
     async () => {
-      // 1. Scan localStorage for latest demo progress
-      let latestDemo: ContinueLesson | null = null;
-      let latestDemoTime = 0;
-      try {
-        const prefix = `demo_progress_${userId}_`;
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (!key?.startsWith(prefix)) continue;
-          const courseId = key.replace(prefix, "");
-          const map: Record<string, any> = JSON.parse(localStorage.getItem(key) || "{}");
-          for (const [lessonId, item] of Object.entries(map)) {
-            if (!item?.last_watched_at || item.is_completed) continue;
-            const t = new Date(item.last_watched_at).getTime();
-            if (t > latestDemoTime) {
-              latestDemoTime = t;
-              const course = FALLBACK.find((c) => c.id === courseId);
-              const allLessons = DEMO_MODULES.flatMap((m) => m.lessons);
-              const lesson = allLessons.find((l) => l.id === lessonId);
-              if (course && lesson) {
-                const totalLessons = allLessons.length;
-                const completedLessons = Object.values(map).filter(
-                  (l: any) => l.is_completed,
-                ).length;
-                latestDemo = {
-                  course_id: courseId,
-                  course_title: course.title,
-                  course_thumbnail: course.thumbnail_url ?? null,
-                  lesson_id: lessonId,
-                  lesson_title: lesson.title,
-                  progress: totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0,
-                  last_watched_at: item.last_watched_at,
-                };
-              }
-            }
-          }
-        }
-      } catch {}
-
-      // 2. Fetch latest real progress from Supabase - use separate queries to avoid FK join issues
       const { data: lpData } = await supabase
         .from("lesson_progress")
         .select("lesson_id, course_id, watch_percentage, last_watched_at")
@@ -256,49 +193,52 @@ export async function fetchContinueLesson(userId: string): Promise<ContinueLesso
         .limit(1)
         .maybeSingle();
 
-      let latestReal: ContinueLesson | null = null;
-      let latestRealTime = 0;
-      if (lpData) {
-        const d = lpData as any;
-        const courseIdStr = String(d.course_id);
-        const lessonIdNum = Number(d.lesson_id);
+      if (!lpData) return null;
 
-        // Fetch course and lesson info with separate queries
-        const [{ data: courseData }, { data: lessonData }] = await Promise.all([
-          supabase.from("courses").select("title, thumbnail_url").eq("id", courseIdStr).maybeSingle(),
-          supabase.from("lessons").select("title").eq("id", lessonIdNum).maybeSingle(),
-        ]);
+      const d = lpData as any;
+      const courseIdStr = String(d.course_id);
+      const rawLessonId = d.lesson_id;
 
-        // Compute progress inline using fetchCourseProgressMap
-        const progressMap = await fetchCourseProgressMap(userId, courseIdStr);
-        const completedCount = Object.values(progressMap).filter((r: any) => r.is_completed).length;
-        // Get total from modules/lessons
-        const { data: mods } = await supabase.from("modules").select("id").eq("course_id", courseIdStr);
-        const modIds = (mods ?? []).map((m: any) => m.id);
-        let percentage = 0;
-        if (modIds.length > 0) {
-          const { data: lsns } = await supabase.from("lessons").select("id").in("module_id", modIds);
-          const total = (lsns ?? []).length;
-          percentage = total ? Math.round((completedCount / total) * 100) : 0;
-        }
-        latestRealTime = d.last_watched_at ? new Date(d.last_watched_at).getTime() : 0;
+      if (!rawLessonId) return null;
 
-        latestReal = {
-          course_id: courseIdStr,
-          course_title: (courseData as any)?.title ?? "Untitled Course",
-          course_thumbnail: (courseData as any)?.thumbnail_url ?? null,
-          lesson_id: String(d.lesson_id),
-          lesson_title: (lessonData as any)?.title ?? "Untitled Lesson",
-          progress: percentage,
-          last_watched_at: d.last_watched_at,
-        };
+      // Fetch course and lesson info with separate queries
+      const [{ data: courseData }, { data: lessonData }] = await Promise.all([
+        supabase
+          .from("courses")
+          .select("title, thumbnail_url")
+          .eq("id", courseIdStr)
+          .maybeSingle(),
+        supabase.from("lessons").select("title").eq("id", rawLessonId).maybeSingle(),
+      ]);
+
+      // Compute progress inline using fetchCourseProgressMap
+      const progressMap = await fetchCourseProgressMap(userId, courseIdStr);
+      const completedCount = Object.values(progressMap ?? {}).filter((r: any) => r?.is_completed).length;
+      // Get total from modules/lessons
+      const { data: mods } = await supabase
+        .from("modules")
+        .select("id")
+        .eq("course_id", courseIdStr);
+      const modIds = (mods ?? []).map((m: any) => m.id).filter(Boolean);
+      let percentage = 0;
+      if (modIds.length > 0) {
+        const { data: lsns } = await supabase
+          .from("lessons")
+          .select("id")
+          .in("module_id", modIds);
+        const total = (lsns ?? []).length;
+        percentage = total ? Math.round((completedCount / total) * 100) : 0;
       }
 
-      // 3. Return the more recent progress
-      if (latestReal && latestRealTime >= latestDemoTime) {
-        return latestReal;
-      }
-      return latestDemo;
+      return {
+        course_id: courseIdStr,
+        course_title: (courseData as any)?.title ?? "Untitled Course",
+        course_thumbnail: (courseData as any)?.thumbnail_url ?? null,
+        lesson_id: String(rawLessonId),
+        lesson_title: (lessonData as any)?.title ?? "Untitled Lesson",
+        progress: percentage,
+        last_watched_at: d.last_watched_at,
+      };
     },
     null,
     "fetchContinueLesson",
@@ -315,12 +255,10 @@ export async function fetchRecommended(): Promise<CourseCard[]> {
         )
         .order("rating", { ascending: false })
         .limit(8);
-      // FALLBACK used here: if Supabase has no courses yet, show the 8 demo courses
-      // so the Dashboard "Recommended" section is never empty during development.
       if (data && (data as any[]).length > 0) return data as CourseCard[];
-      return FALLBACK.slice(0, 8) as unknown as CourseCard[];
+      return [];
     },
-    FALLBACK.slice(0, 8) as unknown as CourseCard[],
+    [],
     "fetchRecommended",
   );
 }
@@ -352,25 +290,8 @@ export async function fetchWeeklyActivity(userId: string): Promise<WeeklyPoint[]
         .gte("last_watched_at", since.toISOString());
       const rows = (data as Array<{ last_watched_at: string | null }>) ?? [];
 
-      // Also include demo progress rows from localStorage
-      const demoRows: Array<{ last_watched_at: string | null }> = [];
-      try {
-        const prefix = `demo_progress_${userId}_`;
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key?.startsWith(prefix)) {
-            const map = JSON.parse(localStorage.getItem(key) || "{}");
-            for (const item of Object.values(map) as any[]) {
-              if (item?.last_watched_at && new Date(item.last_watched_at) >= since) {
-                demoRows.push({ last_watched_at: item.last_watched_at });
-              }
-            }
-          }
-        }
-      } catch {}
-
-      for (const r of [...rows, ...demoRows]) {
-        if (!r.last_watched_at) continue;
+      for (const r of rows) {
+        if (!r?.last_watched_at) continue;
         const target = days.find((d) => d.date === r.last_watched_at!.slice(0, 10));
         if (target) target.count += 1;
       }
@@ -382,47 +303,49 @@ export async function fetchWeeklyActivity(userId: string): Promise<WeeklyPoint[]
 }
 
 export function fetchAchievements(stats: DashboardStats, streak: StreakInfo): Achievement[] {
+  const safeStats = stats ?? { enrolled: 0, completed: 0, avgProgress: 0, totalHours: 0 };
+  const safeStreak = streak ?? { current_streak: 0, longest_streak: 0 };
   return [
     {
       id: "first_lesson",
       label: "First Step",
       icon: "🚀",
-      unlocked: stats.enrolled >= 1,
+      unlocked: (safeStats.enrolled ?? 0) >= 1,
       description: "Enrolled in your first course",
     },
     {
       id: "streak_3",
       label: "On Fire",
       icon: "🔥",
-      unlocked: streak.current_streak >= 3,
+      unlocked: (safeStreak.current_streak ?? 0) >= 3,
       description: "3-day learning streak",
     },
     {
       id: "streak_7",
       label: "Week Warrior",
       icon: "⚡",
-      unlocked: streak.current_streak >= 7,
+      unlocked: (safeStreak.current_streak ?? 0) >= 7,
       description: "7-day learning streak",
     },
     {
       id: "completed_1",
       label: "Graduate",
       icon: "🎓",
-      unlocked: stats.completed >= 1,
+      unlocked: (safeStats.completed ?? 0) >= 1,
       description: "Completed a course",
     },
     {
       id: "hours_5",
       label: "Dedicated",
       icon: "⏱",
-      unlocked: stats.totalHours >= 5,
+      unlocked: (safeStats.totalHours ?? 0) >= 5,
       description: "5+ hours of learning",
     },
     {
       id: "enrolled_3",
       label: "Explorer",
       icon: "🧭",
-      unlocked: stats.enrolled >= 3,
+      unlocked: (safeStats.enrolled ?? 0) >= 3,
       description: "Enrolled in 3+ courses",
     },
   ];

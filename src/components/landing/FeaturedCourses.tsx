@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { enrollInCourse, isEnrolled } from "@/lib/explore-data";
 import { toast } from "sonner";
+import BorderGlow from "@/components/BorderGlow";
 
 const CATEGORY_GRADIENT: Record<string, string> = {
   Robotics: "from-primary via-primary-light to-accent",
@@ -28,7 +29,7 @@ export function FeaturedCourses() {
   const scrollBy = (dx: number) => scrollerRef.current?.scrollBy({ left: dx, behavior: "smooth" });
 
   return (
-    <section id="featured" className="relative py-20 sm:py-28">
+    <section id="featured" className="relative py-20 sm:py-28 scroll-mt-36">
       <div className="mx-auto max-w-7xl px-5 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
@@ -67,9 +68,18 @@ export function FeaturedCourses() {
           ref={scrollerRef}
           className="mt-10 flex snap-x snap-mandatory gap-6 overflow-x-auto pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          {isLoading
-            ? Array.from({ length: 5 }).map((_, i) => <CourseSkeleton key={i} />)
-            : data?.map((c, i) => <CourseTile key={c.id} c={c} index={i} />)}
+          {isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => <CourseSkeleton key={i} />)
+          ) : data && data.length > 0 ? (
+            data.map((c, i) => <CourseTile key={c.id} c={c} index={i} />)
+          ) : (
+            <div className="flex w-full flex-col items-center justify-center gap-4 py-16 text-center">
+              <p className="text-muted-foreground">New courses coming soon. Check back shortly!</p>
+              <Button variant="outline" asChild>
+                <Link to="/explore">Browse all courses</Link>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -155,6 +165,107 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
     navigate({ to: "/checkout", search: { course: c.id } });
   };
 
+  const cardContent = (
+    <div className="relative block h-full w-full transition-transform duration-300 group-hover:-translate-y-2">
+      {/* Thumbnail with gradient border glow on hover */}
+      <div className="relative cursor-pointer" onClick={handleCardClick}>
+        <div
+          aria-hidden
+          className={`absolute -inset-0.5 rounded-[var(--radius-cards)] bg-gradient-to-br ${grad} opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-70`}
+        />
+        <div
+          className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-cards)]"
+          style={{
+            backgroundImage: c.thumbnail_url ? `url(${c.thumbnail_url})` : undefined,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          {!c.thumbnail_url && (
+            <div className={`absolute inset-0 bg-gradient-to-br ${grad}`}>
+              <div
+                className="absolute inset-0 opacity-30"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), transparent 50%)",
+                }}
+              />
+              <div className="absolute bottom-4 left-4 font-display text-4xl font-bold text-white/95">
+                {c.category?.split(" ")[0] ?? "Edo"}
+              </div>
+            </div>
+          )}
+          {c.is_free || c.price === 0 ? (
+            <span className="absolute right-3 top-3 rounded-[var(--radius-pill)] bg-success px-2.5 py-1 text-xs font-bold text-success-foreground shadow">
+              FREE
+            </span>
+          ) : (
+            c.original_price &&
+            c.price != null &&
+            c.price < c.original_price && (
+              <span className="absolute right-3 top-3 rounded-[var(--radius-pill)] bg-accent px-2.5 py-1 text-xs font-bold text-accent-foreground shadow">
+                {Math.round(((c.original_price - c.price) / c.original_price) * 100)}% OFF
+              </span>
+            )
+          )}
+        </div>
+      </div>
+
+      {/* Meta sits directly on page background */}
+      <div className="mt-4 px-1 cursor-pointer" onClick={handleCardClick}>
+        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <span>{c.category}</span>
+          {c.level && (
+            <>
+              <span className="h-1 w-1 rounded-full bg-border" />
+              <span>{c.level.charAt(0).toUpperCase() + c.level.slice(1)}</span>
+            </>
+          )}
+        </div>
+        <h3 className="mt-2 line-clamp-2 font-display text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary">
+          {c.title}
+        </h3>
+        {c.instructor_name && (
+          <p className="mt-1 text-sm text-muted-foreground">{c.instructor_name}</p>
+        )}
+        <div className="mt-3 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-sm">
+            <Star className="h-3.5 w-3.5 fill-accent text-accent" />
+            <span className="font-numeric text-foreground">{c.rating?.toFixed(1) ?? "—"}</span>
+            {c.total_reviews ? (
+              <span className="text-muted-foreground">({c.total_reviews})</span>
+            ) : null}
+          </div>
+          <div className="font-numeric text-foreground">
+            {c.is_free || c.price === 0 ? (
+              <span className="text-success font-bold">Free</span>
+            ) : (
+              <span className="flex items-baseline gap-2">
+                <span className="text-lg font-bold">₹{(c.price ?? 0).toLocaleString("en-IN")}</span>
+                {c.original_price && c.price != null && c.original_price > c.price && (
+                  <span className="text-xs font-normal text-muted-foreground line-through">
+                    ₹{c.original_price.toLocaleString("en-IN")}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-border px-1">
+        <button
+          onClick={handleEnroll}
+          disabled={loading}
+          type="button"
+          className="w-full bg-primary hover:bg-primary/95 text-primary-foreground font-semibold rounded-[var(--radius-buttons)] py-2 flex items-center justify-center gap-1.5 group-hover:bg-primary-dark transition-all text-center text-sm shadow-[var(--shadow-glow-primary)] disabled:opacity-50"
+        >
+          {loading ? "Enrolling..." : enrolled ? "Continue Learning" : "Enroll Now"}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <motion.article
       initial={{ opacity: 0, y: 24 }}
@@ -163,107 +274,19 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
       transition={{ duration: 0.5, delay: Math.min(index * 0.06, 0.3) }}
       className="group w-[280px] shrink-0 snap-start sm:w-[320px]"
     >
-      {/* Whole card lifts together on hover (no detached pieces) */}
-      <div className="relative block h-full w-full transition-transform duration-300 group-hover:-translate-y-2">
-        {/* Thumbnail with gradient border glow on hover */}
-        <div className="relative cursor-pointer" onClick={handleCardClick}>
-          <div
-            aria-hidden
-            className={`absolute -inset-0.5 rounded-[var(--radius-cards)] bg-gradient-to-br ${grad} opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-70`}
-          />
-          <div
-            className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-cards)]"
-            style={{
-              backgroundImage: c.thumbnail_url ? `url(${c.thumbnail_url})` : undefined,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }}
-          >
-            {!c.thumbnail_url && (
-              <div className={`absolute inset-0 bg-gradient-to-br ${grad}`}>
-                <div
-                  className="absolute inset-0 opacity-30"
-                  style={{
-                    backgroundImage:
-                      "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), transparent 50%)",
-                  }}
-                />
-                <div className="absolute bottom-4 left-4 font-display text-4xl font-bold text-white/95">
-                  {c.category?.split(" ")[0] ?? "Edo"}
-                </div>
-              </div>
-            )}
-            {c.is_free || c.price === 0 ? (
-              <span className="absolute right-3 top-3 rounded-[var(--radius-pill)] bg-success px-2.5 py-1 text-xs font-bold text-success-foreground shadow">
-                FREE
-              </span>
-            ) : (
-              c.original_price &&
-              c.price != null &&
-              c.price < c.original_price && (
-                <span className="absolute right-3 top-3 rounded-[var(--radius-pill)] bg-accent px-2.5 py-1 text-xs font-bold text-accent-foreground shadow">
-                  {Math.round(((c.original_price - c.price) / c.original_price) * 100)}% OFF
-                </span>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* Meta sits directly on page background */}
-        <div className="mt-4 px-1 cursor-pointer" onClick={handleCardClick}>
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            <span>{c.category}</span>
-            {c.level && (
-              <>
-                <span className="h-1 w-1 rounded-full bg-border" />
-                <span>{c.level.charAt(0).toUpperCase() + c.level.slice(1)}</span>
-              </>
-            )}
-          </div>
-          <h3 className="mt-2 line-clamp-2 font-display text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary">
-            {c.title}
-          </h3>
-          {c.instructor_name && (
-            <p className="mt-1 text-sm text-muted-foreground">{c.instructor_name}</p>
-          )}
-          <div className="mt-3 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-sm">
-              <Star className="h-3.5 w-3.5 fill-accent text-accent" />
-              <span className="font-numeric text-foreground">{c.rating?.toFixed(1) ?? "—"}</span>
-              {c.total_reviews ? (
-                <span className="text-muted-foreground">({c.total_reviews})</span>
-              ) : null}
-            </div>
-            <div className="font-numeric text-foreground">
-              {c.is_free || c.price === 0 ? (
-                <span className="text-success font-bold">Free</span>
-              ) : (
-                <span className="flex items-baseline gap-2">
-                  <span className="text-lg font-bold">
-                    ₹{(c.price ?? 0).toLocaleString("en-IN")}
-                  </span>
-                  {c.original_price && c.price != null && c.original_price > c.price && (
-                    <span className="text-xs font-normal text-muted-foreground line-through">
-                      ₹{c.original_price.toLocaleString("en-IN")}
-                    </span>
-                  )}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 pt-3 border-t border-border px-1">
-          <button
-            onClick={handleEnroll}
-            disabled={loading}
-            type="button"
-            className="w-full bg-primary hover:bg-primary/95 text-primary-foreground font-semibold rounded-[var(--radius-buttons)] py-2 flex items-center justify-center gap-1.5 group-hover:bg-primary-dark transition-all text-center text-sm shadow-[var(--shadow-glow-primary)] disabled:opacity-50"
-          >
-            {loading ? "Enrolling..." : enrolled ? "Continue Learning" : "Enroll Now"}
-          </button>
-        </div>
-      </div>
+      {index === 0 ? (
+        <BorderGlow
+          borderRadius={24}
+          glowColor="277 80 60"
+          colors={["#4F46E5", "#FF6B35", "#10B981"]}
+          backgroundColor="transparent"
+          glowIntensity={0.8}
+        >
+          {cardContent}
+        </BorderGlow>
+      ) : (
+        cardContent
+      )}
     </motion.article>
   );
 }

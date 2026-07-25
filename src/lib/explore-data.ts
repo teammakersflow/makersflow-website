@@ -203,8 +203,7 @@ export async function fetchExploreCourses(filters: ExploreFilters): Promise<Cour
     }
 
     const { data, error } = await q.limit(48);
-    console.log("[fetchExploreCourses] Raw Supabase query response:", { data, error });
-    if (error || !data || data.length === 0) return applyClientFilters(FALLBACK, filters);
+    if (error || !data) return [];
 
     return data.map((c: any) => ({
       id: c.id,

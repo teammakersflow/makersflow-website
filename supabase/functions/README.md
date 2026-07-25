@@ -4,11 +4,13 @@
 > **DO NOT DEPLOY MOBILE-OWNED EDGE FUNCTIONS FROM THIS WEB REPOSITORY**
 
 The following functions are owned, updated, and deployed exclusively from the **Mobile Repository**:
+
 - `create-razorpay-order`
 - `verify-razorpay-payment`
 - `razorpay-webhook`
 
 ### Mobile Ownership Details
+
 - `create-razorpay-order`: Uses timingSafeEqual signature comparison and triggers order creation.
 - `verify-razorpay-payment`: Handles payment verification and HMAC validation.
 - `razorpay-webhook`: Triggers Shiprocket order creation on `payment.captured`.

@@ -85,18 +85,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
       triggerBump: () => setBump((b) => b + 1),
       addItem: (p, qty = 1) =>
         setItems((curr) =>
-          cartAdd(curr, p.id, p.title, p.price, p.gst_rate ?? 18, p.thumbnail_url, p.is_course, p.course_id, qty),
+          cartAdd(
+            curr,
+            p.id,
+            p.title,
+            p.price,
+            p.gst_rate ?? 18,
+            p.thumbnail_url,
+            p.is_course,
+            p.course_id,
+            qty,
+          ),
         ),
       removeItem: (id) => setItems((c) => cartRemove(c, id)),
       setQty: (id, qty) => setItems((c) => cartSetQty(c, id, qty)),
       clear: () => setItems([]),
       // Refresh GST rates from DB without clearing cart
       updateGstRates: (map: Map<string, number>) =>
-        setItems((c) => c.map((item) => {
-          const key = item.is_course ? (item.course_id ?? item.id) : item.id;
-          const freshRate = map.get(key);
-          return freshRate !== undefined ? { ...item, gst_rate: freshRate } : item;
-        })),
+        setItems((c) =>
+          c.map((item) => {
+            const key = item.is_course ? (item.course_id ?? item.id) : item.id;
+            const freshRate = map.get(key);
+            return freshRate !== undefined ? { ...item, gst_rate: freshRate } : item;
+          }),
+        ),
     };
   }, [items, bump]);
 

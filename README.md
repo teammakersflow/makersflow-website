@@ -40,11 +40,13 @@ This web app shares **the same Supabase project** as the **MakersFlow mobile app
 
 This application shares the same Supabase project (`oodqutwsljhvuyotuthu`) as the MakersFlow Admin panel.
 Since they run on different ports/domains, they maintain separate local storage keys:
+
 - **Website storage key:** `makersflow.auth`
 - **Admin storage key:** `sb-oodqutwsljhvuyotuthu-auth-token` (default)
 
 Access to the admin panel is strictly restricted to authenticated users with `role = 'admin'` in the `profiles` table.
 To set a user as admin, run the following SQL inside the Supabase SQL editor:
+
 ```sql
 UPDATE profiles SET role = 'admin' WHERE email = 'your-admin@email.com';
 ```

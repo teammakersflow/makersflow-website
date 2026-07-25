@@ -3,6 +3,7 @@ import { Play, Pause, Volume2, VolumeX, Maximize, Settings, ChevronRight } from 
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 
 type TickPayload = {
   current_time_secs: number;
@@ -387,17 +388,19 @@ export function VideoPlayer({
       >
         <div className="pointer-events-auto">
           {/* progress bar */}
-          <input
-            type="range"
-            min={0}
+          <Slider
+            value={[duration ? Math.round((current / duration) * 1000) : 0]}
             max={1000}
-            value={duration ? Math.round((current / duration) * 1000) : 0}
-            onChange={onSeek}
-            aria-label="Seek"
-            className="lp-range h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/25"
-            style={{
-              background: `linear-gradient(to right, #4F46E5 ${pct}%, rgba(255,255,255,0.3) ${pct}%)`,
+            step={1}
+            onValueChange={(val) => {
+              const newPct = val[0] / 1000;
+              if (videoRef.current && duration) {
+                videoRef.current.currentTime = newPct * duration;
+                setCurrent(newPct * duration);
+              }
             }}
+            aria-label="Seek"
+            className="cursor-pointer py-1"
           />
           <div className="mt-2 flex items-center gap-2 sm:gap-3">
             <CtrlBtn onClick={togglePlay} label={playing ? "Pause" : "Play"}>
@@ -414,19 +417,13 @@ export function VideoPlayer({
                   )}
                 </CtrlBtn>
                 <div className="h-6 w-0 overflow-hidden opacity-0 group-hover/volume:w-20 group-hover/volume:ml-2 group-hover/volume:opacity-100 transition-all duration-300 ease-out flex items-center">
-                  <input
-                    type="range"
-                    min={0}
+                  <Slider
+                    value={[Math.round((muted ? 0 : volume) * 100)]}
                     max={100}
-                    value={Math.round((muted ? 0 : volume) * 100)}
-                    onChange={(e) => onVolumeChange(Number(e.target.value) / 100)}
+                    step={1}
+                    onValueChange={(val) => onVolumeChange(val[0] / 100)}
                     aria-label="Volume"
-                    className="lp-range h-1.5 w-20 cursor-pointer appearance-none rounded-full"
-                    style={{
-                      background: `linear-gradient(to right, #4F46E5 ${
-                        (muted ? 0 : volume) * 100
-                      }%, rgba(255,255,255,0.3) ${(muted ? 0 : volume) * 100}%)`,
-                    }}
+                    className="w-20 cursor-pointer py-1"
                   />
                 </div>
               </div>

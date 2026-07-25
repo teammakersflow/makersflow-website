@@ -1,9 +1,12 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { Play, Sparkles, ChevronDown } from "lucide-react";
+import { BookOpen, Sparkles, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useAuth } from "@/integrations/supabase/auth";
 import { Button } from "@/components/ui/button";
 import { CpuArchitecture } from "@/components/ui/cpu-architecture";
+import SpecularButton from "@/components/SpecularButton";
+import TextType from "@/components/TextType";
 
 const HEADLINE = ["Learn.", "Build.", "Innovate."];
 
@@ -11,6 +14,7 @@ export function Hero() {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ x: 0, y: 0 });
+  const { user, loading } = useAuth();
 
   useEffect(() => {
     if (reduce) return;
@@ -33,10 +37,10 @@ export function Hero() {
     <section
       ref={ref}
       id="hero"
-      className="relative isolate flex min-h-[100svh] items-center overflow-hidden pt-16"
+      className="relative isolate flex min-h-[100svh] items-center overflow-hidden pt-16 scroll-mt-36"
     >
       {/* Animated gradient mesh background */}
-      <div aria-hidden className="absolute inset-0 -z-10">
+      <div aria-hidden className="absolute inset-0 -z-20">
         <div className="absolute inset-0 bg-background" />
         <motion.div
           className="absolute -top-32 -left-32 h-[55rem] w-[55rem] rounded-full opacity-50 blur-3xl"
@@ -105,13 +109,7 @@ export function Hero() {
                 }}
                 className="mr-3 inline-block"
               >
-                {i === 2 ? (
-                  <span className="text-accent">
-                    {word}
-                  </span>
-                ) : (
-                  word
-                )}
+                {i === 2 ? <span className="text-accent">{word}</span> : word}
               </motion.span>
             ))}
           </h1>
@@ -120,30 +118,62 @@ export function Hero() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.6 }}
-            className="mt-7 max-w-2xl text-pretty text-lg text-muted-foreground sm:text-xl"
+            className="mt-7 max-w-2xl text-pretty text-lg text-muted-foreground sm:text-xl flex flex-wrap items-center gap-1.5"
           >
-            India's most exciting way to learn{" "}
-            <span className="font-semibold text-foreground">Robotics</span>,{" "}
-            <span className="font-semibold text-foreground">AI</span> &{" "}
-            <span className="font-semibold text-foreground">IoT</span> — anywhere, anytime.
+            <span>India's most exciting way to master</span>{" "}
+            <TextType
+              text={[
+                "Robotics & Automation",
+                "Artificial Intelligence & ML",
+                "IoT & Embedded Systems",
+                "3D Printing & Hardware",
+              ]}
+              typingSpeed={55}
+              deletingSpeed={30}
+              pauseDuration={2200}
+              loop={true}
+              showCursor={true}
+              cursorCharacter="|"
+              className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary-light"
+            />
+            <span>— anywhere, anytime.</span>
           </motion.p>
 
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.75 }}
-            className="mt-9 flex flex-wrap items-center gap-3"
+            className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
           >
-            <Button variant="hero" size="xl" className="rounded-[var(--radius-buttons)]" asChild>
-              <Link to="/register">Start Learning Free</Link>
-            </Button>
-            <Button variant="ghost" size="xl" className="gap-2.5 rounded-[var(--radius-buttons)]" asChild>
-              <Link to="/login">
-                <span className="grid h-7 w-7 place-items-center rounded-[var(--radius-pill)] bg-accent/15 text-accent">
-                  <Play className="h-3.5 w-3.5 fill-current" />
-                </span>
-                Watch Demo
+            {loading ? (
+              <div className="h-14 w-full rounded-[var(--radius-buttons)] bg-secondary/50 animate-pulse sm:w-48" />
+            ) : (
+              <Link to={user ? "/dashboard" : "/register"} className="w-full sm:w-auto">
+                <SpecularButton
+                  size="lg"
+                  radius={24}
+                  tint="#4F46E5"
+                  lineColor="#ffffff"
+                  baseColor="#3730A3"
+                  textColor="#ffffff"
+                  className="w-full sm:w-auto font-semibold"
+                >
+                  {user ? "Go to Dashboard" : "Start Learning Free"}
+                </SpecularButton>
               </Link>
+            )}
+            <Button
+              variant="ghost"
+              size="xl"
+              className="w-full gap-2.5 rounded-[var(--radius-buttons)] sm:w-auto"
+              asChild
+            >
+              <a href="#featured">
+                <span className="grid h-7 w-7 place-items-center rounded-[var(--radius-pill)] bg-accent/15 text-accent">
+                  <BookOpen className="h-3.5 w-3.5" />
+                </span>
+                Explore Courses
+              </a>
             </Button>
           </motion.div>
 
@@ -218,7 +248,7 @@ function FloatingDecor({
         style={parallax(18)}
         animate={reduce ? undefined : { y: [0, 12, 0] }}
         transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-        className="pointer-events-none absolute bottom-[12%] left-[4%] hidden lg:block"
+        className="pointer-events-none absolute bottom-[30%] left-[2%] hidden lg:block opacity-60"
       >
         <NeuralNetSVG />
       </motion.div>

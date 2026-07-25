@@ -72,7 +72,9 @@ export function useUpsertLessonProgress() {
       };
     }) => upsertLessonProgress(userId, payload),
     onSuccess: (_, { userId, payload }) => {
-      queryClient.invalidateQueries({ queryKey: ["course-progress-map", userId, payload.course_id] });
+      queryClient.invalidateQueries({
+        queryKey: ["course-progress-map", userId, payload.course_id],
+      });
       queryClient.invalidateQueries({ queryKey: ["enrolled-courses", userId] });
       queryClient.invalidateQueries({ queryKey: ["progress-overview", userId] });
     },

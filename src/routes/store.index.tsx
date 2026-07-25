@@ -43,17 +43,16 @@ function StorePage() {
   const { user, loading } = useRequireAuth();
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
-  const [priceFilter, setPriceFilter] = useState<"all" | "under500" | "500to1000" | "above1000">("all");
+  const [priceFilter, setPriceFilter] = useState<"all" | "under500" | "500to1000" | "above1000">(
+    "all",
+  );
 
   const productsQ = useQuery({
     queryKey: ["store", "products"],
     queryFn: fetchProducts,
   });
 
-  const categories = useMemo(
-    () => getProductCategories(productsQ.data ?? []),
-    [productsQ.data],
-  );
+  const categories = useMemo(() => getProductCategories(productsQ.data ?? []), [productsQ.data]);
 
   const filtered = useMemo(() => {
     const list = productsQ.data ?? [];
@@ -61,9 +60,7 @@ function StorePage() {
     return list.filter((p) => {
       const matchCat = category === "All" || p.category === category;
       const matchQ =
-        !q ||
-        p.title.toLowerCase().includes(q) ||
-        (p.description ?? "").toLowerCase().includes(q);
+        !q || p.title.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q);
       const matchPrice =
         priceFilter === "all" ||
         (priceFilter === "under500" && p.price < 500) ||
@@ -203,8 +200,8 @@ function StorePage() {
                   {priceFilter === "under500"
                     ? "Under ₹500"
                     : priceFilter === "500to1000"
-                    ? "₹500–₹1000"
-                    : "Above ₹1000"}{" "}
+                      ? "₹500–₹1000"
+                      : "Above ₹1000"}{" "}
                   <X className="h-3 w-3" />
                 </button>
               )}
@@ -233,13 +230,9 @@ function StorePage() {
               <div className="mb-4 rounded-2xl bg-secondary p-6 border border-border">
                 <Package className="h-10 w-10 text-muted-foreground" />
               </div>
-              <h3 className="font-display text-xl font-bold text-foreground">
-                No products found
-              </h3>
+              <h3 className="font-display text-xl font-bold text-foreground">No products found</h3>
               <p className="mt-2 text-sm text-muted-foreground max-w-xs">
-                {search
-                  ? `No results for "${search}"`
-                  : "No products match these filters"}
+                {search ? `No results for "${search}"` : "No products match these filters"}
               </p>
               <button
                 onClick={clearAll}
@@ -271,8 +264,7 @@ function StorePage() {
 
           {!isLoading && filtered.length > 0 && (
             <p className="text-center text-sm text-muted-foreground pt-4 pb-10">
-              Showing{" "}
-              <span className="font-semibold text-foreground">{filtered.length}</span>{" "}
+              Showing <span className="font-semibold text-foreground">{filtered.length}</span>{" "}
               products
             </p>
           )}

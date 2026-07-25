@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Star, Users, Clock, BarChart3, ArrowLeft } from "lucide-react";
 import { CurriculumAccordion } from "@/components/course/CurriculumAccordion";
 import { type CourseDetail, type Module, type Review } from "@/lib/explore-data";
+import Folder from "@/components/Folder";
 
 // ─── Stat ─────────────────────────────────────────────────────────────────────
 
@@ -164,7 +165,9 @@ export function CourseHero({ course, onBack }: { course: CourseDetail; onBack: (
           </span>
           <span className="inline-flex items-center gap-1.5">
             <Users className="h-4 w-4" />
-            {course.enrolled_count > 0 ? `${course.enrolled_count.toLocaleString()} enrolled` : "Be the first to enroll"}
+            {course.enrolled_count > 0
+              ? `${course.enrolled_count.toLocaleString()} enrolled`
+              : "Be the first to enroll"}
           </span>
           {course.duration_hours != null && (
             <span className="inline-flex items-center gap-1.5">
@@ -210,6 +213,27 @@ export function OverviewTab({ course }: { course: CourseDetail }) {
           value={course.enrolled_count > 0 ? course.enrolled_count.toLocaleString() : "—"}
         />
       </div>
+
+      {/* 3D Interactive Project Folder */}
+      <div className="rounded-2xl border border-border bg-card/60 p-6 backdrop-blur-md">
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          <Folder
+            color="#4F46E5"
+            size={1}
+            items={["Schematics.pdf", "SourceCode.zip", "PartsList.csv"]}
+          />
+          <div>
+            <h3 className="font-display text-base font-bold text-foreground">
+              Course Resources & Starter Files
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground max-w-md">
+              Click the interactive 3D folder to preview and access downloadable circuit diagrams,
+              microcontroller source code, and hardware BOM lists.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div>
         <h3 className="font-display text-lg font-bold text-foreground">What you'll learn</h3>
         <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">

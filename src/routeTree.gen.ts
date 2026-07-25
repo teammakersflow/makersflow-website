@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ProgressRouteImport } from './routes/progress'
 import { Route as ProfileRouteImport } from './routes/profile'
@@ -33,6 +34,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as StoreIndexRouteImport } from './routes/store.index'
 import { Route as StoreIdRouteImport } from './routes/store.$id'
 import { Route as CourseIdRouteImport } from './routes/course.$id'
+import { Route as CertificateIdRouteImport } from './routes/certificate.$id'
 import { Route as LearnCourseIdLessonIdRouteImport } from './routes/learn.$courseId.$lessonId'
 
 const TermsRoute = TermsRouteImport.update({
@@ -43,6 +45,11 @@ const TermsRoute = TermsRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -155,6 +162,11 @@ const CourseIdRoute = CourseIdRouteImport.update({
   path: '/course/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CertificateIdRoute = CertificateIdRouteImport.update({
+  id: '/certificate/$id',
+  path: '/certificate/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LearnCourseIdLessonIdRoute = LearnCourseIdLessonIdRouteImport.update({
   id: '/learn/$courseId/$lessonId',
   path: '/learn/$courseId/$lessonId',
@@ -181,8 +193,10 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/progress': typeof ProgressRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
+  '/certificate/$id': typeof CertificateIdRoute
   '/course/$id': typeof CourseIdRoute
   '/store/$id': typeof StoreIdRoute
   '/store/': typeof StoreIndexRoute
@@ -208,8 +222,10 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/progress': typeof ProgressRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
+  '/certificate/$id': typeof CertificateIdRoute
   '/course/$id': typeof CourseIdRoute
   '/store/$id': typeof StoreIdRoute
   '/store': typeof StoreIndexRoute
@@ -236,8 +252,10 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/progress': typeof ProgressRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
+  '/certificate/$id': typeof CertificateIdRoute
   '/course/$id': typeof CourseIdRoute
   '/store/$id': typeof StoreIdRoute
   '/store/': typeof StoreIndexRoute
@@ -265,8 +283,10 @@ export interface FileRouteTypes {
     | '/profile'
     | '/progress'
     | '/register'
+    | '/reset-password'
     | '/settings'
     | '/terms'
+    | '/certificate/$id'
     | '/course/$id'
     | '/store/$id'
     | '/store/'
@@ -292,8 +312,10 @@ export interface FileRouteTypes {
     | '/profile'
     | '/progress'
     | '/register'
+    | '/reset-password'
     | '/settings'
     | '/terms'
+    | '/certificate/$id'
     | '/course/$id'
     | '/store/$id'
     | '/store'
@@ -319,8 +341,10 @@ export interface FileRouteTypes {
     | '/profile'
     | '/progress'
     | '/register'
+    | '/reset-password'
     | '/settings'
     | '/terms'
+    | '/certificate/$id'
     | '/course/$id'
     | '/store/$id'
     | '/store/'
@@ -347,8 +371,10 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   ProgressRoute: typeof ProgressRoute
   RegisterRoute: typeof RegisterRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
   TermsRoute: typeof TermsRoute
+  CertificateIdRoute: typeof CertificateIdRoute
   CourseIdRoute: typeof CourseIdRoute
   StoreIdRoute: typeof StoreIdRoute
   StoreIndexRoute: typeof StoreIndexRoute
@@ -369,6 +395,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -525,6 +558,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CourseIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/certificate/$id': {
+      id: '/certificate/$id'
+      path: '/certificate/$id'
+      fullPath: '/certificate/$id'
+      preLoaderRoute: typeof CertificateIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/learn/$courseId/$lessonId': {
       id: '/learn/$courseId/$lessonId'
       path: '/learn/$courseId/$lessonId'
@@ -555,8 +595,10 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   ProgressRoute: ProgressRoute,
   RegisterRoute: RegisterRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
   TermsRoute: TermsRoute,
+  CertificateIdRoute: CertificateIdRoute,
   CourseIdRoute: CourseIdRoute,
   StoreIdRoute: StoreIdRoute,
   StoreIndexRoute: StoreIndexRoute,

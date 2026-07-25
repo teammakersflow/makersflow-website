@@ -25,11 +25,18 @@ function PaymentSuccessPage() {
   useEffect(() => {
     if (!order_id) return;
     // Check for invoice
-    supabase.from("invoices").select("id, invoice_number, total_amount")
-      .eq("order_id", order_id).maybeSingle()
+    supabase
+      .from("invoices")
+      .select("id, invoice_number, total_amount")
+      .eq("order_id", order_id)
+      .maybeSingle()
       .then(({ data }) => setInvoice(data as Invoice | null));
     // Check if order has courses
-    supabase.from("orders").select("items").eq("id", order_id).maybeSingle()
+    supabase
+      .from("orders")
+      .select("items")
+      .eq("id", order_id)
+      .maybeSingle()
       .then(({ data }) => {
         const items = (data as { items?: Array<{ is_course?: boolean }> } | null)?.items ?? [];
         setHasCourses(items.some((i) => i.is_course));
@@ -73,7 +80,11 @@ function PaymentSuccessPage() {
             <CheckCircle2 className="h-14 w-14 text-emerald-500" />
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
             <h1 className="font-display text-3xl font-bold text-foreground md:text-4xl">
               Payment Successful!
             </h1>
@@ -100,7 +111,9 @@ function PaymentSuccessPage() {
               {total > 0 && (
                 <div className="flex justify-between text-sm border-t border-border pt-3">
                   <span className="font-semibold text-foreground">Total Paid</span>
-                  <span className="font-display text-lg font-bold text-foreground">{formatPrice(total)}</span>
+                  <span className="font-display text-lg font-bold text-foreground">
+                    {formatPrice(total)}
+                  </span>
                 </div>
               )}
             </div>

@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { BookOpen, CheckCircle2, TrendingUp, Clock } from "lucide-react";
-import { useCountUp } from "@/lib/use-count-up";
+import CountUp from "@/components/CountUp";
 import type { DashboardStats } from "@/lib/dashboard-data";
 
 const CARDS = [
@@ -83,9 +83,7 @@ function StatCard({
   gradient: string;
   glow: string;
   iconBg: string;
-  delay: number;
 }) {
-  const display = useCountUp(value);
   return (
     <motion.div
       initial={{ opacity: 0, y: 16, scale: 0.96 }}
@@ -121,7 +119,7 @@ function StatCard({
             animate={{ opacity: 1 }}
             transition={{ delay: delay + 0.15 }}
           >
-            {display}
+            <CountUp to={value} duration={1.8} />
             <span className="text-xl font-semibold opacity-80">{suffix}</span>
           </motion.p>
         </div>

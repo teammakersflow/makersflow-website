@@ -5,11 +5,11 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL              = Deno.env.get("SUPABASE_URL")              ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const CORS = {
-  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -25,14 +25,14 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const code      = (body.code ?? "").toString().trim().toUpperCase();
-    const subtotal  = Number(body.subtotal ?? 0);
-    const item_ids  = Array.isArray(body.item_ids) ? body.item_ids : [];
-    const user_id   = body.user_id ?? null;
+    const code = (body.code ?? "").toString().trim().toUpperCase();
+    const subtotal = Number(body.subtotal ?? 0);
+    const item_ids = Array.isArray(body.item_ids) ? body.item_ids : [];
+    const user_id = body.user_id ?? null;
 
     console.log("[validate-coupon] Request:", { code, subtotal, item_ids_count: item_ids.length });
 
-    if (!code)     return json({ valid: false, message: "Coupon code is required" });
+    if (!code) return json({ valid: false, message: "Coupon code is required" });
     if (!subtotal) return json({ valid: false, message: "Cart subtotal is required" });
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -56,8 +56,9 @@ Deno.serve(async (req) => {
 
     console.log("[validate-coupon] Lookup result:", coupon ? `found: ${coupon.code}` : "not found");
 
-    if (!coupon)          return json({ valid: false, message: "Invalid coupon code" });
-    if (!coupon.is_active) return json({ valid: false, message: "This coupon is no longer active" });
+    if (!coupon) return json({ valid: false, message: "Invalid coupon code" });
+    if (!coupon.is_active)
+      return json({ valid: false, message: "This coupon is no longer active" });
 
     // ── Expiry check ────────────────────────────────────────────────────────
     if (coupon.expiry_date && new Date(coupon.expiry_date) < new Date()) {
@@ -73,12 +74,15 @@ Deno.serve(async (req) => {
     // ── Minimum order check ─────────────────────────────────────────────────
     const minOrder = Number(coupon.min_order_amount ?? 0);
     if (minOrder > 0 && subtotal < minOrder) {
-      return json({ valid: false, message: `Minimum order of ₹${minOrder} required for this coupon` });
+      return json({
+        valid: false,
+        message: `Minimum order of ₹${minOrder} required for this coupon`,
+      });
     }
 
     // ── Applicable items check (only if restrictions set) ───────────────────
     const productRestrictions: string[] = coupon.applicable_product_ids ?? [];
-    const courseRestrictions:  string[] = coupon.applicable_course_ids  ?? [];
+    const courseRestrictions: string[] = coupon.applicable_course_ids ?? [];
     if (productRestrictions.length > 0 || courseRestrictions.length > 0) {
       const allowed = [...productRestrictions, ...courseRestrictions];
       const hasMatch = item_ids.some((id: string) => allowed.includes(id));
@@ -110,14 +114,20 @@ Deno.serve(async (req) => {
     }
     discount = Math.max(0, discount);
 
-    const label = coupon.discount_type === "percentage"
-      ? `${coupon.discount_value}% off`
-      : `₹${coupon.discount_value} off`;
+    const label =
+      coupon.discount_type === "percentage"
+        ? `${coupon.discount_value}% off`
+        : `₹${coupon.discount_value} off`;
 
     console.log("[validate-coupon] Valid! discount:", discount, "label:", label);
 
-    return json({ valid: true, discount, label, coupon_id: coupon.id, description: coupon.description ?? null });
-
+    return json({
+      valid: true,
+      discount,
+      label,
+      coupon_id: coupon.id,
+      description: coupon.description ?? null,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[validate-coupon] Uncaught:", msg);

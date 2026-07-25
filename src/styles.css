@@ -3,6 +3,10 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html {
+  scroll-behavior: smooth;
+}
+
 /*
  * MakersFlow design system
  * Brand: futuristic, energetic, tech-forward, trustworthy, youthful.

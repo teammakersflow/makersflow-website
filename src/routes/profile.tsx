@@ -56,18 +56,18 @@ function ProfileMenu({ userId }: { userId: string }) {
     setDeleting(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-account`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-        }
-      );
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-account`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+          apikey:
+            import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+      });
 
       if (!res.ok) {
         const err = await res.json();
@@ -97,10 +97,7 @@ function ProfileMenu({ userId }: { userId: string }) {
           {open && (
             <>
               {/* backdrop */}
-              <div
-                className="fixed inset-0 z-20"
-                onClick={() => setOpen(false)}
-              />
+              <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
               <motion.div
                 initial={{ opacity: 0, scale: 0.92, y: -6 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -117,7 +114,10 @@ function ProfileMenu({ userId }: { userId: string }) {
                 </button>
                 <div className="h-px bg-border mx-3" />
                 <button
-                  onClick={() => { setOpen(false); setShowDeleteModal(true); }}
+                  onClick={() => {
+                    setOpen(false);
+                    setShowDeleteModal(true);
+                  }}
                   className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -202,9 +202,13 @@ function ProfileMenu({ userId }: { userId: string }) {
                   className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {deleting ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Deleting…</>
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Deleting…
+                    </>
                   ) : (
-                    <><Trash2 className="h-4 w-4" /> Delete forever</>
+                    <>
+                      <Trash2 className="h-4 w-4" /> Delete forever
+                    </>
                   )}
                 </button>
               </div>
@@ -247,14 +251,19 @@ function ProfilePage() {
     school: null,
     role: null,
   };
-  const isGoogle = user.app_metadata?.provider === "google";
+  const hasEmail =
+    user.app_metadata?.provider === "email" ||
+    (Array.isArray(user.identities) && user.identities.some((i) => i.provider === "email"));
+  const isGoogle =
+    !hasEmail &&
+    (user.app_metadata?.provider === "google" ||
+      (Array.isArray(user.identities) && user.identities.some((i) => i.provider === "google")));
 
   return (
     <div className="flex min-h-screen w-full bg-background">
       <AppSidebar />
       <main className="flex-1">
         <div className="mx-auto max-w-4xl px-4 py-6 md:px-8 md:py-10">
-
           {/* Header — decorative element removed, 3-dots added */}
           <header className="mb-6 flex items-start justify-between gap-4">
             <div>

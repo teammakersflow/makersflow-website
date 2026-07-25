@@ -26,7 +26,10 @@ const CORS = {
 };
 
 function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { ...CORS, "Content-Type": "application/json" } });
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
 }
 
 Deno.serve(async (req) => {
@@ -39,8 +42,11 @@ Deno.serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Fetch original payment to validate amount
-    const { data: payment } = await admin.from("payments")
-      .select("*").eq("razorpay_payment_id", razorpay_payment_id).maybeSingle();
+    const { data: payment } = await admin
+      .from("payments")
+      .select("*")
+      .eq("razorpay_payment_id", razorpay_payment_id)
+      .maybeSingle();
 
     if (!payment) return json({ error: "Payment not found" }, 404);
     if (payment.status === "refunded") return json({ error: "Payment already refunded" }, 400);
@@ -50,37 +56,46 @@ Deno.serve(async (req) => {
 
     // Call Razorpay refund API
     const credentials = btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`);
-    const rzpRes = await fetch(`https://api.razorpay.com/v1/payments/${razorpay_payment_id}/refund`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Basic ${credentials}`,
+    const rzpRes = await fetch(
+      `https://api.razorpay.com/v1/payments/${razorpay_payment_id}/refund`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${credentials}`,
+        },
+        body: JSON.stringify({
+          amount: refundAmountPaise,
+          speed: "normal",
+          notes: { reason: reason ?? "Admin initiated refund" },
+        }),
       },
-      body: JSON.stringify({
-        amount: refundAmountPaise,
-        speed: "normal",
-        notes: { reason: reason ?? "Admin initiated refund" },
-      }),
-    });
+    );
 
     const rzpData = await rzpRes.json();
-    if (!rzpRes.ok) return json({ error: rzpData.error?.description ?? "Razorpay refund failed" }, 400);
+    if (!rzpRes.ok)
+      return json({ error: rzpData.error?.description ?? "Razorpay refund failed" }, 400);
 
     // Save refund record
-    const { data: refundRecord } = await admin.from("refunds").insert({
-      payment_id,
-      user_id,
-      razorpay_payment_id,
-      razorpay_refund_id: rzpData.id,
-      amount: refundAmount,
-      reason: reason ?? null,
-      status: "processing",
-      initiated_by: "admin",
-    }).select("id").single();
+    const { data: refundRecord } = await admin
+      .from("refunds")
+      .insert({
+        payment_id,
+        user_id,
+        razorpay_payment_id,
+        razorpay_refund_id: rzpData.id,
+        amount: refundAmount,
+        reason: reason ?? null,
+        status: "processing",
+        initiated_by: "admin",
+      })
+      .select("id")
+      .single();
 
     // Revoke course access if this payment was for courses
     // (business policy: revoke on refund — can be changed to keep access)
-    await admin.from("course_purchases")
+    await admin
+      .from("course_purchases")
       .update({ status: "revoked" })
       .eq("razorpay_payment_id", razorpay_payment_id);
 

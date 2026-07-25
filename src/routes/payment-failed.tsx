@@ -30,13 +30,15 @@ function PaymentFailedPage() {
             <XCircle className="h-14 w-14 text-red-500" />
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
             <h1 className="font-display text-3xl font-bold text-foreground md:text-4xl">
               Payment Failed
             </h1>
-            <p className="mt-3 text-muted-foreground">
-              {reason}
-            </p>
+            <p className="mt-3 text-muted-foreground">{reason}</p>
 
             {/* Info card */}
             <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 dark:bg-red-950/10 p-5 text-left space-y-2">
@@ -49,7 +51,8 @@ function PaymentFailedPage() {
               </ul>
               {order_id && (
                 <p className="text-xs text-muted-foreground mt-2">
-                  Reference: <span className="font-mono">#{order_id.slice(0, 8).toUpperCase()}</span>
+                  Reference:{" "}
+                  <span className="font-mono">#{order_id.slice(0, 8).toUpperCase()}</span>
                 </p>
               )}
             </div>
@@ -82,7 +85,8 @@ function PaymentFailedPage() {
             </div>
 
             <p className="mt-6 text-xs text-muted-foreground">
-              Your card has not been charged. If money was deducted, it will be refunded within 5–7 business days.
+              Your card has not been charged. If money was deducted, it will be refunded within 5–7
+              business days.
             </p>
           </motion.div>
         </div>

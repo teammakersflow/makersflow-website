@@ -8,13 +8,17 @@ const STAGING_URL = process.env.SUPABASE_STAGING_URL;
 const STAGING_ANON_KEY = process.env.SUPABASE_STAGING_ANON_KEY;
 
 if (!STAGING_URL || !STAGING_ANON_KEY) {
-  console.error("❌ ERROR: SUPABASE_STAGING_URL and SUPABASE_STAGING_ANON_KEY environment variables are required.");
+  console.error(
+    "❌ ERROR: SUPABASE_STAGING_URL and SUPABASE_STAGING_ANON_KEY environment variables are required.",
+  );
   console.error("Please set them before running this script.");
   process.exit(1);
 }
 
 if (STAGING_URL.includes(PROD_PROJECT_REF) || STAGING_URL === PROD_URL) {
-  console.error("❌ CRITICAL ERROR: Staging URL matches the Production Project Ref (oodqutwsljhvuyotuthu)!");
+  console.error(
+    "❌ CRITICAL ERROR: Staging URL matches the Production Project Ref (oodqutwsljhvuyotuthu)!",
+  );
   console.error("Execution aborted to protect production.");
   process.exit(1);
 }
@@ -28,15 +32,19 @@ async function runStagingSuite() {
   console.log("=================================================================\n");
 
   // 1. Query REAL Existing Row IDs on Staging
-  const { data: payRow }  = await anonClient.from("payments").select("id").limit(1).maybeSingle();
-  const { data: itemRow } = await anonClient.from("order_items").select("id").limit(1).maybeSingle();
+  const { data: payRow } = await anonClient.from("payments").select("id").limit(1).maybeSingle();
+  const { data: itemRow } = await anonClient
+    .from("order_items")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
   const { data: coupRow } = await anonClient.from("coupons").select("id").limit(1).maybeSingle();
-  const { data: setRow }  = await anonClient.from("settings").select("key").limit(1).maybeSingle();
+  const { data: setRow } = await anonClient.from("settings").select("key").limit(1).maybeSingle();
 
-  const realPaymentId   = payRow?.id ?? null;
+  const realPaymentId = payRow?.id ?? null;
   const realOrderItemId = itemRow?.id ?? null;
-  const realCouponId    = coupRow?.id ?? null;
-  const realSettingKey  = setRow?.key ?? null;
+  const realCouponId = coupRow?.id ?? null;
+  const realSettingKey = setRow?.key ?? null;
 
   console.log("--- STAGING TARGET ROW IDENTIFIERS ---");
   console.log({ realPaymentId, realOrderItemId, realCouponId, realSettingKey });
@@ -137,13 +145,25 @@ async function runStagingSuite() {
   // 4. Positive Tests (Anonymous Reads)
   console.log("\n--- STAGING POSITIVE TESTS (ANONYMOUS READS) ---");
   const { data: rData, error: rErr } = await anonClient.from("reviews").select("id").limit(3);
-  console.log("A. Reviews SELECT:", { count: rData?.length ?? 0, errorCode: rErr?.code ?? "200_OK", errorMessage: rErr?.message ?? "None" });
+  console.log("A. Reviews SELECT:", {
+    count: rData?.length ?? 0,
+    errorCode: rErr?.code ?? "200_OK",
+    errorMessage: rErr?.message ?? "None",
+  });
 
   const { data: prData, error: prErr } = await anonClient.from("profiles").select("id").limit(3);
-  console.log("B. Profiles SELECT:", { count: prData?.length ?? 0, errorCode: prErr?.code ?? "200_OK", errorMessage: prErr?.message ?? "None" });
+  console.log("B. Profiles SELECT:", {
+    count: prData?.length ?? 0,
+    errorCode: prErr?.code ?? "200_OK",
+    errorMessage: prErr?.message ?? "None",
+  });
 
   const { data: stData, error: stErr } = await anonClient.from("settings").select("key").limit(3);
-  console.log("C. Settings SELECT:", { count: stData?.length ?? 0, errorCode: stErr?.code ?? "200_OK", errorMessage: stErr?.message ?? "None" });
+  console.log("C. Settings SELECT:", {
+    count: stData?.length ?? 0,
+    errorCode: stErr?.code ?? "200_OK",
+    errorMessage: stErr?.message ?? "None",
+  });
 
   console.log("\n=================================================================");
   console.log(" STAGING TEST SUITE COMPLETE");

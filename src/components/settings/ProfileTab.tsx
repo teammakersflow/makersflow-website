@@ -8,8 +8,14 @@ import { supabase } from "@/integrations/supabase/client";
 
 export function ProfileTab() {
   const [formData, setFormData] = useState({
-    firstName: "", lastName: "", email: "", phone: "", bio: "",
-    university: "", major: "", graduationYear: "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    bio: "",
+    university: "",
+    major: "",
+    graduationYear: "",
   });
   const [original, setOriginal] = useState({ ...formData });
   const [hasChanges, setHasChanges] = useState(false);
@@ -42,7 +48,7 @@ export function ProfileTab() {
   }, [formData, original]);
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSave = async () => {
@@ -55,7 +61,7 @@ export function ProfileTab() {
         university: formData.university,
         major: formData.major,
         graduation_year: formData.graduationYear,
-      }
+      },
     });
     setSaving(false);
     if (!error) {
@@ -76,56 +82,91 @@ export function ProfileTab() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="firstName">First Name</Label>
-            <Input id="firstName" value={formData.firstName}
-              onChange={e => handleChange("firstName", e.target.value)}
-              autoComplete="given-name" placeholder="First name" />
+            <Input
+              id="firstName"
+              value={formData.firstName}
+              onChange={(e) => handleChange("firstName", e.target.value)}
+              autoComplete="given-name"
+              placeholder="First name"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="lastName">Last Name</Label>
-            <Input id="lastName" value={formData.lastName}
-              onChange={e => handleChange("lastName", e.target.value)}
-              autoComplete="family-name" placeholder="Last name" />
+            <Input
+              id="lastName"
+              value={formData.lastName}
+              onChange={(e) => handleChange("lastName", e.target.value)}
+              autoComplete="family-name"
+              placeholder="Last name"
+            />
           </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" value={formData.email}
-            autoComplete="email" readOnly
+          <Input
+            id="email"
+            type="email"
+            value={formData.email}
+            autoComplete="email"
+            readOnly
             className="bg-muted text-muted-foreground cursor-not-allowed"
-            title="Email cannot be changed here" />
-          <p className="text-xs text-muted-foreground">Email address is managed by your account settings</p>
+            title="Email cannot be changed here"
+          />
+          <p className="text-xs text-muted-foreground">
+            Email address is managed by your account settings
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="phone">Phone</Label>
-          <Input id="phone" type="tel" value={formData.phone}
-            onChange={e => handleChange("phone", e.target.value)}
-            autoComplete="tel" placeholder="+91 98765 43210" />
+          <Input
+            id="phone"
+            type="tel"
+            value={formData.phone}
+            onChange={(e) => handleChange("phone", e.target.value)}
+            autoComplete="tel"
+            placeholder="+91 98765 43210"
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="bio">Bio</Label>
-          <Textarea id="bio" value={formData.bio}
-            onChange={e => handleChange("bio", e.target.value)}
-            placeholder="Tell us about yourself..." rows={3} />
+          <Textarea
+            id="bio"
+            value={formData.bio}
+            onChange={(e) => handleChange("bio", e.target.value)}
+            placeholder="Tell us about yourself..."
+            rows={3}
+          />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="university">School / University</Label>
-            <Input id="university" value={formData.university}
-              onChange={e => handleChange("university", e.target.value)}
-              autoComplete="organization" placeholder="Your institution" />
+            <Input
+              id="university"
+              value={formData.university}
+              onChange={(e) => handleChange("university", e.target.value)}
+              autoComplete="organization"
+              placeholder="Your institution"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="major">Major / Stream</Label>
-            <Input id="major" value={formData.major}
-              onChange={e => handleChange("major", e.target.value)}
-              placeholder="e.g. Computer Science" />
+            <Input
+              id="major"
+              value={formData.major}
+              onChange={(e) => handleChange("major", e.target.value)}
+              placeholder="e.g. Computer Science"
+            />
           </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="graduationYear">Graduation Year</Label>
-          <Input id="graduationYear" value={formData.graduationYear}
-            onChange={e => handleChange("graduationYear", e.target.value)}
-            placeholder="e.g. 2026" maxLength={4} />
+          <Input
+            id="graduationYear"
+            value={formData.graduationYear}
+            onChange={(e) => handleChange("graduationYear", e.target.value)}
+            placeholder="e.g. 2026"
+            maxLength={4}
+          />
         </div>
 
         {saved && (

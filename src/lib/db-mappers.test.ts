@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  mapDbLessonToDetail,
-  mapDbLessonResource,
-  mapDbLessonProgress,
-} from "./db-mappers";
+import { mapDbLessonToDetail, mapDbLessonResource, mapDbLessonProgress } from "./db-mappers";
 import { fetchLesson, fetchCourseProgressMap } from "./learn-data";
 
 describe("db-mappers", () => {
@@ -52,7 +48,13 @@ describe("db-mappers", () => {
 
   describe("mapDbLessonResource", () => {
     it("maps raw resource object correctly", () => {
-      const raw = { id: "res-1", title: "PDF Guide", url: "https://file.pdf", type: "pdf", size_bytes: 1024 };
+      const raw = {
+        id: "res-1",
+        title: "PDF Guide",
+        url: "https://file.pdf",
+        type: "pdf",
+        size_bytes: 1024,
+      };
       expect(mapDbLessonResource(raw)).toEqual({
         id: "res-1",
         title: "PDF Guide",
@@ -100,4 +102,3 @@ describe("db-mappers", () => {
     });
   });
 });
-

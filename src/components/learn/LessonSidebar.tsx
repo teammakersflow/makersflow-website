@@ -1,10 +1,12 @@
-import { Link } from "@tanstack/react-router";
-import { ChevronDown, CheckCircle2, Play, Clock, Lock, X } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { ChevronDown, CheckCircle2, Play, Clock, Lock, X, List } from "lucide-react";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Module } from "@/lib/explore-data";
 import type { LessonProgressRow } from "@/lib/learn-data";
 import { cn } from "@/lib/utils";
+import LineSidebar from "@/components/LineSidebar";
+import { Slider } from "@/components/ui/slider";
 
 export type LessonSidebarProps = {
   courseId: string;
@@ -33,6 +35,8 @@ export function LessonSidebar({
   }, [modules, currentLessonId]);
 
   const [open, setOpen] = useState<Record<string, boolean>>(initialOpen);
+  const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState<"standard" | "outline">("standard");
 
   const total = modules.reduce((s, m) => s + m.lessons.length, 0);
   const completed = modules.reduce(
@@ -40,6 +44,15 @@ export function LessonSidebar({
     0,
   );
   const pct = total ? Math.round((completed / total) * 100) : 0;
+
+  const lineItems = useMemo(() => {
+    return modules.map((m) => m.title);
+  }, [modules]);
+
+  const activeModuleIndex = useMemo(() => {
+    const idx = modules.findIndex((m) => m.lessons.some((l) => l.id === currentLessonId));
+    return idx >= 0 ? idx : 0;
+  }, [modules, currentLessonId]);
 
   return (
     <div className="flex h-full flex-col bg-card">
@@ -52,14 +65,13 @@ export function LessonSidebar({
             {courseTitle}
           </h2>
           <div className="mt-3 flex items-center gap-2">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${pct}%` }}
-                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-                className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
-              />
-            </div>
+            <Slider
+              value={[pct]}
+              max={100}
+              step={1}
+              disabled
+              className="pointer-events-none flex-1 py-1"
+            />
             <span className="font-numeric text-xs font-semibold text-foreground">{pct}%</span>
           </div>
         </div>
@@ -74,122 +86,153 @@ export function LessonSidebar({
         )}
       </div>
 
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-secondary/30 text-xs">
+        <span className="text-muted-foreground font-medium">Outline View</span>
+        <button
+          onClick={() => setViewMode((v) => (v === "standard" ? "outline" : "standard"))}
+          className="px-2.5 py-1 rounded-md bg-card border border-border hover:bg-secondary font-semibold text-primary transition"
+        >
+          {viewMode === "standard" ? "Proximity Outline" : "Full Tree"}
+        </button>
+      </div>
+
       <nav className="flex-1 overflow-y-auto p-3">
-        <ul className="space-y-2">
-          {modules.map((m, idx) => {
-            const isOpen = !!open[m.id];
-            const moduleDone =
-              m.lessons.length > 0 && m.lessons.every((l) => progressMap[l.id]?.is_completed);
-            return (
-              <li key={m.id} className="overflow-hidden rounded-xl bg-secondary/40">
-                <button
-                  onClick={() => setOpen((o) => ({ ...o, [m.id]: !isOpen }))}
-                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
-                >
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span
-                      className={cn(
-                        "grid h-7 w-7 shrink-0 place-items-center rounded-md font-display text-xs font-bold",
-                        moduleDone ? "bg-success/15 text-success" : "bg-primary/10 text-primary",
-                      )}
-                    >
-                      {moduleDone ? (
-                        <CheckCircle2 className="h-4 w-4" />
-                      ) : (
-                        String(idx + 1).padStart(2, "0")
-                      )}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate font-display text-sm font-semibold text-foreground">
-                        {m.title}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {m.lessons.length} lessons
-                      </p>
+        {viewMode === "outline" ? (
+          <div className="p-2">
+            <LineSidebar
+              items={lineItems}
+              defaultActive={activeModuleIndex}
+              accentColor="#4F46E5"
+              textColor="#a3a3a3"
+              markerColor="#6366F1"
+              onItemClick={(index) => {
+                const targetMod = modules[index];
+                if (targetMod?.lessons[0]) {
+                  navigate({
+                    to: "/learn/$courseId/$lessonId",
+                    params: { courseId, lessonId: targetMod.lessons[0].id },
+                  });
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {modules.map((m, idx) => {
+              const isOpen = !!open[m.id];
+              const moduleDone =
+                m.lessons.length > 0 && m.lessons.every((l) => progressMap[l.id]?.is_completed);
+              return (
+                <li key={m.id} className="overflow-hidden rounded-xl bg-secondary/40">
+                  <button
+                    onClick={() => setOpen((o) => ({ ...o, [m.id]: !isOpen }))}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left"
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        className={cn(
+                          "grid h-7 w-7 shrink-0 place-items-center rounded-md font-display text-xs font-bold",
+                          moduleDone ? "bg-success/15 text-success" : "bg-primary/10 text-primary",
+                        )}
+                      >
+                        {moduleDone ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          String(idx + 1).padStart(2, "0")
+                        )}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate font-display text-sm font-semibold text-foreground">
+                          {m.title}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {m.lessons.length} lessons
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <ChevronDown
-                    className={cn(
-                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-                      isOpen && "rotate-180",
-                    )}
-                  />
-                </button>
-                <AnimatePresence initial={false}>
-                  {isOpen && (
-                    <motion.ul
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.22 }}
-                      className="overflow-hidden bg-card"
-                    >
-                      {m.lessons.map((l) => {
-                        const p = progressMap[l.id];
-                        const isCurrent = l.id === currentLessonId;
-                        const done = !!p?.is_completed;
-                        return (
-                          <li key={l.id} className="relative">
-                            {isCurrent && (
-                              <motion.span
-                                layoutId="lesson-current"
-                                className="absolute inset-y-1 left-0 w-1 rounded-r-full bg-gradient-to-b from-primary to-accent"
-                                transition={{ type: "spring", stiffness: 360, damping: 30 }}
-                              />
-                            )}
-                            <Link
-                              to="/learn/$courseId/$lessonId"
-                              params={{ courseId, lessonId: l.id }}
-                              className={cn(
-                                "flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors",
-                                isCurrent
-                                  ? "bg-primary/5 text-foreground"
-                                  : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                        isOpen && "rotate-180",
+                      )}
+                    />
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {isOpen && (
+                      <motion.ul
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22 }}
+                        className="overflow-hidden bg-card"
+                      >
+                        {m.lessons.map((l) => {
+                          const p = progressMap[l.id];
+                          const isCurrent = l.id === currentLessonId;
+                          const done = !!p?.is_completed;
+                          return (
+                            <li key={l.id} className="relative">
+                              {isCurrent && (
+                                <motion.span
+                                  layoutId="lesson-current"
+                                  className="absolute inset-y-1 left-0 w-1 rounded-r-full bg-gradient-to-b from-primary to-accent"
+                                  transition={{ type: "spring", stiffness: 360, damping: 30 }}
+                                />
                               )}
-                            >
-                              <div className="flex min-w-0 items-center gap-2.5">
-                                <span
-                                  className={cn(
-                                    "grid h-5 w-5 shrink-0 place-items-center rounded-full",
-                                    done
-                                      ? "bg-success text-success-foreground"
-                                      : isCurrent
-                                        ? "bg-primary text-primary-foreground"
-                                        : "bg-secondary text-muted-foreground",
-                                  )}
-                                >
-                                  {done ? (
-                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                  ) : isCurrent ? (
-                                    <Play className="h-3 w-3 fill-current" />
-                                  ) : (
-                                    <Lock className="h-2.5 w-2.5 opacity-0" />
-                                  )}
+                              <Link
+                                to="/learn/$courseId/$lessonId"
+                                params={{ courseId, lessonId: l.id }}
+                                className={cn(
+                                  "flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors",
+                                  isCurrent
+                                    ? "bg-primary/5 text-foreground"
+                                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                                )}
+                              >
+                                <div className="flex min-w-0 items-center gap-2.5">
+                                  <span
+                                    className={cn(
+                                      "grid h-5 w-5 shrink-0 place-items-center rounded-full",
+                                      done
+                                        ? "bg-success text-success-foreground"
+                                        : isCurrent
+                                          ? "bg-primary text-primary-foreground"
+                                          : "bg-secondary text-muted-foreground",
+                                    )}
+                                  >
+                                    {done ? (
+                                      <CheckCircle2 className="h-3.5 w-3.5" />
+                                    ) : isCurrent ? (
+                                      <Play className="h-3 w-3 fill-current" />
+                                    ) : (
+                                      <Lock className="h-2.5 w-2.5 opacity-0" />
+                                    )}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "truncate",
+                                      isCurrent && "font-semibold text-foreground",
+                                    )}
+                                  >
+                                    {l.title}
+                                  </span>
+                                </div>
+                                <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  {l.duration_minutes ?? 0}m
                                 </span>
-                                <span
-                                  className={cn(
-                                    "truncate",
-                                    isCurrent && "font-semibold text-foreground",
-                                  )}
-                                >
-                                  {l.title}
-                                </span>
-                              </div>
-                              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-                                <Clock className="h-3 w-3" />
-                                {l.duration_minutes ?? 0}m
-                              </span>
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </motion.ul>
-                  )}
-                </AnimatePresence>
-              </li>
-            );
-          })}
-        </ul>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </motion.ul>
+                    )}
+                  </AnimatePresence>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </nav>
     </div>
   );

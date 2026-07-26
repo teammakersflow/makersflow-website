@@ -1,6 +1,13 @@
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
 import { BrandPanel } from "./BrandPanel";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
 
 export function AuthLayout({
   routeKey,
@@ -25,11 +32,17 @@ export function AuthLayout({
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           className="w-full max-w-md"
         >
-          <header className="mb-8">
-            <h1 className="font-display text-3xl font-bold text-foreground sm:text-4xl">{title}</h1>
-            <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
-          </header>
-          {children}
+          <Card className="border-border bg-card/90 shadow-xl backdrop-blur-sm">
+            <CardHeader className="space-y-1.5 pb-6">
+              <CardTitle className="font-display text-3xl font-bold text-foreground sm:text-4xl">
+                {title}
+              </CardTitle>
+              <CardDescription className="text-sm text-muted-foreground">
+                {subtitle}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>{children}</CardContent>
+          </Card>
         </motion.div>
       </section>
     </main>

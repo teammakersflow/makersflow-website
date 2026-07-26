@@ -1,0 +1,524 @@
+/**
+ * GST-compliant Tax Invoice generator for EDODWAJA PRIVATE LIMITED / MAKERSFLOW
+ * Ported from mobile invoiceUtils.ts for web integration.
+ */
+
+import { supabase } from "@/integrations/supabase/client";
+
+// ─── Seller constants & types ────────────────────────────────────────────────
+
+export interface SellerSettings {
+  name: string;
+  tradeName: string;
+  address1?: string;
+  address2?: string;
+  state: string;
+  stateCode: string;
+  gstin: string | null;
+  cin: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+}
+
+let cachedSellerSettings: SellerSettings | null = null;
+
+export async function fetchSellerSettings(): Promise<SellerSettings> {
+  if (cachedSellerSettings) return cachedSellerSettings;
+
+  try {
+    const { data: rows, error } = await supabase
+      .from("settings")
+      .select("key, value");
+
+    if (!error && rows) {
+      const map: Record<string, string> = {};
+      for (const r of rows) {
+        if (r.key && r.value) {
+          map[r.key] = r.value.trim();
+        }
+      }
+
+      cachedSellerSettings = {
+        name: map["seller_name"] || map["store_name"] || "EDODWAJA PRIVATE LIMITED",
+        tradeName: map["seller_trade_name"] || "MAKERSFLOW",
+        address1: map["seller_address1"] || undefined,
+        address2: map["seller_address2"] || undefined,
+        state: map["seller_state"] || "Andhra Pradesh",
+        stateCode: map["seller_state_code"] || "37",
+        gstin: map["gst_number"] && map["gst_number"].length > 0 ? map["gst_number"] : null,
+        cin: map["cin_number"] && map["cin_number"].length > 0 ? map["cin_number"] : null,
+        phone: map["store_phone"] || map["seller_phone"] || null,
+        email: map["support_email"] || map["seller_email"] || null,
+        website: map["website"] || "www.makersflow.in",
+      };
+      return cachedSellerSettings;
+    }
+  } catch (err) {
+    console.warn("[Invoice] Error fetching seller settings:", err);
+  }
+
+  return {
+    name: "EDODWAJA PRIVATE LIMITED",
+    tradeName: "MAKERSFLOW",
+    state: "Andhra Pradesh",
+    stateCode: "37",
+    gstin: null,
+    cin: null,
+    phone: null,
+    email: null,
+    website: "www.makersflow.in",
+  };
+}
+
+export const SELLER: SellerSettings = {
+  name: "EDODWAJA PRIVATE LIMITED",
+  tradeName: "MAKERSFLOW",
+  state: "Andhra Pradesh",
+  stateCode: "37",
+  gstin: null,
+  cin: null,
+  phone: null,
+  email: null,
+  website: "www.makersflow.in",
+};
+
+// ─── Indian state → GST state code map ──────────────────────────────────────
+
+const STATE_CODES: Record<string, string> = {
+  "Andhra Pradesh": "37", "Arunachal Pradesh": "12", "Assam": "18",
+  "Bihar": "10", "Chhattisgarh": "22", "Goa": "30", "Gujarat": "24",
+  "Haryana": "06", "Himachal Pradesh": "02", "Jharkhand": "20",
+  "Karnataka": "29", "Kerala": "32", "Madhya Pradesh": "23",
+  "Maharashtra": "27", "Manipur": "14", "Meghalaya": "17",
+  "Mizoram": "15", "Nagaland": "13", "Odisha": "21", "Punjab": "03",
+  "Rajasthan": "08", "Sikkim": "11", "Tamil Nadu": "33",
+  "Telangana": "36", "Tripura": "16", "Uttar Pradesh": "09",
+  "Uttarakhand": "05", "West Bengal": "19",
+  "Andaman and Nicobar Islands": "35", "Chandigarh": "04",
+  "Dadra and Nagar Haveli and Daman and Diu": "26",
+  "Delhi": "07", "Jammu and Kashmir": "01", "Ladakh": "38",
+  "Lakshadweep": "31", "Puducherry": "34",
+};
+
+// ─── Amount-in-words (Indian Rupee Format) ──────────────────────────────────
+
+export function amountInWords(totalPaise: number): string {
+  const totalRupees = Math.floor(totalPaise / 100);
+  const paise = Math.round(totalPaise % 100);
+
+  if (totalRupees === 0 && paise === 0) return "Rupees Zero Only";
+
+  const units = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+  function numToWords(n: number): string {
+    if (n < 20) return units[n];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + units[n % 10] : "");
+    if (n < 1000) return units[Math.floor(n / 100)] + " Hundred" + (n % 100 !== 0 ? " " + numToWords(n % 100) : "");
+    if (n < 100000) return numToWords(Math.floor(n / 1000)) + " Thousand" + (n % 1000 !== 0 ? " " + numToWords(n % 1000) : "");
+    if (n < 10000000) return numToWords(Math.floor(n / 100000)) + " Lakh" + (n % 100000 !== 0 ? " " + numToWords(n % 100000) : "");
+    return numToWords(Math.floor(n / 10000000)) + " Crore" + (n % 10000000 !== 0 ? " " + numToWords(n % 10000000) : "");
+  }
+
+  let result = "Rupees " + numToWords(totalRupees);
+  if (paise > 0) {
+    result += " and " + numToWords(paise) + " Paise";
+  }
+  result += " Only";
+  return result;
+}
+
+// ─── Sequential invoice number ──────────────────────────────────────────────
+
+export async function generateInvoiceNumber(): Promise<string> {
+  const now = new Date();
+  const fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const fyLabel = `${fyStart}-${String(fyStart + 1).slice(-2)}`;
+
+  const key = `invoice_seq_${fyStart}`;
+  const { data: existing } = await supabase
+    .from("settings")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+
+  const next = existing ? Number(existing.value) + 1 : 1;
+
+  await supabase
+    .from("settings")
+    .upsert({ key, value: String(next) }, { onConflict: "key" });
+
+  return `INV/${fyLabel}/${String(next).padStart(5, "0")}`;
+}
+
+// ─── Tax type logic ──────────────────────────────────────────────────────────
+
+export function isIntraState(buyerState: string): boolean {
+  return buyerState.trim().toLowerCase() === SELLER.state.toLowerCase();
+}
+
+// ─── Line item types ─────────────────────────────────────────────────────────
+
+export interface InvoiceLineItem {
+  description: string;
+  hsnSac: string;
+  isService: boolean;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  gstRate: number;
+}
+
+export interface InvoiceAddress {
+  name: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  state: string;
+  pincode: string;
+  phone?: string;
+  gstin?: string;
+}
+
+export interface InvoiceData {
+  invoiceNumber: string;
+  invoiceDate: Date;
+  paymentId: string;
+  items: InvoiceLineItem[];
+  billingAddress: InvoiceAddress;
+  shippingAddress?: InvoiceAddress;
+  shippingFee: number;
+  couponCode?: string;
+  totalDiscount: number;
+}
+
+// ─── Core computation ────────────────────────────────────────────────────────
+
+interface ComputedLine {
+  description: string;
+  hsnSac: string;
+  isService: boolean;
+  qty: number;
+  unitPrice: number;
+  discountAmt: number;
+  taxableValue: number;
+  gstRate: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  lineTotal: number;
+}
+
+function computeLines(items: InvoiceLineItem[], intraState: boolean): ComputedLine[] {
+  return items.map((item) => {
+    const grossValue = item.unitPrice * item.quantity;
+    const taxableValue = Math.max(0, grossValue - item.discountAmount);
+    const taxAmt = taxableValue * (item.gstRate / 100);
+    const half = taxAmt / 2;
+    return {
+      description: item.description,
+      hsnSac: item.hsnSac,
+      isService: item.isService,
+      qty: item.quantity,
+      unitPrice: item.unitPrice,
+      discountAmt: item.discountAmount,
+      taxableValue,
+      gstRate: item.gstRate,
+      cgst: intraState ? half : 0,
+      sgst: intraState ? half : 0,
+      igst: intraState ? 0 : taxAmt,
+      lineTotal: taxableValue + taxAmt,
+    };
+  });
+}
+
+// ─── HTML generator ──────────────────────────────────────────────────────────
+
+export function buildInvoiceHtml(data: InvoiceData, sellerOverride?: SellerSettings): string {
+  const seller = sellerOverride || cachedSellerSettings || SELLER;
+  const intra = isIntraState(data.billingAddress.state);
+  const lines = computeLines(data.items, intra);
+
+  const placeOfSupply = data.billingAddress.state;
+  const posCode = STATE_CODES[placeOfSupply] ?? "??";
+
+  const totalTaxable = lines.reduce((s, l) => s + l.taxableValue, 0);
+  const totalCgst    = lines.reduce((s, l) => s + l.cgst, 0);
+  const totalSgst    = lines.reduce((s, l) => s + l.sgst, 0);
+  const totalIgst    = lines.reduce((s, l) => s + l.igst, 0);
+  const totalTax     = totalCgst + totalSgst + totalIgst;
+  const subBeforeRound = totalTaxable + totalTax + data.shippingFee;
+  const rounded      = Math.round(subBeforeRound);
+  const roundingDiff = parseFloat((rounded - subBeforeRound).toFixed(2));
+  const grandTotal   = rounded;
+
+  const words = amountInWords(grandTotal * 100);
+
+  const fmt = (n: number) => n.toFixed(2);
+  const dateStr = data.invoiceDate.toLocaleDateString("en-IN", {
+    day: "2-digit", month: "short", year: "numeric",
+  });
+
+  const R = "&#8377;";
+
+  const addrBlock = (addr: InvoiceAddress, label: string) => `
+    <div class="addr-block">
+      <div class="block-label">${label}</div>
+      <div class="addr-name">${addr.name}</div>
+      <div>${addr.line1}${addr.line2 ? `, ${addr.line2}` : ""}</div>
+      <div>${addr.city}, ${addr.state}${addr.pincode ? ` &mdash; ${addr.pincode}` : ""}</div>
+      ${addr.phone ? `<div>Ph: ${addr.phone}</div>` : ""}
+      ${addr.gstin ? `<div><b>GSTIN:</b> ${addr.gstin}</div>` : ""}
+    </div>`;
+
+  const taxHeaders = intra
+    ? `<th>CGST (${R})</th><th>SGST (${R})</th>`
+    : `<th>IGST (${R})</th>`;
+
+  const itemRows = lines.map((l, i) => {
+    const taxCells = intra
+      ? `<td class="r">${fmt(l.cgst)}</td><td class="r">${fmt(l.sgst)}</td>`
+      : `<td class="r">${fmt(l.igst)}</td>`;
+    return `
+      <tr>
+        <td class="c">${i + 1}</td>
+        <td>${l.description}</td>
+        <td class="c">${l.hsnSac}<br/><span class="sub">${l.isService ? "SAC" : "HSN"}</span></td>
+        <td class="c">${l.qty}</td>
+        <td class="r">${fmt(l.unitPrice)}</td>
+        <td class="r">${l.discountAmt > 0 ? fmt(l.discountAmt) : "&mdash;"}</td>
+        <td class="r">${fmt(l.taxableValue)}</td>
+        <td class="c">${l.gstRate}%</td>
+        ${taxCells}
+        <td class="r"><b>${fmt(l.lineTotal)}</b></td>
+      </tr>`;
+  }).join("");
+
+  const shippingRow = data.shippingFee > 0 ? `
+    <tr>
+      <td class="c">${lines.length + 1}</td>
+      <td>Shipping &amp; Handling</td>
+      <td class="c">996812<br/><span class="sub">SAC</span></td>
+      <td class="c">1</td>
+      <td class="r">${fmt(data.shippingFee)}</td>
+      <td class="r">&mdash;</td>
+      <td class="r">${fmt(data.shippingFee)}</td>
+      <td class="c">0%</td>
+      ${intra ? `<td class="r">0.00</td><td class="r">0.00</td>` : `<td class="r">0.00</td>`}
+      <td class="r"><b>${fmt(data.shippingFee)}</b></td>
+    </tr>` : "";
+
+  const roundingRow = roundingDiff !== 0 ? `
+    <tr>
+      <td colspan="${intra ? 9 : 8}" class="r" style="font-style:italic;color:#555;">
+        Rounding Off
+      </td>
+      <td class="r" style="font-style:italic;">${roundingDiff > 0 ? "+" : ""}${fmt(roundingDiff)}</td>
+    </tr>` : "";
+
+  const taxTotalCells = intra
+    ? `<td class="r"><b>${fmt(totalCgst)}</b></td><td class="r"><b>${fmt(totalSgst)}</b></td>`
+    : `<td class="r"><b>${fmt(totalIgst)}</b></td>`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Tax Invoice - ${data.invoiceNumber}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; padding: 28px; background: #fff; }
+  .page { max-width: 780px; margin: 0 auto; }
+
+  /* ── Header ── */
+  .inv-header { display: flex; justify-content: space-between; align-items: flex-start;
+    border: 1.5px solid #1a1a1a; padding: 14px 16px; margin-bottom: 0; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-text .trade-name { font-size: 20px; font-weight: 900; color: #0B6FAD; letter-spacing: 1px; }
+  .brand-text .legal-name { font-size: 10px; color: #444; margin-top: 2px; }
+  .brand-text .seller-addr { font-size: 10px; color: #333; margin-top: 4px; line-height: 1.5; }
+  .brand-text .gstin { font-size: 10px; font-weight: bold; margin-top: 4px; }
+  .inv-meta { text-align: right; min-width: 200px; }
+  .inv-title { font-size: 16px; font-weight: 900; letter-spacing: 2px; color: #0B6FAD;
+    text-transform: uppercase; margin-bottom: 8px; }
+  .inv-meta table { margin-left: auto; border-collapse: collapse; }
+  .inv-meta td { padding: 2px 4px; font-size: 10.5px; }
+  .inv-meta td:first-child { font-weight: bold; text-align: right; padding-right: 8px; }
+  .paid-badge { display: inline-block; background: #16a34a; color: #fff;
+    font-size: 10px; font-weight: bold; padding: 2px 8px; border-radius: 4px; margin-top: 6px; }
+
+  /* ── Address row ── */
+  .addr-row { display: flex; border: 1.5px solid #1a1a1a; border-top: none; }
+  .addr-block { flex: 1; padding: 10px 14px; font-size: 10.5px; line-height: 1.6; }
+  .addr-block + .addr-block { border-left: 1px solid #ccc; }
+  .block-label { font-size: 9.5px; font-weight: bold; text-transform: uppercase;
+    color: #555; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .addr-name { font-weight: bold; font-size: 12px; }
+
+  /* ── Place of supply ── */
+  .pos-row { border: 1.5px solid #1a1a1a; border-top: none; padding: 6px 14px;
+    font-size: 10.5px; display: flex; gap: 24px; }
+  .pos-row span { font-weight: bold; }
+
+  /* ── Item table ── */
+  table.items { width: 100%; border-collapse: collapse;
+    border: 1.5px solid #1a1a1a; border-top: none; }
+  table.items th { background: #f0f4f8; padding: 6px 5px; text-align: center;
+    border: 1px solid #bbb; font-size: 10px; font-weight: bold; }
+  table.items td { padding: 6px 5px; border: 1px solid #ccc; font-size: 10.5px;
+    vertical-align: top; }
+  .c { text-align: center; }
+  .r { text-align: right; }
+  .sub { font-size: 9px; color: #777; }
+  tr.subtotal td { background: #f9f9f9; font-weight: bold; border-top: 1.5px solid #999; }
+  tr.grand td { background: #0B6FAD; color: #fff; font-weight: bold; font-size: 12px; }
+
+  /* ── Totals sidebar ── */
+  .totals-row { display: flex; border: 1.5px solid #1a1a1a; border-top: none; }
+  .words-block { flex: 1; padding: 10px 14px; font-size: 10.5px; border-right: 1px solid #ccc; }
+  .words-block .label { font-size: 9.5px; font-weight: bold; text-transform: uppercase;
+    color: #555; margin-bottom: 4px; }
+  .words-block .words { font-style: italic; line-height: 1.5; }
+  .totals-block { min-width: 220px; padding: 8px 14px; }
+  .totals-block table { width: 100%; border-collapse: collapse; }
+  .totals-block td { padding: 3px 4px; font-size: 10.5px; }
+  .totals-block td:last-child { text-align: right; font-weight: bold; }
+  .totals-block tr.grand-row td { font-size: 13px; color: #0B6FAD;
+    border-top: 1.5px solid #0B6FAD; padding-top: 5px; }
+
+  /* ── Footer ── */
+  .footer { border: 1.5px solid #1a1a1a; border-top: none; padding: 10px 14px;
+    display: flex; justify-content: space-between; align-items: flex-end; }
+  .footer-note { font-size: 9.5px; color: #555; max-width: 420px; line-height: 1.5; }
+  .footer-contact { text-align: right; font-size: 9.5px; color: #333; line-height: 1.6; }
+  .footer-contact .cin { font-size: 9px; color: #777; }
+  .sign-block { text-align: right; font-size: 10px; margin-top: 4px; }
+
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body { padding: 0; background: #fff; }
+    .page { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header: letterhead + invoice meta -->
+  <div class="inv-header">
+    <div class="brand">
+      <div class="brand-text">
+        <div class="trade-name">${seller.tradeName}</div>
+        <div class="legal-name">${seller.name}</div>
+        ${seller.address1 || seller.address2 ? `
+        <div class="seller-addr">
+          ${seller.address1 ? `${seller.address1}<br/>` : ""}
+          ${seller.address2 ? `${seller.address2}` : ""}
+        </div>` : ""}
+        <div class="gstin">GSTIN: ${seller.gstin ? seller.gstin : "Pending Registration"} &nbsp;|&nbsp; State: ${seller.state} (${seller.stateCode})</div>
+      </div>
+    </div>
+    <div class="inv-meta">
+      <div class="inv-title">Tax Invoice</div>
+      <table>
+        <tr><td>Invoice No.</td><td><b>${data.invoiceNumber}</b></td></tr>
+        <tr><td>Date</td><td>${dateStr}</td></tr>
+        <tr><td>Payment ID</td><td style="font-size:9px;">${data.paymentId}</td></tr>
+        <tr><td>Status</td><td><span class="paid-badge">PAID IN FULL</span></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Billing + Shipping addresses -->
+  <div class="addr-row">
+    ${addrBlock(data.billingAddress, "Bill To")}
+    ${data.shippingAddress ? addrBlock(data.shippingAddress, "Ship To") : addrBlock(data.billingAddress, "Ship To")}
+  </div>
+
+  <!-- Place of Supply -->
+  <div class="pos-row">
+    <div>Place of Supply: <span>${placeOfSupply} (${posCode})</span></div>
+    <div>Tax Type: <span>${intra ? "CGST + SGST (Intra-State)" : "IGST (Inter-State)"}</span></div>
+    ${data.couponCode ? `<div>Coupon Applied: <span>${data.couponCode}</span></div>` : ""}
+  </div>
+
+  <!-- Item table -->
+  <table class="items">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th style="text-align:left;">Description</th>
+        <th>HSN/SAC</th>
+        <th>Qty</th>
+        <th>${R} Rate</th>
+        <th>Discount</th>
+        <th>Taxable Value</th>
+        <th>GST%</th>
+        ${taxHeaders}
+        <th>Line Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${itemRows}
+      ${shippingRow}
+      <tr class="subtotal">
+        <td colspan="${intra ? 6 : 6}" class="r">Totals</td>
+        <td class="r">${fmt(totalTaxable + data.shippingFee)}</td>
+        <td></td>
+        ${taxTotalCells}
+        <td class="r">${fmt(subBeforeRound)}</td>
+      </tr>
+      ${roundingRow}
+      <tr class="grand">
+        <td colspan="${intra ? 9 : 8}" class="r">Grand Total</td>
+        <td class="r">${R} ${fmt(grandTotal)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Amount in words + totals breakdown -->
+  <div class="totals-row">
+    <div class="words-block">
+      <div class="label">Amount in Words</div>
+      <div class="words">${words}</div>
+      <div style="margin-top:8px;font-size:9.5px;color:#555;">
+        Payment received via Razorpay on ${dateStr}.<br/>
+        This is a computer-generated invoice and does not require a physical signature.
+      </div>
+    </div>
+    <div class="totals-block">
+      <table>
+        <tr><td>Taxable Amount</td><td>${R} ${fmt(totalTaxable + data.shippingFee)}</td></tr>
+        ${intra
+          ? `<tr><td>CGST</td><td>${R} ${fmt(totalCgst)}</td></tr>
+             <tr><td>SGST</td><td>${R} ${fmt(totalSgst)}</td></tr>`
+          : `<tr><td>IGST</td><td>${R} ${fmt(totalIgst)}</td></tr>`}
+        ${roundingDiff !== 0 ? `<tr><td>Rounding Off</td><td>${roundingDiff > 0 ? "+" : ""}${fmt(roundingDiff)}</td></tr>` : ""}
+        <tr class="grand-row"><td>Grand Total</td><td>${R} ${fmt(grandTotal)}</td></tr>
+      </table>
+      <div class="sign-block">
+        For ${seller.name}<br/>
+        <span style="font-size:9px;color:#777;">Authorised Signatory</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-note">
+      <b>Note:</b> This is a valid Tax Invoice under Section 31 of the CGST Act, 2017.
+      Goods once sold will not be taken back or exchanged unless defective.
+      Subject to ${seller.state} jurisdiction only.
+    </div>
+    <div class="footer-contact">
+      ${seller.phone || seller.email ? `<div>${[seller.phone, seller.email].filter(Boolean).join(" &nbsp;|&nbsp; ")}</div>` : ""}
+      ${seller.website ? `<div>${seller.website}</div>` : ""}
+      ${seller.cin ? `<div class="cin">CIN: ${seller.cin}</div>` : ""}
+    </div>
+  </div>
+
+</div>
+</body>
+</html>`;
+}

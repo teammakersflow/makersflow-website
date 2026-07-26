@@ -76,34 +76,41 @@ function LessonPlayerPage() {
   useEffect(() => {
     if (!user) return;
     async function checkAccess() {
-      // Always allow if course is free
-      const { data: course } = await supabase
+      // Fetch course metadata — FAIL-CLOSED: if query errors or returns null, deny access
+      const { data: course, error: courseErr } = await supabase
         .from("courses")
         .select("is_free, price")
         .eq("id", courseId)
         .maybeSingle();
 
-      if (!course || course.is_free || course.price === 0) {
+      if (courseErr || !course) {
+        // Fail-closed: Never default to granting access on error or missing course record
+        setAccessGranted(false);
+        return;
+      }
+
+      if (course.is_free || course.price === 0) {
         setAccessGranted(true);
         return;
       }
 
-      // Check enrollments table (legacy) OR course_purchases
-      const [{ count: enrollCount }, { count: purchaseCount }] = await Promise.all([
-        supabase
-          .from("enrollments")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user!.id)
-          .eq("course_id", courseId),
-        supabase
-          .from("course_purchases")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user!.id)
-          .eq("course_id", courseId)
-          .eq("status", "active"),
-      ]);
+      // Check enrollments table OR course_purchases for paid courses
+      const [{ count: enrollCount, error: enrErr }, { count: purchaseCount, error: purErr }] =
+        await Promise.all([
+          supabase
+            .from("enrollments")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user!.id)
+            .eq("course_id", courseId),
+          supabase
+            .from("course_purchases")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user!.id)
+            .eq("course_id", courseId)
+            .eq("status", "active"),
+        ]);
 
-      if ((enrollCount ?? 0) > 0 || (purchaseCount ?? 0) > 0) {
+      if (!enrErr && (enrollCount ?? 0) > 0 || !purErr && (purchaseCount ?? 0) > 0) {
         setAccessGranted(true);
       } else {
         setAccessGranted(false);

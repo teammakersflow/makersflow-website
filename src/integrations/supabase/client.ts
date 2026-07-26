@@ -20,6 +20,11 @@ const SUPABASE_PUBLISHABLE_KEY =
   (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ??
   (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined);
 
+console.error("[SUPABASE CLIENT INIT]", {
+  url: SUPABASE_URL ?? "UNDEFINED (fallback to placeholder)",
+  keyPresent: !!SUPABASE_PUBLISHABLE_KEY,
+});
+
 if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   // Surface a clear error early in dev rather than a confusing auth failure later.
 

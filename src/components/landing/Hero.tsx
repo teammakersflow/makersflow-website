@@ -30,7 +30,7 @@ export function Hero() {
   }, [reduce]);
 
   const parallax = (depth: number) => ({
-    transform: reduce ? undefined : `translate3d(${pos.x * depth}px, ${pos.y * depth}px, 0)`,
+    transform: reduce ? "translate3d(0px, 0px, 0)" : `translate3d(${pos.x * depth}px, ${pos.y * depth}px, 0)`,
   });
 
   return (
@@ -48,7 +48,8 @@ export function Hero() {
             background:
               "radial-gradient(circle at 30% 30%, color-mix(in oklab, var(--primary) 55%, transparent), transparent 60%)",
           }}
-          animate={reduce ? undefined : { x: [0, 60, 0], y: [0, 30, 0] }}
+          initial={{ x: 0, y: 0 }}
+          animate={reduce ? { x: 0, y: 0 } : { x: [0, 60, 0], y: [0, 30, 0] }}
           transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
@@ -57,7 +58,8 @@ export function Hero() {
             background:
               "radial-gradient(circle at 70% 70%, color-mix(in oklab, var(--accent) 60%, transparent), transparent 60%)",
           }}
-          animate={reduce ? undefined : { x: [0, -50, 0], y: [0, -30, 0] }}
+          initial={{ x: 0, y: 0 }}
+          animate={reduce ? { x: 0, y: 0 } : { x: [0, -50, 0], y: [0, -30, 0] }}
           transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
@@ -66,7 +68,8 @@ export function Hero() {
             background:
               "radial-gradient(circle, color-mix(in oklab, var(--primary-light) 55%, transparent), transparent 65%)",
           }}
-          animate={reduce ? undefined : { scale: [1, 1.15, 1] }}
+          initial={{ scale: 1 }}
+          animate={reduce ? { scale: 1 } : { scale: [1, 1.15, 1] }}
           transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
         />
         {/* dotted grid */}
@@ -235,7 +238,8 @@ function FloatingDecor({
       <motion.div
         aria-hidden
         style={parallax(-22)}
-        animate={reduce ? undefined : { y: [0, -10, 0] }}
+        initial={{ y: 0 }}
+        animate={reduce ? { y: 0 } : { y: [0, -10, 0] }}
         transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
         className="pointer-events-none absolute right-[6%] top-[18%] hidden lg:block"
       >
@@ -246,7 +250,8 @@ function FloatingDecor({
       <motion.div
         aria-hidden
         style={parallax(18)}
-        animate={reduce ? undefined : { y: [0, 12, 0] }}
+        initial={{ y: 0 }}
+        animate={reduce ? { y: 0 } : { y: [0, 12, 0] }}
         transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
         className="pointer-events-none absolute bottom-[30%] left-[2%] hidden lg:block opacity-60"
       >
@@ -257,7 +262,8 @@ function FloatingDecor({
       <motion.div
         aria-hidden
         style={parallax(-14)}
-        animate={reduce ? undefined : { rotate: [0, 4, 0, -4, 0] }}
+        initial={{ rotate: 0 }}
+        animate={reduce ? { rotate: 0 } : { rotate: [0, 4, 0, -4, 0] }}
         transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
         className="pointer-events-none absolute bottom-[14%] right-[8%] hidden md:block"
       >

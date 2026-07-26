@@ -92,7 +92,8 @@ function ResetPasswordPage() {
     setLoading(false);
 
     if (error) {
-      setFormError(error.message);
+      console.error("[reset-password] Password update failed:", error);
+      setFormError("Could not update password. Please request a new reset link.");
       return;
     }
 

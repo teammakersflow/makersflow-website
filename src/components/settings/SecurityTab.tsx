@@ -31,7 +31,8 @@ export function SecurityTab() {
     setSaving(false);
 
     if (error) {
-      setMsg({ type: "error", text: error.message });
+      console.error("[SecurityTab] Password update failed:", error);
+      setMsg({ type: "error", text: "Could not update password. Please try again." });
     } else {
       setMsg({ type: "success", text: "Password updated successfully!" });
       setCurrent("");

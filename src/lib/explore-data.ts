@@ -56,7 +56,7 @@ export const FALLBACK: CourseCard[] = [
     price: 1999,
     original_price: 3499,
     is_free: false,
-    thumbnail_url: "/course-thumbnails/aiml003-1024x640.jpg",
+    thumbnail_url: "/course-thumbnails/aiml003-1024x640.webp",
     rating: 4.8,
     total_reviews: 248,
     instructor_name: "Priya Sharma",
@@ -70,7 +70,7 @@ export const FALLBACK: CourseCard[] = [
     price: 0,
     original_price: null,
     is_free: true,
-    thumbnail_url: "/course-thumbnails/EC-IoT-Internet-of-Things-750.jpg",
+    thumbnail_url: "/course-thumbnails/EC-IoT-Internet-of-Things-750.webp",
     rating: 4.7,
     total_reviews: 186,
     instructor_name: "Rohan Kapoor",
@@ -84,7 +84,7 @@ export const FALLBACK: CourseCard[] = [
     price: 999,
     original_price: 1999,
     is_free: false,
-    thumbnail_url: "/course-thumbnails/embedded-systems.png",
+    thumbnail_url: "/course-thumbnails/embedded-systems.webp",
     rating: 4.8,
     total_reviews: 421,
     instructor_name: "Ananya Iyer",
@@ -100,13 +100,13 @@ export const FALLBACK: CourseCard[] = [
     is_free: false,
     thumbnail_url: "/course-thumbnails/7023609_a203.webp",
     rating: 4.9,
-    total_reviews: 905,
-    instructor_name: "Vikram Singh",
+    total_reviews: 512,
+    instructor_name: "Dr. Aarav Mehta",
     gst_rate: 18,
   },
   {
     id: "demo-6",
-    title: "Drone Engineering Bootcamp",
+    title: "ROS2 & Autonomous Mobile Robots",
     category: "Robotics",
     level: "Advanced",
     price: 2499,
@@ -114,33 +114,33 @@ export const FALLBACK: CourseCard[] = [
     is_free: false,
     thumbnail_url: "/course-thumbnails/9XFcF1OnPoDv83Zqg0tI1lP144RY8wzVckh9Os7v.webp",
     rating: 4.9,
-    total_reviews: 134,
-    instructor_name: "Kavya Nair",
+    total_reviews: 154,
+    instructor_name: "Vikram Malhotra",
     gst_rate: 18,
   },
   {
     id: "demo-7",
-    title: "Deep Learning with PyTorch",
+    title: "Computer Vision with OpenCV & PyTorch",
     category: "AI & ML",
-    level: "Advanced",
-    price: 2999,
-    original_price: 4999,
+    level: "Intermediate",
+    price: 2199,
+    original_price: 3999,
     is_free: false,
     thumbnail_url: "/course-thumbnails/photo-1674027444485-cec3da58eef4.avif",
     rating: 4.8,
-    total_reviews: 92,
+    total_reviews: 290,
     instructor_name: "Priya Sharma",
     gst_rate: 18,
   },
   {
     id: "demo-8",
-    title: "Raspberry Pi for Makers",
-    category: "Electronics",
-    level: "Intermediate",
+    title: "Raspberry Pi Industrial Edge AI",
+    category: "IoT",
+    level: "Advanced",
     price: 0,
     original_price: null,
     is_free: true,
-    thumbnail_url: "/course-thumbnails/banner_strange_pi_projects-768x512.jpg",
+    thumbnail_url: "/course-thumbnails/banner_strange_pi_projects-768x512.webp",
     rating: 4.6,
     total_reviews: 211,
     instructor_name: "Rohan Kapoor",
@@ -550,11 +550,11 @@ export async function enrollInCourse(
   try {
     const expiresAt = new Date();
     expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    // Only insert columns that exist in the enrollments table.
+    // (payment_status and status are NOT columns in this table — do not add them.)
     const enrollmentData = {
       user_id: userId,
       course_id: courseId,
-      payment_status: isFree ? "completed" : "pending",
-      status: "active",
       enrolled_at: new Date().toISOString(),
       // Same 1-year access window the mobile app enforces
       expires_at: expiresAt.toISOString(),
@@ -566,14 +566,14 @@ export async function enrollInCourse(
 
     if (error) {
       console.error("[enrollInCourse] Supabase error:", error);
-      return { ok: false, error: error.message };
+      return { ok: false, error: "Could not process enrollment. Please try again." };
     }
 
     console.log("[enrollInCourse] Enrollment successful");
     return { ok: true };
   } catch (e: any) {
     console.error("[enrollInCourse] Caught exception:", e);
-    return { ok: false, error: e?.message ?? "Failed to enroll" };
+    return { ok: false, error: "Failed to enroll. Please try again." };
   }
 }
 

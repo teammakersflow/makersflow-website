@@ -11,14 +11,19 @@ import {
   InfoCardDismiss,
   InfoCardAction,
 } from "@/components/ui/info-card";
+import { lazy, Suspense } from "react";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { ContinueLearning } from "@/components/dashboard/ContinueLearning";
 import { Recommended } from "@/components/dashboard/Recommended";
-import { WeeklyActivity } from "@/components/dashboard/WeeklyActivity";
 import { StreakFlame } from "@/components/dashboard/StreakFlame";
 import { Achievements } from "@/components/dashboard/Achievements";
 import { QuickActions } from "@/components/dashboard/QuickActions";
+import { OnboardingModal } from "@/components/dashboard/OnboardingModal";
+
+const WeeklyActivity = lazy(() =>
+  import("@/components/dashboard/WeeklyActivity").then((m) => ({ default: m.WeeklyActivity })),
+);
 import { useAuth } from "@/integrations/supabase/auth";
 import {
   fetchProfile,
@@ -125,6 +130,8 @@ function DashboardPage() {
 
   return (
     <div className="flex min-h-screen w-full bg-background">
+      {/* One-time welcome modal — shown on first dashboard visit, never again */}
+      <OnboardingModal />
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         <main className="mx-auto w-full max-w-6xl space-y-7 px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
@@ -191,7 +198,16 @@ function DashboardPage() {
           {/* ── Activity & Achievements ─────────────────────────────────── */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2">
-              <WeeklyActivity data={weekly} />
+              <Suspense
+                fallback={
+                  <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+                    <div className="h-6 w-40 animate-pulse rounded bg-muted" />
+                    <div className="mt-4 h-48 w-full animate-pulse rounded-xl bg-muted/40" />
+                  </div>
+                }
+              >
+                <WeeklyActivity data={weekly} />
+              </Suspense>
             </div>
             <div className="lg:col-span-1">
               <Achievements items={achievements} />

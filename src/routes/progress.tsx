@@ -1,15 +1,19 @@
+import { lazy, Suspense } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import {
   StatsGrid,
   StreakHeatmap,
-  WeeklyChart,
   BadgesGrid,
   SkeletonStats,
 } from "@/components/progress/ProgressComponents";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { fetchProgressOverview, fetchEnrolledCourses } from "@/lib/learn-data";
+
+const WeeklyChart = lazy(() =>
+  import("@/components/progress/ProgressComponents").then((m) => ({ default: m.WeeklyChart })),
+);
 
 export const Route = createFileRoute("/progress")({
   head: () => ({ meta: [{ title: "Progress — MakersFlow" }] }),
@@ -58,7 +62,13 @@ function ProgressPage() {
               <StatsGrid overview={overview} />
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.5fr_1fr]">
                 <StreakHeatmap overview={overview} />
-                <WeeklyChart overview={overview} />
+                <Suspense
+                  fallback={
+                    <div className="h-64 animate-pulse rounded-2xl bg-card border border-border" />
+                  }
+                >
+                  <WeeklyChart overview={overview} />
+                </Suspense>
               </div>
               <BadgesGrid
                 overview={overview}

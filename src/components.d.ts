@@ -42,47 +42,10 @@ declare module "@/components/CurvedLoop" {
   export default CurvedLoop;
 }
 
-declare module "@/components/BorderGlow" {
-  export interface BorderGlowProps {
-    children?: React.ReactNode;
-    borderRadius?: number;
-    glowColor?: string;
-    colors?: string[];
-    backgroundColor?: string;
-    glowIntensity?: number;
-    className?: string;
-    [key: string]: any;
-  }
-  const BorderGlow: React.ComponentType<BorderGlowProps>;
-  export default BorderGlow;
-}
 
-declare module "@/components/Folder" {
-  export interface FolderProps {
-    title?: string;
-    description?: string;
-    items?: string[];
-    className?: string;
-    [key: string]: any;
-  }
-  const Folder: React.ComponentType<FolderProps>;
-  export default Folder;
-}
 
-declare module "@/components/LineSidebar" {
-  export interface LineSidebarProps {
-    items: string[];
-    defaultActive?: number;
-    accentColor?: string;
-    textColor?: string;
-    markerColor?: string;
-    onItemClick?: (index: number) => void;
-    className?: string;
-    [key: string]: any;
-  }
-  const LineSidebar: React.ComponentType<LineSidebarProps>;
-  export default LineSidebar;
-}
+
+
 
 declare module "@/components/ElasticSlider" {
   export interface ElasticSliderProps {
@@ -96,39 +59,8 @@ declare module "@/components/ElasticSlider" {
   export default ElasticSlider;
 }
 
-declare module "@/components/Stepper" {
-  export interface StepProps {
-    children?: React.ReactNode;
-    [key: string]: any;
-  }
-  export const Step: React.ComponentType<StepProps>;
 
-  export interface StepperProps {
-    children?: React.ReactNode;
-    initialStep?: number;
-    onStepChange?: (step: number) => void;
-    onFinalStepCompleted?: () => void;
-    stepCircleContainerClassName?: string;
-    stepContainerClassName?: string;
-    contentClassName?: string;
-    footerClassName?: string;
-    backButtonProps?: React.ButtonHTMLAttributes<HTMLButtonElement>;
-    nextButtonProps?: React.ButtonHTMLAttributes<HTMLButtonElement>;
-    backButtonText?: string;
-    nextButtonText?: string;
-    disableStepIndicators?: boolean;
-    renderStepIndicator?: (props: {
-      step: number;
-      currentStep: number;
-      onStepClick: (clicked: number) => void;
-      isComplete: boolean;
-      isCurrent: boolean;
-    }) => React.ReactNode;
-    [key: string]: any;
-  }
-  const Stepper: React.ComponentType<StepperProps>;
-  export default Stepper;
-}
+
 
 declare module "@/components/TextType" {
   export interface TextTypeProps {

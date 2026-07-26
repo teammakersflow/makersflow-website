@@ -16,6 +16,14 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPrice } from "@/lib/store-data";
 import { cn } from "@/lib/utils";
+import {
+  fetchSellerSettings,
+  generateInvoiceNumber,
+  buildInvoiceHtml,
+  type InvoiceLineItem,
+  type InvoiceAddress,
+  type InvoiceData,
+} from "@/lib/invoice-utils";
 
 export const Route = createFileRoute("/orders")({
   head: () => ({ meta: [{ title: "My Orders — MakersFlow" }] }),
@@ -45,8 +53,10 @@ type Order = {
 };
 type CoursePurchase = {
   id: string;
+  user_id?: string;
   course_id: string;
   amount_paid: number;
+  currency?: string;
   status: string;
   purchased_at: string;
   razorpay_payment_id: string | null;
@@ -54,6 +64,7 @@ type CoursePurchase = {
 };
 type Payment = {
   id: string;
+  user_id?: string;
   amount: number;
   status: string;
   razorpay_payment_id: string | null;
@@ -94,28 +105,136 @@ const STATUS_STYLES: Record<string, string> = {
 
 // ── Order card ─────────────────────────────────────────────────────────────
 
-function OrderCard({ order, invoice }: { order: Order; invoice?: Invoice }) {
+function OrderCard({
+  order,
+  invoice,
+  onInvoiceGenerated,
+}: {
+  order: Order;
+  invoice?: Invoice;
+  onInvoiceGenerated?: (inv: Invoice) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const items: OrderItem[] = Array.isArray(order.items) ? order.items : [];
 
-  const downloadInvoice = (inv: Invoice) => {
-    const content = [
-      "MAKERSFLOW INVOICE",
-      "==================",
-      `Invoice No: ${inv.invoice_number}`,
-      `Date: ${new Date().toLocaleDateString("en-IN")}`,
-      `Order ID: ${order.id}`,
-      `Total: ${formatPrice(inv.total_amount)}`,
-      "",
-      "Thank you!",
-      "Support: team.makersflow@gmail.com",
-    ].join("\n");
-    const url = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${inv.invoice_number}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const downloadInvoice = async (existingInv?: Invoice) => {
+    let finalInv = existingInv;
+
+    // If no cached invoice or invoice has temporary prefix, query or generate real sequential INV/YYYY-YY/XXXXX
+    if (!finalInv || !finalInv.invoice_number || finalInv.invoice_number.startsWith("INV-")) {
+      const { data: dbInv } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("order_id", order.id)
+        .maybeSingle();
+
+      if (dbInv && dbInv.invoice_number && !dbInv.invoice_number.startsWith("INV-")) {
+        finalInv = dbInv as Invoice;
+      } else {
+        const realSeqNumber = await generateInvoiceNumber();
+        const { data: newInvRow } = await supabase
+          .from("invoices")
+          .insert({
+            user_id: (order as any).user_id,
+            order_id: order.id,
+            invoice_number: realSeqNumber,
+            total_amount: order.total_amount,
+          })
+          .select("*")
+          .maybeSingle();
+
+        finalInv = (newInvRow as Invoice) || {
+          id: order.id,
+          invoice_number: realSeqNumber,
+          total_amount: order.total_amount,
+          order_id: order.id,
+        };
+
+        if (onInvoiceGenerated && finalInv) {
+          onInvoiceGenerated(finalInv);
+        }
+      }
+    }
+
+    const seller = await fetchSellerSettings();
+
+    // Fetch real hsn_code from DB for courses/products if missing on order items
+    const courseIds = items.filter((i: any) => i.is_course && (i.course_id || i.id)).map((i: any) => i.course_id || i.id);
+    const productIds = items.filter((i: any) => !i.is_course && i.id).map((i: any) => i.id);
+
+    const hsnMap = new Map<string, string>();
+    if (courseIds.length > 0) {
+      const { data: cRows } = await supabase.from("courses").select("id, hsn_code").in("id", courseIds);
+      cRows?.forEach((r: any) => { if (r.hsn_code) hsnMap.set(String(r.id), r.hsn_code); });
+    }
+    if (productIds.length > 0) {
+      const { data: pRows } = await supabase.from("products").select("id, hsn_code").in("id", productIds);
+      pRows?.forEach((r: any) => { if (r.hsn_code) hsnMap.set(String(r.id), r.hsn_code); });
+    }
+
+    const invoiceItems: InvoiceLineItem[] = items.map((item: any) => {
+      const itemId = String(item.course_id || item.id || "");
+      const dbHsn = hsnMap.get(itemId);
+      const fallbackHsn = item.is_course ? "999294" : "84733099";
+      const hsnSac = item.hsn_code || item.hsnSac || dbHsn || fallbackHsn;
+
+      return {
+        description: item.title || item.name || "MakersFlow Product",
+        hsnSac,
+        isService: !!item.is_course,
+        quantity: item.qty || item.quantity || 1,
+        unitPrice: Number(item.price || 0),
+        discountAmount: 0,
+        gstRate: Number(item.gst_rate ?? 18),
+      };
+    });
+
+    const shippingAddr: InvoiceAddress | undefined = (order as any).shipping_address ? {
+      name: (order as any).shipping_address.name || (order as any).shipping_address.full_name || "Customer",
+      line1: (order as any).shipping_address.line1 || (order as any).shipping_address.address || "Address",
+      line2: (order as any).shipping_address.line2 || "",
+      city: (order as any).shipping_address.city || "City",
+      state: (order as any).shipping_address.state || "Andhra Pradesh",
+      pincode: (order as any).shipping_address.pincode || (order as any).shipping_address.postal_code || "",
+      phone: (order as any).shipping_address.phone || "",
+    } : undefined;
+
+    const billingAddr: InvoiceAddress = shippingAddr || {
+      name: "Customer",
+      line1: "Online Order",
+      city: "Visakhapatnam",
+      state: "Andhra Pradesh",
+      pincode: "530001",
+    };
+
+    const invoiceData: InvoiceData = {
+      invoiceNumber: finalInv.invoice_number,
+      invoiceDate: new Date(order.created_at || Date.now()),
+      paymentId: (order as any).razorpay_payment_id || order.id,
+      items: invoiceItems.length > 0 ? invoiceItems : [{
+        description: "MakersFlow Order",
+        hsnSac: "999294",
+        isService: true,
+        quantity: 1,
+        unitPrice: Number(finalInv.total_amount || order.total_amount),
+        discountAmount: Number(order.discount_amount || 0),
+        gstRate: 18,
+      }],
+      billingAddress: billingAddr,
+      shippingAddress: shippingAddr,
+      shippingFee: 0,
+      couponCode: order.coupon_code || undefined,
+      totalDiscount: Number(order.discount_amount || 0),
+    };
+
+    const html = buildInvoiceHtml(invoiceData, seller);
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 250);
+    }
   };
 
   return (
@@ -142,6 +261,17 @@ function OrderCard({ order, invoice }: { order: Order; invoice?: Invoice }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {(order.status === "paid" || order.status === "completed") && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadInvoice(invoice);
+              }}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-secondary transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" /> Invoice
+            </button>
+          )}
           <span
             className={cn(
               "rounded-full px-3 py-1 text-xs font-semibold capitalize",
@@ -200,12 +330,12 @@ function OrderCard({ order, invoice }: { order: Order; invoice?: Invoice }) {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {invoice && (
+            {(order.status === "paid" || order.status === "completed" || invoice) && (
               <button
                 onClick={() => downloadInvoice(invoice)}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-secondary transition-colors"
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-secondary transition-colors cursor-pointer"
               >
-                <Download className="h-3.5 w-3.5" /> Invoice ({invoice.invoice_number})
+                <Download className="h-3.5 w-3.5" /> Download Tax Invoice
               </button>
             )}
             {items
@@ -251,25 +381,72 @@ function OrdersPage() {
         .order("created_at", { ascending: false }),
       supabase
         .from("course_purchases")
-        .select("*, courses(title, thumbnail_url)")
+        .select("*, courses(id, title, thumbnail_url, category, price, is_free)")
         .eq("user_id", user.id)
         .order("purchased_at", { ascending: false }),
+      supabase
+        .from("enrollments")
+        .select("id, enrolled_at, razorpay_order_id, course_id, courses(id, title, thumbnail_url, category, price, is_free)")
+        .eq("user_id", user.id)
+        .order("enrolled_at", { ascending: false }),
       supabase
         .from("payments")
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
-      supabase
-        .from("refunds")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
       supabase.from("invoices").select("*").eq("user_id", user.id),
-    ]).then(([o, c, p, r, inv]) => {
-      setOrders((o.data as Order[]) ?? []);
-      setCourses((c.data as CoursePurchase[]) ?? []);
-      setPayments((p.data as Payment[]) ?? []);
-      setRefunds((r.data as Refund[]) ?? []);
+    ]).then(([o, c, enr, p, inv]) => {
+      const orderList = (o.data as Order[]) ?? [];
+      setOrders(orderList);
+
+      const cpList = (c.data as CoursePurchase[]) ?? [];
+      const enrList = (enr.data as any[]) ?? [];
+
+      // Combine course_purchases and enrollments so all active course access is displayed
+      const courseMap = new Map<string, CoursePurchase>();
+      cpList.forEach((cp) => {
+        if (cp.course_id) courseMap.set(String(cp.course_id), cp);
+      });
+
+      enrList.forEach((e) => {
+        if (e.courses && !courseMap.has(String(e.course_id))) {
+          courseMap.set(String(e.course_id), {
+            id: e.id,
+            user_id: user.id,
+            course_id: e.course_id,
+            amount_paid: e.courses.price ?? 0,
+            currency: "INR",
+            razorpay_payment_id: e.razorpay_order_id ?? null,
+            status: "active",
+            purchased_at: e.enrolled_at,
+            courses: e.courses,
+          });
+        }
+      });
+
+      setCourses(Array.from(courseMap.values()));
+
+      // Payments: derive from orders if payments table is empty, failing-closed to "pending" if status is missing
+      const paymentList = (p.data as Payment[]) ?? [];
+      if (paymentList.length === 0 && orderList.length > 0) {
+        const derivedPayments: Payment[] = orderList.map((ord: any) => ({
+          id: ord.id,
+          user_id: user.id,
+          razorpay_payment_id: ord.payment_id ?? ord.razorpay_order_id ?? ord.id,
+          amount: ord.total_amount ?? ord.amount ?? 0,
+          currency: ord.currency ?? "INR",
+          coupon_code: ord.coupon_code ?? null,
+          discount_amount: ord.discount_amount ?? 0,
+          tax_amount: ord.tax_amount ?? 0,
+          status: ord.payment_status ?? ord.status ?? "pending",
+          created_at: ord.created_at,
+        }));
+        setPayments(derivedPayments);
+      } else {
+        setPayments(paymentList);
+      }
+
+      setRefunds([]);
       setInvoices((inv.data as Invoice[]) ?? []);
       setLoading(false);
     });
@@ -364,6 +541,9 @@ function OrdersPage() {
                     key={order.id}
                     order={order}
                     invoice={invoices.find((inv) => inv.order_id === order.id)}
+                    onInvoiceGenerated={(inv) =>
+                      setInvoices((prev) => [...prev.filter((i) => i.order_id !== inv.order_id), inv])
+                    }
                   />
                 ))}
               </div>

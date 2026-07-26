@@ -90,8 +90,9 @@ function RegisterPage() {
     );
 
     if (error) {
+      console.error("[register] Sign up failed:", error);
       setLoading(false);
-      setFormError(error.message);
+      setFormError("Could not create account. If you already registered, please sign in.");
       return;
     }
 
@@ -125,7 +126,8 @@ function RegisterPage() {
     setGoogleLoading(true);
     const { error } = await signInWithGoogle(redirect);
     if (error) {
-      setFormError(error.message);
+      console.error("[register] Google sign-in failed:", error);
+      setFormError("Google sign-in failed. Please try again.");
       setGoogleLoading(false);
     }
   };

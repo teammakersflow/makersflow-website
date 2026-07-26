@@ -38,6 +38,25 @@ export type LessonProgressRow = {
   last_watched_at: string | null;
 };
 
+export async function fetchSignedVideoUrl(
+  lessonId: string | number,
+  userId?: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("get-signed-video-url", {
+      body: { lessonId, userId },
+    });
+    if (error) {
+      console.warn("[fetchSignedVideoUrl] Edge Function error:", error);
+      return null;
+    }
+    return (data?.signed_url as string) ?? (data?.video_url as string) ?? null;
+  } catch (err) {
+    console.warn("[fetchSignedVideoUrl] Exception:", err);
+    return null;
+  }
+}
+
 export async function fetchLesson(courseId: string, lessonId: string): Promise<LessonDetail> {
   // Demo/fallback courses (used whenever Supabase has no matching row) store
   // their lessons as static data with non-numeric ids like "l1". Number(lessonId)
@@ -79,7 +98,16 @@ export async function fetchLesson(courseId: string, lessonId: string): Promise<L
     throw new Error(`Lesson ${lessonId} not found`);
   }
 
-  return mapDbLessonToDetail(data, courseId);
+  const mapped = mapDbLessonToDetail(data, courseId);
+  // Attempt to fetch signed video URL via Edge Function for server-gated playback
+  if (mapped.video_url) {
+    const signed = await fetchSignedVideoUrl(data.id);
+    if (signed) {
+      mapped.video_url = signed;
+    }
+  }
+
+  return mapped;
 }
 
 export async function fetchLessonResources(lessonId: string): Promise<LessonResource[]> {
@@ -182,7 +210,7 @@ export async function upsertLessonProgress(
     };
     const { error } = await supabase
       .from("lesson_progress")
-      .upsert(progressPayload, { onConflict: "user_id,lesson_id" });
+      .upsert(progressPayload, { onConflict: "user_id,course_id,lesson_id" });
     if (error) {
       console.error(`[makersflow] upsertLessonProgress upsert failed:`, error);
       throw error;
@@ -224,7 +252,7 @@ export async function markLessonComplete(userId: string, courseId: string, lesso
     };
     const { error } = await supabase
       .from("lesson_progress")
-      .upsert(completePayload, { onConflict: "user_id,lesson_id" });
+      .upsert(completePayload, { onConflict: "user_id,course_id,lesson_id" });
     if (error) {
       console.error(`[makersflow] markLessonComplete upsert failed:`, error);
       throw error;
@@ -297,6 +325,14 @@ export async function fetchEnrolledCourses(userId: string): Promise<EnrolledCour
   }
 
   try {
+    // Query certificates for user
+    const { data: certs } = await supabase
+      .from("certificates")
+      .select("id, course_id")
+      .eq("user_id", userId);
+    const certMap = new Map<string, string>();
+    certs?.forEach((c: any) => { if (c.course_id && c.id) certMap.set(String(c.course_id), c.id); });
+
     // Query enrollments with course data joined
     const { data: enrollments, error: enrError } = await supabase
       .from("enrollments")
@@ -388,6 +424,18 @@ export async function fetchEnrolledCourses(userId: string): Promise<EnrolledCour
         `[fetchEnrolledCourses] Course ${courseId} progress: ${completed}/${total} lessons`,
       );
 
+      let certId = certMap.get(String(courseData.id ?? courseId)) ?? null;
+      if (!certId && (completed === total && total > 0 || (enrollment as any).completed_at)) {
+        // Automatically issue certificate row if course is completed
+        try {
+          const { getOrCreateCertificate } = await import("./certificates");
+          const createdCert = await getOrCreateCertificate(userId, courseId);
+          if (createdCert) certId = createdCert.id;
+        } catch {
+          // Non-blocking fallback
+        }
+      }
+
       out.push({
         id: String(courseData.id ?? courseId),
         title: courseData.title ?? "Untitled Course",
@@ -400,6 +448,7 @@ export async function fetchEnrolledCourses(userId: string): Promise<EnrolledCour
         next_lesson_id: next?.id ?? null,
         enrolled_at: (enrollment as any).enrolled_at,
         completed_at: (enrollment as any).completed_at,
+        certificate_id: certId,
       });
     }
 
@@ -453,9 +502,9 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
   try {
     const { data: enr } = await supabase
       .from("enrollments")
-      .select("id, completed_at, status")
+      .select("id, completed_at")
       .eq("user_id", userId);
-    const erows = (enr as Array<{ completed_at: string | null; status: string | null }>) ?? [];
+    const erows = (enr as Array<{ completed_at: string | null }>) ?? [];
 
     // Add demo enrollments
     let demoEnrollments: string[] = [];
@@ -489,7 +538,7 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
 
     totalEnrolled = erows.length + demoEnrollments.length;
     totalCompleted =
-      erows.filter((r) => r.completed_at || r.status === "completed").length + demoCompletedCount;
+      erows.filter((r) => !!r.completed_at).length + demoCompletedCount;
   } catch (err) {
     console.warn(`[makersflow] fetchProgressOverview enrollments threw:`, err);
   }

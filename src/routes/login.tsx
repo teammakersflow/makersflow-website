@@ -66,7 +66,8 @@ function LoginPage() {
     const { error } = await signInWithPassword(parsed.data.email, parsed.data.password);
     setLoading(false);
     if (error) {
-      setFormError(error.message);
+      console.error("[login] Password sign-in failed:", error);
+      setFormError("Invalid email or password. Please check your credentials and try again.");
       return;
     }
     navigate({ to: redirect || "/dashboard" });
@@ -76,7 +77,8 @@ function LoginPage() {
     setGoogleLoading(true);
     const { error } = await signInWithGoogle(redirect);
     if (error) {
-      setFormError(error.message);
+      console.error("[login] Google sign-in failed:", error);
+      setFormError("Google sign-in failed. Please try again.");
       setGoogleLoading(false);
     }
   };
@@ -92,8 +94,10 @@ function LoginPage() {
     const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
       redirectTo,
     });
-    if (error) setFormError(error.message);
-    else setResetSent(true);
+    if (error) {
+      console.error("[login] Password reset failed:", error);
+      setFormError("Could not send password reset email. Please try again.");
+    } else setResetSent(true);
   };
 
   return (

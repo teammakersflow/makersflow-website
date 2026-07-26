@@ -31,16 +31,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import {
-  InfoCard,
-  InfoCardContent,
-  InfoCardTitle,
-  InfoCardDescription,
-  InfoCardMedia,
-  InfoCardFooter,
-  InfoCardDismiss,
-  InfoCardAction,
-} from "@/components/ui/info-card";
+
 
 const NAV = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
@@ -142,45 +133,6 @@ export function AppSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-
-          {!collapsed && (
-            <div className="mt-auto p-3">
-              <InfoCard
-                storageKey="sidebar_video_dismiss"
-                dismissType="forever"
-                className="border-border bg-card shadow-sm"
-              >
-                <InfoCardContent>
-                  <InfoCardTitle className="text-xs font-bold text-foreground">
-                    Video Walkthrough
-                  </InfoCardTitle>
-                  <InfoCardDescription className="text-[11px] leading-3 text-muted-foreground">
-                    Watch how the new dashboard works.
-                  </InfoCardDescription>
-                  <InfoCardMedia
-                    shrinkHeight={60}
-                    expandHeight={110}
-                    media={[
-                      {
-                        type: "video",
-                        src: "https://video.twimg.com/ext_tw_video/1811493439357476864/pu/vid/avc1/1280x720/r_A2n1_eDbYiTMkU.mp4?tag=12",
-                        autoPlay: true,
-                        loop: true,
-                      },
-                    ]}
-                  />
-                  <InfoCardFooter className="mt-1.5 flex items-center justify-between text-[10px]">
-                    <InfoCardDismiss className="hover:text-foreground">Dismiss</InfoCardDismiss>
-                    <InfoCardAction>
-                      <Link to="/explore" className="underline hover:text-primary">
-                        Learn more
-                      </Link>
-                    </InfoCardAction>
-                  </InfoCardFooter>
-                </InfoCardContent>
-              </InfoCard>
-            </div>
-          )}
         </SidebarContent>
 
         <SidebarFooter className="border-t border-border p-3 flex flex-col gap-1">

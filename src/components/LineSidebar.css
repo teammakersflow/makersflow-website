@@ -1,78 +1,95 @@
 .line-sidebar {
-  --accent-color: #a855f7;
-  --text-color: #c4c4c4;
-  --marker-color: #6c6c6c;
-  --marker-length: 60px;
-  --marker-gap: 0px;
+  --accent-color: #6366f1;
+  --text-color: #a3a3a3;
+  --marker-color: #475569;
+  --marker-length: 36px;
+  --marker-gap: 8px;
   --tick-scale: 0.5;
-  --max-shift: 30px;
-  --item-gap: 20px;
-  --font-size: 1.1rem;
+  --max-shift: 20px;
+  --item-gap: 14px;
+  --font-size: 0.95rem;
   --smoothing: 100ms;
 
   position: relative;
   display: flex;
   justify-content: flex-start;
+  width: 100%;
 }
 
 .line-sidebar--markers {
-  padding-left: calc(var(--marker-length) + var(--marker-gap));
+  padding-left: calc(var(--marker-length) + var(--marker-gap) + 4px);
 }
 
 .line-sidebar__list {
   list-style: none;
   margin: 0;
-  padding: 1rem 0;
+  padding: 0.5rem 0;
   display: flex;
   flex-direction: column;
   gap: var(--item-gap);
+  width: 100%;
 }
 
-/* --effect (0..1) is driven per item by a rAF lerp in JS, so every derived
-   property below reads the same continuously-animating value and stays in
-   step, with no CSS transitions to stagger. */
+/* --effect (0..1) & --effect-pct (0%..100%) are driven per item by rAF lerp in JS */
 .line-sidebar__item {
   position: relative;
   cursor: pointer;
+  --effect: 0;
+  --effect-pct: 0%;
+  user-select: none;
 }
 
-/* Widen the pointer target so items react a touch before the cursor arrives */
+/* Widen the pointer target so items react smoothly */
 .line-sidebar__item::before {
   content: "";
   position: absolute;
-  inset: -6px -48px;
+  inset: -6px -24px;
 }
 
-.line-sidebar__label {
+.line-sidebar__label,
+.line-sidebar__text {
   position: relative;
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   font-size: var(--font-size);
-  line-height: 1.2;
-  color: color-mix(in srgb, var(--accent-color) calc(var(--effect, 0) * 100%), var(--text-color));
+  line-height: 1.3;
+  color: color-mix(in srgb, var(--accent-color) var(--effect-pct, 0%), var(--text-color, #a3a3a3));
   transform: translateX(calc(var(--effect, 0) * var(--max-shift)));
+  text-shadow: 0 0 calc(var(--effect, 0) * 10px) color-mix(in srgb, var(--accent-color) 70%, transparent);
+  will-change: transform, color, text-shadow;
+}
+
+.line-sidebar__item--active .line-sidebar__label,
+.line-sidebar__item--active .line-sidebar__text {
+  font-weight: 600;
+  color: var(--accent-color);
 }
 
 .line-sidebar__index {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   margin-right: 0.6rem;
-  font-size: 0.85em;
-  opacity: calc(0.55 + var(--effect, 0) * 0.45);
+  font-size: 0.8em;
+  color: color-mix(in srgb, var(--accent-color) var(--effect-pct, 0%), var(--text-color, #888888));
+  opacity: calc(0.5 + var(--effect, 0) * 0.5);
+  flex-shrink: 0;
 }
 
 .line-sidebar__marker {
   position: absolute;
   top: 50%;
   left: calc(-1 * var(--marker-length) - var(--marker-gap));
-  height: 1px;
+  height: 2px;
   width: var(--marker-length);
   background-color: color-mix(
     in srgb,
-    var(--accent-color) calc(var(--effect, 0) * 100%),
+    var(--accent-color) var(--effect-pct, 0%),
     var(--marker-color)
   );
   transform-origin: left center;
-  transform: translateY(-50%) scaleX(calc(0.7 + var(--effect, 0) * 0.5));
+  transform: translateY(-50%) scaleX(calc(0.3 + var(--effect, 0) * 0.7));
+  box-shadow: 0 0 calc(var(--effect, 0) * 12px) var(--accent-color);
+  border-radius: 9999px;
+  will-change: transform, background-color, box-shadow;
 }
 
 /* Short static tick centered in the gap between two menu items */
@@ -84,12 +101,12 @@
   height: 1px;
   width: calc(var(--marker-length) * var(--tick-scale));
   background-color: var(--marker-color);
-  opacity: 0.5;
+  opacity: 0.4;
   transform: translateY(-50%);
 }
 
-/* When enabled, the in-between ticks grow with cursor proximity too */
+/* When enabled, in-between ticks scale with cursor proximity too */
 .line-sidebar--scale-tick .line-sidebar__item:not(:last-child)::after {
   transform-origin: left center;
-  transform: translateY(-50%) scaleX(calc(0.7 + var(--effect, 0) * 0.6));
+  transform: translateY(-50%) scaleX(calc(0.4 + var(--effect, 0) * 0.6));
 }

@@ -27,13 +27,17 @@ export async function fetchFeaturedCourses(): Promise<CourseCard[]> {
     const { data, error } = await supabase
       .from("courses")
       .select(
-        "id, title, category, level, price, gst_rate, original_price, is_free, thumbnail_url, rating, total_reviews, instructor:profiles!courses_instructor_id_fkey(full_name)",
+        "id, title, category, level, price, gst_rate, is_free, thumbnail_url, instructor:profiles!courses_instructor_id_fkey(full_name)",
       )
       .eq("is_published", true)
-      .order("rating", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(8);
 
-    if (error || !data) return [];
+    if (error) {
+      console.error("[fetchFeaturedCourses] Supabase Error:", error);
+      return [];
+    }
+    if (!data) return [];
 
     return data.map((c: any) => ({
       id: c.id,
@@ -41,15 +45,16 @@ export async function fetchFeaturedCourses(): Promise<CourseCard[]> {
       category: c.category,
       level: c.level,
       price: c.price,
-      original_price: c.original_price,
+      original_price: null,
       is_free: c.is_free,
       thumbnail_url: c.thumbnail_url,
-      rating: c.rating,
-      total_reviews: c.total_reviews,
+      rating: null,
+      total_reviews: null,
       instructor_name: c.instructor?.full_name ?? null,
       gst_rate: c.gst_rate ?? 18,
     }));
-  } catch {
+  } catch (err) {
+    console.error("[fetchFeaturedCourses] Exception:", err);
     return [];
   }
 }

@@ -5,6 +5,13 @@ import { CheckCircle2, Download, ShoppingBag, GraduationCap, ReceiptText } from 
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPrice } from "@/lib/store-data";
+import {
+  fetchSellerSettings,
+  buildInvoiceHtml,
+  type InvoiceLineItem,
+  type InvoiceAddress,
+  type InvoiceData,
+} from "@/lib/invoice-utils";
 
 export const Route = createFileRoute("/payment-success")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -21,6 +28,7 @@ function PaymentSuccessPage() {
   const { order_id, total } = useSearch({ from: "/payment-success" });
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [hasCourses, setHasCourses] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<any>(null);
 
   useEffect(() => {
     if (!order_id) return;
@@ -31,38 +39,103 @@ function PaymentSuccessPage() {
       .eq("order_id", order_id)
       .maybeSingle()
       .then(({ data }) => setInvoice(data as Invoice | null));
-    // Check if order has courses
+    // Check if order has courses & fetch details
     supabase
       .from("orders")
-      .select("items")
+      .select("*")
       .eq("id", order_id)
       .maybeSingle()
       .then(({ data }) => {
-        const items = (data as { items?: Array<{ is_course?: boolean }> } | null)?.items ?? [];
-        setHasCourses(items.some((i) => i.is_course));
+        if (data) {
+          setOrderDetails(data);
+          const items = (data.items as Array<{ is_course?: boolean }>) ?? [];
+          setHasCourses(items.some((i) => i.is_course));
+        }
       });
   }, [order_id]);
 
-  const downloadInvoice = () => {
+  const downloadInvoice = async () => {
     if (!invoice) return;
-    const content = [
-      "MAKERSFLOW INVOICE",
-      "==================",
-      `Invoice No: ${invoice.invoice_number}`,
-      `Date: ${new Date().toLocaleDateString("en-IN")}`,
-      `Order ID: ${order_id}`,
-      `Total Amount: ${formatPrice(invoice.total_amount)}`,
-      "",
-      "Thank you for your purchase!",
-      "For support: team.makersflow@gmail.com",
-    ].join("\n");
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${invoice.invoice_number}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const seller = await fetchSellerSettings();
+    const items = (orderDetails?.items as any[]) ?? [];
+
+    // Fetch real hsn_code from DB for courses/products if missing on order items
+    const courseIds = items.filter((i: any) => i.is_course && (i.course_id || i.id)).map((i: any) => i.course_id || i.id);
+    const productIds = items.filter((i: any) => !i.is_course && i.id).map((i: any) => i.id);
+
+    const hsnMap = new Map<string, string>();
+    if (courseIds.length > 0) {
+      const { data: cRows } = await supabase.from("courses").select("id, hsn_code").in("id", courseIds);
+      cRows?.forEach((r: any) => { if (r.hsn_code) hsnMap.set(String(r.id), r.hsn_code); });
+    }
+    if (productIds.length > 0) {
+      const { data: pRows } = await supabase.from("products").select("id, hsn_code").in("id", productIds);
+      pRows?.forEach((r: any) => { if (r.hsn_code) hsnMap.set(String(r.id), r.hsn_code); });
+    }
+
+    const invoiceItems: InvoiceLineItem[] = items.map((item: any) => {
+      const itemId = String(item.course_id || item.id || "");
+      const dbHsn = hsnMap.get(itemId);
+      const fallbackHsn = item.is_course ? "999294" : "84733099";
+      const hsnSac = item.hsn_code || item.hsnSac || dbHsn || fallbackHsn;
+
+      return {
+        description: item.title || item.name || "MakersFlow Product",
+        hsnSac,
+        isService: !!item.is_course,
+        quantity: item.qty || item.quantity || 1,
+        unitPrice: Number(item.price || 0),
+        discountAmount: 0,
+        gstRate: Number(item.gst_rate ?? 18),
+      };
+    });
+
+    const shippingAddr: InvoiceAddress | undefined = orderDetails?.shipping_address ? {
+      name: orderDetails.shipping_address.name || orderDetails.shipping_address.full_name || "Customer",
+      line1: orderDetails.shipping_address.line1 || orderDetails.shipping_address.address || "Address",
+      line2: orderDetails.shipping_address.line2 || "",
+      city: orderDetails.shipping_address.city || "City",
+      state: orderDetails.shipping_address.state || "Andhra Pradesh",
+      pincode: orderDetails.shipping_address.pincode || orderDetails.shipping_address.postal_code || "",
+      phone: orderDetails.shipping_address.phone || "",
+    } : undefined;
+
+    const billingAddr: InvoiceAddress = shippingAddr || {
+      name: "Customer",
+      line1: "Online Order",
+      city: "Visakhapatnam",
+      state: "Andhra Pradesh",
+      pincode: "530001",
+    };
+
+    const invoiceData: InvoiceData = {
+      invoiceNumber: invoice.invoice_number,
+      invoiceDate: new Date(orderDetails?.created_at || Date.now()),
+      paymentId: orderDetails?.razorpay_payment_id || order_id || "PAYMENT",
+      items: invoiceItems.length > 0 ? invoiceItems : [{
+        description: "MakersFlow Order",
+        hsnSac: "999294",
+        isService: true,
+        quantity: 1,
+        unitPrice: Number(invoice.total_amount || total),
+        discountAmount: Number(orderDetails?.discount_amount || 0),
+        gstRate: 18,
+      }],
+      billingAddress: billingAddr,
+      shippingAddress: shippingAddr,
+      shippingFee: 0,
+      couponCode: orderDetails?.coupon_code || undefined,
+      totalDiscount: Number(orderDetails?.discount_amount || 0),
+    };
+
+    const html = buildInvoiceHtml(invoiceData, seller);
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 250);
+    }
   };
 
   return (

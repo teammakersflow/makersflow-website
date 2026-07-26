@@ -250,12 +250,16 @@ export async function fetchRecommended(): Promise<CourseCard[]> {
     async () => {
       const { data } = await supabase
         .from("courses")
-        .select(
-          "id, title, category, level, price, original_price, is_free, thumbnail_url, rating, total_reviews",
-        )
-        .order("rating", { ascending: false })
+        .select("id, title, category, level, price, is_free, thumbnail_url")
+        .order("created_at", { ascending: false })
         .limit(8);
-      if (data && (data as any[]).length > 0) return data as CourseCard[];
+      if (data && (data as any[]).length > 0)
+        return (data as any[]).map((c) => ({
+          ...c,
+          original_price: null,
+          rating: null,
+          total_reviews: null,
+        })) as CourseCard[];
       return [];
     },
     [],

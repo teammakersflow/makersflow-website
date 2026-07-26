@@ -83,6 +83,7 @@ function StatCard({
   gradient: string;
   glow: string;
   iconBg: string;
+  delay: number;
 }) {
   return (
     <motion.div

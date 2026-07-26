@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronDown, CheckCircle2, Play, Clock, Lock, X, List } from "lucide-react";
+import { ChevronDown, CheckCircle2, Play, Clock, Lock, X } from "lucide-react";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Module } from "@/lib/explore-data";
@@ -7,6 +7,7 @@ import type { LessonProgressRow } from "@/lib/learn-data";
 import { cn } from "@/lib/utils";
 import LineSidebar from "@/components/LineSidebar";
 import { Slider } from "@/components/ui/slider";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export type LessonSidebarProps = {
   courseId: string;
@@ -45,14 +46,22 @@ export function LessonSidebar({
   );
   const pct = total ? Math.round((completed / total) * 100) : 0;
 
-  const lineItems = useMemo(() => {
-    return modules.map((m) => m.title);
-  }, [modules]);
+  const flatLessons = useMemo(() => {
+    return modules.flatMap((m) =>
+      m.lessons.map((l) => ({
+        id: l.id,
+        label: l.title,
+        subtitle: m.title,
+        isCompleted: !!progressMap[l.id]?.is_completed,
+        isCurrent: l.id === currentLessonId,
+      })),
+    );
+  }, [modules, currentLessonId, progressMap]);
 
-  const activeModuleIndex = useMemo(() => {
-    const idx = modules.findIndex((m) => m.lessons.some((l) => l.id === currentLessonId));
+  const activeLessonIndex = useMemo(() => {
+    const idx = flatLessons.findIndex((l) => l.id === currentLessonId);
     return idx >= 0 ? idx : 0;
-  }, [modules, currentLessonId]);
+  }, [flatLessons, currentLessonId]);
 
   return (
     <div className="flex h-full flex-col bg-card">
@@ -90,27 +99,27 @@ export function LessonSidebar({
         <span className="text-muted-foreground font-medium">Outline View</span>
         <button
           onClick={() => setViewMode((v) => (v === "standard" ? "outline" : "standard"))}
-          className="px-2.5 py-1 rounded-md bg-card border border-border hover:bg-secondary font-semibold text-primary transition"
+          className="px-2.5 py-1 rounded-md bg-card border border-border hover:bg-secondary font-semibold text-primary transition cursor-pointer"
         >
           {viewMode === "standard" ? "Proximity Outline" : "Full Tree"}
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3">
+      <ScrollArea className="flex-1 p-3">
         {viewMode === "outline" ? (
           <div className="p-2">
             <LineSidebar
-              items={lineItems}
-              defaultActive={activeModuleIndex}
+              items={flatLessons}
+              defaultActive={activeLessonIndex}
               accentColor="#4F46E5"
               textColor="#a3a3a3"
               markerColor="#6366F1"
               onItemClick={(index) => {
-                const targetMod = modules[index];
-                if (targetMod?.lessons[0]) {
+                const target = flatLessons[index];
+                if (target) {
                   navigate({
                     to: "/learn/$courseId/$lessonId",
-                    params: { courseId, lessonId: targetMod.lessons[0].id },
+                    params: { courseId, lessonId: target.id },
                   });
                 }
               }}
@@ -233,7 +242,7 @@ export function LessonSidebar({
             })}
           </ul>
         )}
-      </nav>
+      </ScrollArea>
     </div>
   );
 }

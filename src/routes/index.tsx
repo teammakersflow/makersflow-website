@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { Header } from "@/components/landing/Header";
 import { Hero } from "@/components/landing/Hero";
 import CurvedLoop from "@/components/CurvedLoop";
@@ -11,6 +12,7 @@ import { Testimonials } from "@/components/landing/Testimonials";
 import { CtaSection } from "@/components/landing/CtaSection";
 import { Footer } from "@/components/landing/Footer";
 import DotField from "@/components/DotField";
+import { useAuth } from "@/integrations/supabase/auth";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -33,6 +35,19 @@ export const Route = createFileRoute("/")({
 });
 
 function LandingPage() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && user) {
+      navigate({ to: "/dashboard", replace: true });
+    }
+  }, [loading, user, navigate]);
+
+  // While auth is resolving, render nothing — avoids flash of marketing page
+  // for logged-in users who will be redirected to /dashboard immediately.
+  if (loading || user) return null;
+
   return (
     <main className="relative min-h-screen bg-background text-foreground overflow-hidden">
       {/* Full Landing Page Interactive DotField Matrix Background */}

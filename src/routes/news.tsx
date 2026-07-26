@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
+import { Share2 } from "lucide-react";
+import { shareItem } from "@/lib/share-utils";
 
 type Article = {
   id: string;
@@ -66,14 +68,33 @@ function NewsPage() {
                       key={a.id}
                       className="rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-shadow"
                     >
-                      <h2 className="text-xl font-bold text-foreground">{a.title}</h2>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(a.created_at).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </p>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h2 className="text-xl font-bold text-foreground">{a.title}</h2>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {new Date(a.created_at).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            shareItem({
+                              title: `${a.title} — MakersFlow News`,
+                              text: a.content || a.title,
+                              url: `${window.location.origin}/news#${a.slug || a.id}`,
+                            })
+                          }
+                          className="flex items-center gap-1.5 rounded-xl border border-border bg-background/50 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent/10 hover:text-foreground"
+                          title="Share article"
+                        >
+                          <Share2 className="h-3.5 w-3.5" />
+                          Share
+                        </button>
+                      </div>
                       {a.content && (
                         <p className="mt-3 text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
                           {a.content}

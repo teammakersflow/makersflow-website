@@ -115,16 +115,15 @@ export function Quiz({ lessonId, userId, onStateChange }: QuizProps) {
   if (error || !questions || questions.length === 0) {
     return (
       <Card className="border border-border/85 bg-card p-8 text-center rounded-2xl">
-        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-destructive/10 text-destructive mb-3">
-          <XCircle className="h-6 w-6" />
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary mb-3">
+          <HelpCircle className="h-6 w-6" />
         </div>
-        <CardTitle className="font-display text-lg font-bold">No questions found</CardTitle>
+        <CardTitle className="font-display text-lg font-bold text-foreground">
+          No quiz available for this lesson yet
+        </CardTitle>
         <CardDescription className="mt-1 text-sm text-muted-foreground">
-          We couldn't load the questions for this lesson. Please check back later.
+          Quiz questions for this topic will be published soon.
         </CardDescription>
-        <Button onClick={handleRetry} className="mt-4" variant="outline">
-          <RotateCcw className="h-4 w-4 mr-2" /> Retry
-        </Button>
       </Card>
     );
   }

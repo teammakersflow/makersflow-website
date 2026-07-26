@@ -335,15 +335,15 @@ export function VideoPlayer({
         }}
       />
 
-      {/* Center play button (persistent on load/pause) */}
+      {/* Center play/pause overlay */}
       {!playing && showControls && (
         <button
           onClick={togglePlay}
-          aria-label="Play"
-          className="absolute inset-0 grid place-items-center bg-black/30 transition-opacity"
+          aria-label="Play video"
+          className="absolute inset-0 grid place-items-center bg-black/35 transition-opacity"
         >
-          <span className="grid h-20 w-20 place-items-center rounded-full bg-white/90 text-primary shadow-2xl transition-transform hover:scale-105">
-            <Play className="ml-1 h-8 w-8 fill-current" />
+          <span className="grid h-20 w-20 place-items-center rounded-full bg-white/95 text-primary shadow-2xl transition-transform hover:scale-110">
+            <Play className="ml-1 h-9 w-9 fill-current text-primary" />
           </span>
         </button>
       )}
@@ -404,7 +404,11 @@ export function VideoPlayer({
           />
           <div className="mt-2 flex items-center gap-2 sm:gap-3">
             <CtrlBtn onClick={togglePlay} label={playing ? "Pause" : "Play"}>
-              {playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 fill-current" />}
+              {playing ? (
+                <Pause className="h-7 w-7 fill-current text-white stroke-[2.5]" />
+              ) : (
+                <Play className="h-7 w-7 fill-current text-white" />
+              )}
             </CtrlBtn>
 
             <div className="flex items-center gap-1 sm:gap-2">

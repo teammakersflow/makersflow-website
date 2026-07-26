@@ -1,10 +1,11 @@
 import { useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Award, Printer, ArrowLeft } from "lucide-react";
+import { Award, Printer, ArrowLeft, Share2 } from "lucide-react";
 import { useAuth } from "@/integrations/supabase/auth";
 import { fetchCertificateById, getCertificateHtml } from "@/lib/certificates";
 import { fetchProfile } from "@/lib/dashboard-data";
+import { shareItem } from "@/lib/share-utils";
 
 export const Route = createFileRoute("/certificate/$id")({
   head: () => ({
@@ -124,6 +125,18 @@ function CertificatePage() {
             <ArrowLeft className="h-4 w-4" /> Back to My Learning
           </Link>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() =>
+                shareItem({
+                  title: `STEM Certificate: ${cert.courses?.title ?? "Course"} — MakersFlow`,
+                  text: `Verified MakersFlow Course Completion Certificate for ${studentName}`,
+                  url: window.location.href,
+                })
+              }
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 hover:text-white transition-all cursor-pointer"
+            >
+              <Share2 className="h-4 w-4" /> Share Certificate
+            </button>
             <button
               onClick={handlePrint}
               className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-cyan-500 transition-all cursor-pointer"

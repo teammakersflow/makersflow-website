@@ -10,7 +10,13 @@ import {
   RefreshCw,
   Download,
   ExternalLink,
+  Share2,
+  Truck,
+  CheckCircle2,
+  MapPin,
+  Clock,
 } from "lucide-react";
+import { shareItem } from "@/lib/share-utils";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -252,10 +258,12 @@ function OrderCard({
               Order #{order.id.slice(0, 8).toUpperCase()}
             </p>
             <p className="text-xs text-muted-foreground">
-              {new Date(order.created_at).toLocaleDateString("en-IN", {
+              {new Date(order.created_at).toLocaleString("en-IN", {
                 day: "numeric",
-                month: "long",
+                month: "short",
                 year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
               })}
             </p>
           </div>
@@ -272,6 +280,20 @@ function OrderCard({
               <Download className="h-3.5 w-3.5" /> Invoice
             </button>
           )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              shareItem({
+                title: `Order #${order.id.slice(0, 8).toUpperCase()} — MakersFlow`,
+                text: `Order total: ${formatPrice(order.total_amount)}`,
+                url: window.location.href,
+              });
+            }}
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-secondary transition-colors"
+            title="Share order summary"
+          >
+            <Share2 className="h-3.5 w-3.5" /> Share
+          </button>
           <span
             className={cn(
               "rounded-full px-3 py-1 text-xs font-semibold capitalize",
@@ -292,6 +314,84 @@ function OrderCard({
       </div>
       {expanded && (
         <div className="border-t border-border px-5 py-4 space-y-4">
+          {/* Delivery Tracking Stepper for Physical Product Orders */}
+          {items.some((i) => !i.is_course) && (
+            <div className="rounded-xl border border-border bg-secondary/30 p-4 space-y-3">
+              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Truck className="h-4 w-4 text-primary" /> Delivery Status
+                </span>
+                <span className="text-primary font-bold capitalize">{order.status}</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 pt-1">
+                {[
+                  { step: 1, label: "Placed", active: true },
+                  {
+                    step: 2,
+                    label: "Shipped",
+                    active: ["shipped", "out_for_delivery", "delivered", "completed"].includes(order.status),
+                  },
+                  {
+                    step: 3,
+                    label: "Out for Delivery",
+                    active: ["out_for_delivery", "delivered", "completed"].includes(order.status),
+                  },
+                  {
+                    step: 4,
+                    label: "Delivered",
+                    active: ["delivered", "completed"].includes(order.status),
+                  },
+                ].map((s) => (
+                  <div key={s.step} className="flex flex-col items-center gap-1 text-center">
+                    <div
+                      className={cn(
+                        "grid h-7 w-7 place-items-center rounded-full text-xs font-bold transition-all",
+                        s.active
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-secondary text-muted-foreground border border-border",
+                      )}
+                    >
+                      {s.active ? <CheckCircle2 className="h-4 w-4" /> : s.step}
+                    </div>
+                    <span
+                      className={cn(
+                        "text-[11px] font-medium leading-tight",
+                        s.active ? "text-foreground font-semibold" : "text-muted-foreground",
+                      )}
+                    >
+                      {s.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Shiprocket Live Tracking Metadata Display */}
+              {((order as any).awb_code || (order as any).shipping_details?.awb_code) && (
+                <div className="mt-3 rounded-lg border border-border/80 bg-background p-3 text-xs flex flex-wrap items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <p className="font-semibold text-foreground">
+                      Courier: {(order as any).courier_name || (order as any).shipping_details?.courier || "Shiprocket Express"}
+                    </p>
+                    <p className="font-mono text-muted-foreground">
+                      AWB: {(order as any).awb_code || (order as any).shipping_details?.awb_code}
+                    </p>
+                  </div>
+                  <a
+                    href={
+                      (order as any).tracking_url ||
+                      `https://shiprocket.co/tracking/${(order as any).awb_code || (order as any).shipping_details?.awb_code}`
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Track Live Package
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             {items.map((item, i) => (
               <div key={i} className="flex items-center justify-between text-sm">
@@ -395,7 +495,12 @@ function OrdersPage() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
       supabase.from("invoices").select("*").eq("user_id", user.id),
-    ]).then(([o, c, enr, p, inv]) => {
+      supabase
+        .from("refunds")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+    ]).then(([o, c, enr, p, inv, ref]) => {
       const orderList = (o.data as Order[]) ?? [];
       setOrders(orderList);
 
@@ -446,7 +551,7 @@ function OrdersPage() {
         setPayments(paymentList);
       }
 
-      setRefunds([]);
+      setRefunds((ref.data as Refund[]) ?? []);
       setInvoices((inv.data as Invoice[]) ?? []);
       setLoading(false);
     });
@@ -581,7 +686,15 @@ function OrdersPage() {
                         {cp.courses?.title ?? "Unknown Course"}
                       </p>
                       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{new Date(cp.purchased_at).toLocaleDateString("en-IN")}</span>
+                        <span>
+                          {new Date(cp.purchased_at).toLocaleString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
                         <span
                           className={cn(
                             "rounded-full px-2 py-0.5 font-semibold capitalize",
@@ -639,7 +752,7 @@ function OrdersPage() {
                         Status
                       </th>
                       <th className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Date
+                        Date & Time
                       </th>
                     </tr>
                   </thead>
@@ -654,7 +767,14 @@ function OrdersPage() {
                         </td>
                         <td className="px-5 py-3 text-xs">
                           {p.coupon_code ? (
-                            <span className="font-mono text-primary">{p.coupon_code}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono text-primary font-medium">{p.coupon_code}</span>
+                              {p.discount_amount > 0 && (
+                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
+                                  (−{formatPrice(p.discount_amount)})
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
@@ -670,7 +790,13 @@ function OrdersPage() {
                           </span>
                         </td>
                         <td className="px-5 py-3 text-xs text-muted-foreground">
-                          {new Date(p.created_at).toLocaleDateString("en-IN")}
+                          {new Date(p.created_at).toLocaleString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </td>
                       </tr>
                     ))}

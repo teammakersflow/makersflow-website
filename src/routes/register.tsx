@@ -32,6 +32,11 @@ const grades = ["6", "7", "8", "9", "10", "11", "12"] as const;
 const schema = z.object({
   full_name: z.string().trim().min(2, "Please enter your full name").max(80, "Name is too long"),
   email: z.string().trim().email("Enter a valid email").max(255),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit mobile number")
+    .or(z.literal("")),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -48,6 +53,7 @@ function RegisterPage() {
   const [values, setValues] = useState<FormValues>({
     full_name: "",
     email: "",
+    phone: "",
     password: "",
     grade: "" as FormValues["grade"],
     school: "",
@@ -82,6 +88,7 @@ function RegisterPage() {
       parsed.data.password,
       {
         full_name: parsed.data.full_name,
+        phone: parsed.data.phone || null,
         grade: parsed.data.grade,
         school: parsed.data.school,
         role: "student",
@@ -104,6 +111,7 @@ function RegisterPage() {
         id: data.user.id,
         full_name: parsed.data.full_name,
         email: parsed.data.email,
+        phone: parsed.data.phone || null,
         grade: parsed.data.grade,
         school: parsed.data.school,
         role: "student",
@@ -162,6 +170,15 @@ function RegisterPage() {
           value={values.email}
           onChange={update("email")}
           error={errors.email}
+        />
+        <FloatingField
+          id="phone"
+          label="Mobile number (optional)"
+          type="tel"
+          autoComplete="tel"
+          value={values.phone}
+          onChange={update("phone")}
+          error={errors.phone}
         />
         <FloatingField
           id="password"

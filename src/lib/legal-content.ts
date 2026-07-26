@@ -5,8 +5,8 @@ export type LegalSection = {
   bullets?: string[];
 };
 
-export const PRIVACY_UPDATED = "June 18, 2026";
-export const TERMS_UPDATED = "June 18, 2026";
+export const PRIVACY_UPDATED = "July 26, 2026";
+export const TERMS_UPDATED = "July 26, 2026";
 
 export const PRIVACY_SECTIONS: LegalSection[] = [
   {
@@ -56,26 +56,26 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   },
   {
     id: "children",
-    title: "5. Children's privacy",
+    title: "5. Children's privacy & DPDP Act compliance",
     paragraphs: [
-      "A large part of our community is aged 10 to 17. We take this responsibility seriously:",
+      "Many of our users are students under the age of 18. We are committed to protecting the privacy of minors and comply with applicable data protection laws, including India's Digital Personal Data Protection Act (DPDP Act):",
     ],
     bullets: [
       "If you are under 18, please use MakersFlow with the involvement and consent of a parent or guardian.",
       "We collect only the minimum information needed to deliver lessons and ship orders — no behavioural tracking for advertising.",
       "We do not show third-party advertisements and we do not run any targeted advertising to minors.",
-      "Parents and guardians can request access, correction or deletion of a minor's account at any time by contacting us.",
+      "Parents and guardians can request access, correction or deletion of a minor's account at any time by contacting privacy@makersflow.com.",
       "We do not knowingly enable public profiles, chat with strangers, or any feature that exposes minors to unknown third parties.",
     ],
   },
   {
     id: "rights",
-    title: "6. Your rights",
+    title: "6. Your rights & data erasure SLA",
     bullets: [
       "Access — request a copy of the personal data we hold about you.",
       "Correction — update inaccurate or incomplete information from your Profile page or by contacting us.",
-      "Deletion — request that we delete your account and associated data.",
-      "Portability — request a machine-readable export of your data.",
+      "Deletion — request that we delete your account and personal data (processed within 30 days).",
+      "Portability — request or download a machine-readable JSON export of your data.",
       "Withdraw consent — for Google sign-in or optional features at any time.",
     ],
   },
@@ -83,7 +83,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     id: "security",
     title: "7. Security & retention",
     paragraphs: [
-      "We protect your data using industry-standard practices including encryption in transit, role-based access controls and row-level security on our database. We retain account and learning data for as long as your account is active, and for a limited period afterwards to satisfy legal, accounting and dispute-resolution obligations.",
+      "We protect your data using industry-standard practices including encryption in transit, role-based access controls and row-level security on our database. We retain personal account data for as long as your account is active. Upon receiving an account deletion request, personal data is erased or anonymized within 30 days, except where statutory financial records (tax invoices and orders) must be retained under Section 36 of India's CGST Act.",
     ],
   },
   {
@@ -97,7 +97,7 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     id: "contact",
     title: "9. Contact us",
     paragraphs: [
-      "For privacy questions, data requests or concerns about a minor's account, please email privacy@makersflow.com. We aim to respond within 7 business days.",
+      "For privacy questions, data export requests, or concerns about a minor's account, please email privacy@makersflow.com. We aim to respond within 7 business days.",
     ],
   },
 ];
@@ -137,11 +137,11 @@ export const TERMS_SECTIONS: LegalSection[] = [
   },
   {
     id: "refunds",
-    title: "5. Refund policy",
+    title: "5. Refund & replacement policy",
     bullets: [
-      "Courses: refundable within 7 days of purchase if you have completed less than 25% of the lessons.",
-      "Physical products: returnable within 30 days of delivery in unused, original condition. Return shipping is borne by the customer unless the item arrived damaged or defective.",
-      "Refunds are processed back to the original payment method via Razorpay within 7–10 business days.",
+      "Digital courses: Refund requests for digital courses may be considered within 7 days of purchase if you have not completed more than 10% of the course content.",
+      "Physical kits: Physical kits may be returned within 7 days of delivery if unused and in original packaging.",
+      "Processing: Approved refunds are processed back to the original payment method via Razorpay within 7–10 business days.",
     ],
   },
   {

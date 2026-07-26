@@ -18,73 +18,9 @@ export interface QuizAttemptResult {
   results: Record<string, { isCorrect: boolean; correctOptionIndex: number }>;
 }
 
-// Fallback questions for various topics
-const FALLBACK_QUESTIONS: QuizQuestion[] = [
-  {
-    id: "fb-q1",
-    lesson_id: "fallback",
-    question_text: "Which component is used to limit the flow of electric current in a circuit?",
-    options: ["Capacitor", "Resistor", "Transistor", "Diode"],
-    position: 1,
-    isFallback: true,
-    correctOptionIndex: 1, // Resistor
-  },
-  {
-    id: "fb-q2",
-    lesson_id: "fallback",
-    question_text: "What does CPU stand for in computer science?",
-    options: [
-      "Central Processing Unit",
-      "Computer Personal Unit",
-      "Central Processor Unifier",
-      "Control Process Utility",
-    ],
-    position: 2,
-    isFallback: true,
-    correctOptionIndex: 0, // Central Processing Unit
-  },
-  {
-    id: "fb-q3",
-    lesson_id: "fallback",
-    question_text: "In robotics, what is the main purpose of an actuator?",
-    options: [
-      "To sense the environment",
-      "To process code",
-      "To convert energy into motion",
-      "To store battery charge",
-    ],
-    position: 3,
-    isFallback: true,
-    correctOptionIndex: 2, // To convert energy into motion
-  },
-  {
-    id: "fb-q4",
-    lesson_id: "fallback",
-    question_text: "Which sensor is commonly used to measure distance by sending sound waves?",
-    options: [
-      "Infrared Sensor",
-      "Ultrasonic Sensor",
-      "LDR (Light Dependent Resistor)",
-      "Gyroscope",
-    ],
-    position: 4,
-    isFallback: true,
-    correctOptionIndex: 1, // Ultrasonic Sensor
-  },
-  {
-    id: "fb-q5",
-    lesson_id: "fallback",
-    question_text: "What is the binary representation of the decimal number 5?",
-    options: ["100", "101", "110", "111"],
-    position: 5,
-    isFallback: true,
-    correctOptionIndex: 1, // 101
-  },
-];
-
 /**
- * Fetches all questions for a given lesson.
- * Falls back to local sample questions if the fetch fails or returns no rows.
+ * Fetches all questions for a given lesson from quiz_questions_public view.
+ * Returns empty array if no questions are assigned to this lesson.
  */
 export async function fetchQuizQuestions(lessonId: string): Promise<QuizQuestion[]> {
   try {
@@ -106,14 +42,10 @@ export async function fetchQuizQuestions(lessonId: string): Promise<QuizQuestion
       }));
     }
   } catch (err) {
-    console.warn(`[makersflow] fetchQuizQuestions failed, using fallback:`, err);
+    console.warn(`[makersflow] fetchQuizQuestions error:`, err);
   }
 
-  // Return fallback questions if no db questions exist
-  return FALLBACK_QUESTIONS.map((q) => ({
-    ...q,
-    lesson_id: lessonId,
-  }));
+  return [];
 }
 
 /**
@@ -142,15 +74,6 @@ export async function checkQuizAnswer(
     console.warn(`[makersflow] checkQuizAnswer RPC failed:`, err);
   }
 
-  // Client-side fallback if RPC fails or it's a fallback question
-  const fallback = FALLBACK_QUESTIONS.find((q) => q.id === questionId);
-  if (fallback) {
-    return {
-      isCorrect: selectedIndex === fallback.correctOptionIndex,
-      correctOptionIndex: fallback.correctOptionIndex ?? 0,
-    };
-  }
-
   return { isCorrect: false, correctOptionIndex: 0 };
 }
 
@@ -173,24 +96,12 @@ export async function submitQuizAttempt(
       continue;
     }
 
-    // Check answer: checks local correct index for fallback, calls RPC for DB questions
-    if (q.isFallback) {
-      const isCorrect = selected === q.correctOptionIndex;
-      if (isCorrect) score++;
-      results[q.id] = {
-        isCorrect,
-        correctOptionIndex: q.correctOptionIndex ?? 0,
-      };
-    } else {
-      const res = await checkQuizAnswer(q.id, selected);
-      if (res.isCorrect) score++;
-      results[q.id] = res;
-    }
+    const res = await checkQuizAnswer(q.id, selected);
+    if (res.isCorrect) score++;
+    results[q.id] = res;
   }
 
-  // Attempt to save to database if not in fallback mode (fallback IDs start with fb-)
-  const isAnyFallback = questions.some((q) => q.isFallback);
-  if (!isAnyFallback && userId) {
+  if (userId && questions.length > 0) {
     try {
       const { error } = await (supabase as any).from("quiz_attempts").insert({
         user_id: userId,

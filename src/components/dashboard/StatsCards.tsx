@@ -47,21 +47,27 @@ const CARDS = [
 ];
 
 export function StatsCards({ stats }: { stats: DashboardStats }) {
+  const isMins = stats.timeUnit === "m";
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-      {CARDS.map((c, i) => (
-        <StatCard
-          key={c.key}
-          label={c.label}
-          icon={c.icon}
-          suffix={c.suffix}
-          value={stats[c.key]}
-          gradient={c.gradient}
-          glow={c.glow}
-          iconBg={c.iconBg}
-          delay={i * 0.07}
-        />
-      ))}
+      {CARDS.map((c, i) => {
+        const isTimeCard = c.key === "totalHours";
+        const label = isTimeCard ? (isMins ? "Minutes Learned" : "Hours Learned") : c.label;
+        const suffix = isTimeCard ? (stats.timeUnit ?? "h") : c.suffix;
+        return (
+          <StatCard
+            key={c.key}
+            label={label}
+            icon={c.icon}
+            suffix={suffix}
+            value={stats[c.key]}
+            gradient={c.gradient}
+            glow={c.glow}
+            iconBg={c.iconBg}
+            delay={i * 0.07}
+          />
+        );
+      })}
     </div>
   );
 }

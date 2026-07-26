@@ -24,6 +24,8 @@ export type DashboardStats = {
   completed: number;
   avgProgress: number;
   totalHours: number;
+  formattedTime?: string;
+  timeUnit?: "h" | "m";
 };
 
 export type ContinueLesson = {
@@ -118,10 +120,16 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
         (sum: number, row: any) => sum + (Number(row?.time_spent_secs) || 0),
         0,
       );
-      const totalHours = Math.max(0, Math.round(totalSecs / 3600));
+      const timeUnit: "h" | "m" = totalSecs < 3600 ? "m" : "h";
+      const displayVal =
+        totalSecs < 3600
+          ? Math.round(totalSecs / 60)
+          : Math.round((totalSecs / 3600) * 10) / 10;
+      const formattedTime = totalSecs < 3600 ? `${displayVal}m` : `${displayVal}h`;
+      const totalHours = displayVal;
 
       if (enrRows.length === 0) {
-        return { enrolled: 0, completed: 0, avgProgress: 0, totalHours };
+        return { enrolled: 0, completed: 0, avgProgress: 0, totalHours, formattedTime, timeUnit };
       }
 
       const rows = [];
@@ -173,10 +181,12 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
         completed,
         avgProgress: avg,
         totalHours,
+        formattedTime,
+        timeUnit,
       };
       return statsResult;
     },
-    { enrolled: 0, completed: 0, avgProgress: 0, totalHours: 0 },
+    { enrolled: 0, completed: 0, avgProgress: 0, totalHours: 0, formattedTime: "0m", timeUnit: "m" },
     "fetchStats",
   );
 }
@@ -268,18 +278,18 @@ export async function fetchRecommended(): Promise<CourseCard[]> {
 }
 
 export async function fetchWeeklyActivity(userId: string): Promise<WeeklyPoint[]> {
-  const todayStr = new Date().toISOString().slice(0, 10);
   const today = new Date();
+  const todayLocalStr = today.toLocaleDateString("en-CA");
   const days: WeeklyPoint[] = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = d.toLocaleDateString("en-CA");
     days.push({
       day: d.toLocaleDateString("en-US", { weekday: "short" }),
       date: dateStr,
       count: 0,
-      isToday: dateStr === todayStr,
+      isToday: dateStr === todayLocalStr,
     });
   }
   return safe(
@@ -296,7 +306,8 @@ export async function fetchWeeklyActivity(userId: string): Promise<WeeklyPoint[]
 
       for (const r of rows) {
         if (!r?.last_watched_at) continue;
-        const target = days.find((d) => d.date === r.last_watched_at!.slice(0, 10));
+        const rowLocalDate = new Date(r.last_watched_at).toLocaleDateString("en-CA");
+        const target = days.find((d) => d.date === rowLocalDate);
         if (target) target.count += 1;
       }
       return days;

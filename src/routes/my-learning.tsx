@@ -111,62 +111,69 @@ function MyLearningPage() {
             <MyLearningEmptyState />
           ) : (
             <>
-              {/* Search + filter tabs */}
+              {/* Search + filter controls */}
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+                className="space-y-4"
               >
-                <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter courses">
-                  {TABS.map((t) => (
-                    <button
-                      key={t.id}
-                      role="tab"
-                      aria-selected={tab === t.id}
-                      onClick={() => setTab(t.id)}
-                      className={cn(
-                        "relative flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-semibold transition-all duration-200",
-                        tab === t.id
-                          ? "border-transparent bg-gradient-to-r from-primary to-primary-light text-primary-foreground shadow-[var(--shadow-glow-primary)]"
-                          : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground",
-                      )}
-                    >
-                      {t.label}
-                      {t.count > 0 && (
-                        <span
-                          className={cn(
-                            "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold",
-                            tab === t.id
-                              ? "bg-white/25 text-white"
-                              : "bg-secondary text-muted-foreground",
-                          )}
-                        >
-                          {t.count}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 focus-within:border-primary/40 focus-within:shadow-[var(--shadow-glow-primary)] transition-all sm:w-64">
-                  <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                {/* Full-width Search Input */}
+                <div className="relative flex h-12 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                  <Search className="h-5 w-5 shrink-0 text-primary" aria-hidden />
                   <input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search your courses…"
-                    className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                    placeholder="Search by course title, category, or topic…"
+                    className="w-full bg-transparent text-sm sm:text-base font-medium text-foreground outline-none placeholder:text-muted-foreground"
                     aria-label="Search enrolled courses"
                   />
                   {search && (
                     <button
                       onClick={() => setSearch("")}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors shrink-0"
                       aria-label="Clear search"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
+                      <RotateCcw className="h-4 w-4" />
                     </button>
                   )}
+                </div>
+
+                {/* Filter Tabs & Result Stats Bar */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter courses">
+                    {TABS.map((t) => (
+                      <button
+                        key={t.id}
+                        role="tab"
+                        aria-selected={tab === t.id}
+                        onClick={() => setTab(t.id)}
+                        className={cn(
+                          "relative flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs sm:text-sm font-semibold transition-all duration-200 cursor-pointer",
+                          tab === t.id
+                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                            : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                        )}
+                      >
+                        {t.label}
+                        {t.count > 0 && (
+                          <span
+                            className={cn(
+                              "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold",
+                              tab === t.id
+                                ? "bg-white/20 text-white"
+                                : "bg-secondary text-muted-foreground",
+                            )}
+                          >
+                            {t.count}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    Showing <span className="text-foreground font-bold">{filtered.length}</span> of {courses.length} courses
+                  </p>
                 </div>
               </motion.div>
 

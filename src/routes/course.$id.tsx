@@ -21,6 +21,13 @@ import {
   enrollInCourse,
   isEnrolled,
 } from "@/lib/explore-data";
+import {
+  isCourseFavorite,
+  toggleCourseFavorite,
+  isWatchLater as checkWatchLater,
+  toggleWatchLater,
+} from "@/lib/saved-items-data";
+import { shareItem } from "@/lib/share-utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/course/$id")({
@@ -59,6 +66,18 @@ function CourseDetailPage() {
   const enrolledQ = useQuery({
     queryKey: ["course", id, "enrolled", user?.id],
     queryFn: () => isEnrolled(user!.id, id),
+    enabled: !!user?.id,
+  });
+
+  const favQ = useQuery({
+    queryKey: ["course", id, "favorite", user?.id],
+    queryFn: () => isCourseFavorite(user!.id, id),
+    enabled: !!user?.id,
+  });
+
+  const watchLaterQ = useQuery({
+    queryKey: ["course", id, "watchLater", user?.id],
+    queryFn: () => checkWatchLater(user!.id, id),
     enabled: !!user?.id,
   });
 
@@ -131,6 +150,41 @@ function CourseDetailPage() {
     navigate({ to: "/checkout", search: { course: course.id } });
   };
 
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      toast.error("Please sign in to favorite courses");
+      return;
+    }
+    const res = await toggleCourseFavorite(user.id, id);
+    if (res.error) toast.error(res.error);
+    else {
+      toast.success(res.favorite ? "Added to Favorites ❤️" : "Removed from Favorites");
+      qc.invalidateQueries({ queryKey: ["course", id, "favorite", user.id] });
+    }
+  };
+
+  const handleToggleWatchLater = async () => {
+    if (!user) {
+      toast.error("Please sign in to save courses");
+      return;
+    }
+    const res = await toggleWatchLater(user.id, id);
+    if (res.error) toast.error(res.error);
+    else {
+      toast.success(res.saved ? "Saved for Watch Later ⏱️" : "Removed from Watch Later");
+      qc.invalidateQueries({ queryKey: ["course", id, "watchLater", user.id] });
+    }
+  };
+
+  const handleShare = () => {
+    if (!course) return;
+    shareItem({
+      title: `${course.title} — MakersFlow`,
+      text: course.description || `Check out ${course.title} on MakersFlow!`,
+      url: window.location.href,
+    });
+  };
+
   if (courseQ.isLoading || !course) {
     return (
       <div className="flex min-h-screen w-full bg-background">
@@ -173,7 +227,13 @@ function CourseDetailPage() {
                       <CurriculumTab modules={modulesQ.data ?? []} isLoading={modulesQ.isLoading} />
                     )}
                     {tab === "reviews" && (
-                      <ReviewsTab reviews={reviewsQ.isLoading ? [] : (reviewsQ.data ?? [])} />
+                      <ReviewsTab
+                        courseId={course.id}
+                        userId={user?.id}
+                        enrolled={enrolled}
+                        reviews={reviewsQ.isLoading ? [] : (reviewsQ.data ?? [])}
+                        onRefetch={() => reviewsQ.refetch()}
+                      />
                     )}
                     {tab === "instructor" && <InstructorTab course={course} />}
                   </motion.div>
@@ -186,6 +246,11 @@ function CourseDetailPage() {
                 enrolled={enrolled}
                 enrolling={enrolling}
                 onEnroll={handleEnroll}
+                isFavorite={!!favQ.data}
+                onToggleFavorite={handleToggleFavorite}
+                isWatchLater={!!watchLaterQ.data}
+                onToggleWatchLater={handleToggleWatchLater}
+                onShare={handleShare}
               />
             </aside>
           </div>

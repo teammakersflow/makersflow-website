@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TabKey = "notes" | "transcript" | "resources" | "discussion" | "quiz";
+export type TabKey = "notes" | "resources" | "discussion" | "quiz";
 
 export const TABS: {
   key: TabKey;
@@ -23,7 +23,6 @@ export const TABS: {
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
   { key: "notes", label: "Notes", icon: FileText },
-  { key: "transcript", label: "Transcript", icon: ScrollText },
   { key: "resources", label: "Resources", icon: Download },
   { key: "discussion", label: "Discussion", icon: MessageSquare },
   { key: "quiz", label: "Quiz", icon: ListChecks },
@@ -159,6 +158,20 @@ export function NotesBlock({ content }: { content: string }) {
 // ─── ResourcesList ────────────────────────────────────────────────────────────
 
 export function ResourcesList({ resources }: { resources: LessonResource[] }) {
+  if (!resources || resources.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
+        <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-secondary">
+          <Download className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <p className="font-semibold text-foreground">No downloadable resources for this lesson</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Supplementary files, code templates, or PDFs will appear here when attached.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <ul className="space-y-2">
       {resources.map((r) => (
@@ -236,14 +249,6 @@ export function LessonTabPanel({
         {tab === "notes" && (
           <article className="prose prose-sm max-w-none rounded-2xl border border-border bg-card p-5 sm:p-6">
             <NotesBlock content={lesson.notes ?? "_No notes for this lesson yet._"} />
-          </article>
-        )}
-        {tab === "transcript" && (
-          <article className="prose prose-sm max-w-none rounded-2xl border border-border bg-card p-5 sm:p-6">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Auto-generated Transcript
-            </p>
-            <NotesBlock content={lesson.notes ?? "_No transcript available for this lesson._"} />
           </article>
         )}
         {tab === "resources" && <ResourcesList resources={resources} />}

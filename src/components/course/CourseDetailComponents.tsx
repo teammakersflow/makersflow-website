@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, Users, Clock, BarChart3, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { CurriculumAccordion } from "@/components/course/CurriculumAccordion";
-import { type CourseDetail, type Module, type Review } from "@/lib/explore-data";
+import { type CourseDetail, type Module, type Review, submitCourseReview } from "@/lib/explore-data";
+import { ImageCarousel } from "@/components/common/ImageCarousel";
 import Folder from "@/components/Folder";
 
 // ─── Stat ─────────────────────────────────────────────────────────────────────
@@ -123,57 +126,70 @@ export function CourseHero({ course, onBack }: { course: CourseDetail; onBack: (
         >
           <ArrowLeft className="h-4 w-4" /> Back to catalog
         </button>
-        <div className="flex flex-wrap items-center gap-2">
-          {course.category && (
-            <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white backdrop-blur">
-              {course.category}
-            </span>
-          )}
-          {course.level && (
-            <span className="rounded-full bg-accent/30 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white backdrop-blur">
-              {course.level.charAt(0).toUpperCase() + course.level.slice(1)}
-            </span>
-          )}
-        </div>
-        <h1
-          className="mt-4 max-w-3xl font-display text-3xl font-bold leading-tight text-white sm:text-5xl"
-          style={{ textShadow: "0 2px 24px rgba(0,0,0,0.45)" }}
-        >
-          {course.title}
-        </h1>
-        {course.description && (
-          <p
-            className="mt-4 max-w-2xl text-base text-white/90 sm:text-lg"
-            style={{ textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}
-          >
-            {course.description}
-          </p>
-        )}
-        <div
-          className="mt-6 flex flex-wrap items-center gap-5 text-sm text-white/95"
-          style={{ textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}
-        >
-          {course.instructor_name && (
-            <span>
-              by <span className="font-semibold">{course.instructor_name}</span>
-            </span>
-          )}
-          <span className="inline-flex items-center gap-1.5">
-            <Star className="h-4 w-4 fill-accent text-accent" />
-            <span className="font-semibold">{course.rating?.toFixed(1) ?? "—"}</span>
-            <span className="text-white/70">({course.total_reviews ?? 0})</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Users className="h-4 w-4" />
-            {course.enrolled_count > 0
-              ? `${course.enrolled_count.toLocaleString()} enrolled`
-              : "Be the first to enroll"}
-          </span>
-          {course.duration_hours != null && (
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="h-4 w-4" />
-              {course.duration_hours}h total
-            </span>
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px] items-center">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              {course.category && (
+                <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white backdrop-blur">
+                  {course.category}
+                </span>
+              )}
+              {course.level && (
+                <span className="rounded-full bg-accent/30 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white backdrop-blur">
+                  {course.level.charAt(0).toUpperCase() + course.level.slice(1)}
+                </span>
+              )}
+            </div>
+            <h1
+              className="mt-4 max-w-3xl font-display text-3xl font-bold leading-tight text-white sm:text-5xl"
+              style={{ textShadow: "0 2px 24px rgba(0,0,0,0.45)" }}
+            >
+              {course.title}
+            </h1>
+            {course.description && (
+              <p
+                className="mt-4 max-w-2xl text-base text-white/90 sm:text-lg"
+                style={{ textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}
+              >
+                {course.description}
+              </p>
+            )}
+            <div
+              className="mt-6 flex flex-wrap items-center gap-5 text-sm text-white/95"
+              style={{ textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}
+            >
+              {course.instructor_name && (
+                <span>
+                  by <span className="font-semibold">{course.instructor_name}</span>
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5">
+                <Star className="h-4 w-4 fill-accent text-accent" />
+                <span className="font-semibold">{course.rating?.toFixed(1) ?? "—"}</span>
+                <span className="text-white/70">({course.total_reviews ?? 0})</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Users className="h-4 w-4" />
+                {course.enrolled_count > 0
+                  ? `${course.enrolled_count.toLocaleString()} enrolled`
+                  : "Be the first to enroll"}
+              </span>
+              {course.duration_hours != null && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock className="h-4 w-4" />
+                  {course.duration_hours}h total
+                </span>
+              )}
+            </div>
+          </div>
+          {course.thumbnail_url && (
+            <div className="hidden lg:block">
+              <ImageCarousel
+                images={[course.thumbnail_url]}
+                alt={course.title}
+                aspectRatio="wide"
+              />
+            </div>
           )}
         </div>
       </div>
@@ -251,57 +267,174 @@ export function OverviewTab({ course }: { course: CourseDetail }) {
   );
 }
 
-// ─── ReviewsTab ───────────────────────────────────────────────────────────────
+// ─── ReviewSubmissionForm ───────────────────────────────────────────────────
 
-export function ReviewsTab({ reviews }: { reviews: Review[] }) {
-  if (!reviews || reviews.length === 0) {
+export function ReviewSubmissionForm({
+  courseId,
+  userId,
+  enrolled,
+  onSubmitted,
+}: {
+  courseId: string;
+  userId?: string;
+  enrolled: boolean;
+  onSubmitted: () => void;
+}) {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!userId) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-12 text-center">
-        <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-secondary">
-          <Star className="h-6 w-6 text-muted-foreground" />
-        </div>
-        <h3 className="font-display text-lg font-semibold text-foreground">No reviews yet</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Be the first to review this course after enrolling!
+      <div className="rounded-2xl border border-border bg-card p-5 text-center">
+        <p className="text-sm text-muted-foreground">Sign in and enroll in this course to leave a review.</p>
+      </div>
+    );
+  }
+
+  if (!enrolled) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-5 text-center">
+        <p className="text-sm font-medium text-muted-foreground">
+          🔒 Only enrolled students can write a course review.
         </p>
       </div>
     );
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const res = await submitCourseReview(userId, courseId, rating, comment);
+    setSubmitting(false);
+    if (res.ok) {
+      toast.success("Review submitted! Thank you for your feedback. ⭐");
+      setComment("");
+      onSubmitted();
+    } else {
+      toast.error(res.error ?? "Failed to submit review");
+    }
+  };
+
   return (
-    <div className="space-y-4">
-      {reviews.map((r) => (
-        <article key={r.id} className="rounded-2xl border border-border bg-card p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-sm font-bold text-white">
-                {(r.user_name ?? "A").slice(0, 1)}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  {r.user_name ?? "Anonymous"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(r.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-0.5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star
-                  key={i}
-                  className={
-                    i < r.rating
-                      ? "h-4 w-4 fill-accent text-accent"
-                      : "h-4 w-4 text-muted-foreground/30"
-                  }
-                />
-              ))}
-            </div>
+    <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-card p-6 space-y-4">
+      <h4 className="font-display text-base font-bold text-foreground">Write a Review</h4>
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          Rating
+        </label>
+        <div className="flex items-center gap-1">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              type="button"
+              onClick={() => setRating(star)}
+              className="p-1 hover:scale-110 transition-transform"
+            >
+              <Star
+                className={`h-6 w-6 ${
+                  star <= rating ? "fill-accent text-accent" : "text-muted-foreground/30"
+                }`}
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          Your Review
+        </label>
+        <textarea
+          rows={3}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="What did you learn? How was the course structure?"
+          className="w-full rounded-xl border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={submitting}
+        className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all"
+      >
+        {submitting ? "Submitting..." : "Submit Review"}
+      </button>
+    </form>
+  );
+}
+
+// ─── ReviewsTab ───────────────────────────────────────────────────────────────
+
+export function ReviewsTab({
+  courseId,
+  userId,
+  enrolled,
+  reviews,
+  onRefetch,
+}: {
+  courseId?: string;
+  userId?: string;
+  enrolled?: boolean;
+  reviews: Review[];
+  onRefetch?: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {courseId && (
+        <ReviewSubmissionForm
+          courseId={courseId}
+          userId={userId}
+          enrolled={!!enrolled}
+          onSubmitted={() => onRefetch?.()}
+        />
+      )}
+
+      {(!reviews || reviews.length === 0) ? (
+        <div className="rounded-2xl border border-border bg-card p-12 text-center">
+          <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-secondary">
+            <Star className="h-6 w-6 text-muted-foreground" />
           </div>
-          {r.comment && <p className="mt-3 text-sm leading-relaxed text-foreground">{r.comment}</p>}
-        </article>
-      ))}
+          <h3 className="font-display text-lg font-semibold text-foreground">No reviews yet</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Be the first to review this course after enrolling!
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {reviews.map((r) => (
+            <article key={r.id} className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-sm font-bold text-white">
+                    {(r.user_name ?? "A").slice(0, 1)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {r.user_name ?? "Anonymous"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={
+                        i < r.rating
+                          ? "h-4 w-4 fill-accent text-accent"
+                          : "h-4 w-4 text-muted-foreground/30"
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+              {r.comment && <p className="mt-3 text-sm leading-relaxed text-foreground">{r.comment}</p>}
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

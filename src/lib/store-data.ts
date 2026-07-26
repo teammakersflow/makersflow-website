@@ -165,6 +165,62 @@ export async function fetchProduct(id: string): Promise<Product | null> {
   return FALLBACK.find((p) => p.id === id) ?? null;
 }
 
+export async function fetchProductReviews(productId: string): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from("reviews")
+      .select("id, rating, comment, created_at, user:profiles!reviews_user_id_fkey(full_name, avatar_url)")
+      .eq("product_id", productId)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error || !data || data.length === 0) return [];
+
+    return (data as any[]).map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      comment: r.comment,
+      created_at: r.created_at,
+      user_name: r.user?.full_name ?? null,
+      user_avatar: r.user?.avatar_url ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function submitProductReview(
+  userId: string,
+  productId: string,
+  rating: number,
+  comment: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!userId) return { ok: false, error: "Please sign in to submit a product review" };
+  if (!rating || rating < 1 || rating > 5) return { ok: false, error: "Please select a star rating (1-5)" };
+
+  try {
+    const { error } = await supabase.from("reviews").insert({
+      user_id: userId,
+      product_id: productId,
+      rating,
+      comment: comment.trim() || null,
+      status: "approved",
+    });
+
+    if (error) {
+      if (error.code === "23505") {
+        return { ok: false, error: "You have already submitted a review for this product." };
+      }
+      throw error;
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    console.error("[submitProductReview] Insert failed:", err);
+    return { ok: false, error: err?.message || "Could not submit review." };
+  }
+}
+
 export function getProductCategories(items: Product[]): string[] {
   const set = new Set<string>();
   items.forEach((p) => p.category && set.add(p.category));

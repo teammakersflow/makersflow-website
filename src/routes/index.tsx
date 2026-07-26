@@ -78,10 +78,10 @@ function LandingPage() {
           />
         </section>
         <StatsBar />
-        <HowItWorks />
-        <FeaturedCourses />
         <Categories />
+        <FeaturedCourses />
         <StoreDemo />
+        <HowItWorks />
         <Testimonials />
         <CtaSection />
         <Footer />

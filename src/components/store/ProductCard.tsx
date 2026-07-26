@@ -8,6 +8,8 @@ import { formatPrice, type Product } from "@/lib/store-data";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { enrollInCourse, isEnrolled } from "@/lib/explore-data";
+import { isInWishlist, toggleWishlist } from "@/lib/saved-items-data";
+import { Heart } from "lucide-react";
 
 const CATEGORY_GRADIENT: Record<string, string> = {
   Kits: "from-[#4F46E5] via-[#6366F1] to-[#FF6B35]",
@@ -58,6 +60,7 @@ export function ProductCard({ p, index }: { p: Product; index: number }) {
   const [userId, setUserId] = useState<string | null>(null);
   const [enrolled, setEnrolled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [wishlisted, setWishlisted] = useState(false);
   const grad = (p.category && CATEGORY_GRADIENT[p.category]) || "from-primary to-accent";
   const emoji = (p.category && CATEGORY_EMOJI[p.category]) || "📦";
 
@@ -68,8 +71,26 @@ export function ProductCard({ p, index }: { p: Product; index: number }) {
       if (uid && p.is_course && p.course_id) {
         isEnrolled(uid, p.course_id).then(setEnrolled);
       }
+      if (uid && !p.is_course) {
+        isInWishlist(uid, p.id).then(setWishlisted);
+      }
     });
-  }, [p.is_course, p.course_id]);
+  }, [p.id, p.is_course, p.course_id]);
+
+  const handleToggleWishlist = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!userId) {
+      toast.error("Please sign in to wishlist products");
+      return;
+    }
+    const res = await toggleWishlist(userId, p.id);
+    if (res.error) toast.error(res.error);
+    else {
+      setWishlisted(res.wishlisted);
+      toast.success(res.wishlisted ? "Added to Wishlist ❤️" : "Removed from Wishlist");
+    }
+  };
 
   const discount =
     p.original_price && p.original_price > p.price
@@ -213,9 +234,26 @@ export function ProductCard({ p, index }: { p: Product; index: number }) {
 
             {/* Discount — top right */}
             {discount && p.in_stock && (
-              <span className="absolute right-3 top-3 rounded-full bg-foreground/85 px-2.5 py-1 text-[10px] font-black text-background backdrop-blur-sm">
+              <span className="absolute right-12 top-3 rounded-full bg-foreground/85 px-2.5 py-1 text-[10px] font-black text-background backdrop-blur-sm">
                 -{discount}%
               </span>
+            )}
+
+            {/* Wishlist button — top right */}
+            {!p.is_course && (
+              <button
+                type="button"
+                onClick={handleToggleWishlist}
+                className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-background/80 shadow-md backdrop-blur-md transition-all hover:scale-110 active:scale-95"
+                title={wishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
+              >
+                <Heart
+                  className={cn(
+                    "h-4 w-4 transition-colors",
+                    wishlisted ? "fill-rose-500 text-rose-500" : "text-foreground/80 hover:text-rose-500",
+                  )}
+                />
+              </button>
             )}
 
             {/* Out of stock overlay */}

@@ -37,7 +37,7 @@ import {
   useMarkLessonComplete,
 } from "@/hooks/useLearnData";
 import { upsertLessonProgress } from "@/lib/learn-data";
-import { fetchCourseDetail, fetchCourseModules } from "@/lib/explore-data";
+import { fetchCourseDetail, fetchCourseModules, resolveCourseId } from "@/lib/explore-data";
 import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/learn/$courseId/$lessonId")({
@@ -76,11 +76,12 @@ function LessonPlayerPage() {
   useEffect(() => {
     if (!user) return;
     async function checkAccess() {
+      const targetCourseId = await resolveCourseId(courseId);
       // Fetch course metadata — FAIL-CLOSED: if query errors or returns null, deny access
       const { data: course, error: courseErr } = await supabase
         .from("courses")
         .select("is_free, price")
-        .eq("id", courseId)
+        .eq("id", targetCourseId)
         .maybeSingle();
 
       if (courseErr || !course) {
@@ -101,12 +102,12 @@ function LessonPlayerPage() {
             .from("enrollments")
             .select("id", { count: "exact", head: true })
             .eq("user_id", user!.id)
-            .eq("course_id", courseId),
+            .eq("course_id", targetCourseId),
           supabase
             .from("course_purchases")
             .select("id", { count: "exact", head: true })
             .eq("user_id", user!.id)
-            .eq("course_id", courseId)
+            .eq("course_id", targetCourseId)
             .eq("status", "active"),
         ]);
 

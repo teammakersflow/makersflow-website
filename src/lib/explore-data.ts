@@ -359,14 +359,21 @@ export async function fetchCourseDetail(id: string): Promise<CourseDetail> {
   console.log("[fetchCourseDetail] Fetching course:", id);
 
   try {
-    const { data, error } = await supabase
+    const isNumeric = /^\d+$/.test(id);
+    let q = supabase
       .from("courses")
       .select(
         "id, title, category, level, price, gst_rate, is_free, thumbnail_url, description, slug, created_at, is_published",
       )
-      .eq("id", id)
-      .eq("is_published", true)
-      .maybeSingle();
+      .eq("is_published", true);
+
+    if (isNumeric) {
+      q = q.eq("id", Number(id));
+    } else {
+      q = q.eq("slug", id);
+    }
+
+    const { data, error } = await q.maybeSingle();
 
     console.log("[fetchCourseDetail] Supabase response:", { data, error });
 
@@ -427,11 +434,12 @@ export async function fetchCourseModules(courseId: string): Promise<Module[]> {
   }
 
   try {
+    const targetCourseId = await resolveCourseId(courseId);
     // Step 1: Fetch modules for the course
     const { data: modules, error: modulesError } = await supabase
       .from("modules")
       .select("id, title, order_index")
-      .eq("course_id", courseId)
+      .eq("course_id", targetCourseId)
       .order("order_index", { ascending: true });
 
     console.log("[fetchCourseModules] Modules query response:", { modules, modulesError });
@@ -497,12 +505,13 @@ export async function fetchCourseModules(courseId: string): Promise<Module[]> {
 
 export async function fetchCourseReviews(courseId: string): Promise<Review[]> {
   try {
+    const targetCourseId = await resolveCourseId(courseId);
     const { data, error } = await supabase
       .from("reviews")
       .select(
         "id, rating, comment, created_at, user:profiles!reviews_user_id_fkey(full_name, avatar_url)",
       )
-      .eq("course_id", courseId)
+      .eq("course_id", targetCourseId)
       .order("created_at", { ascending: false })
       .limit(20);
 
@@ -519,6 +528,59 @@ export async function fetchCourseReviews(courseId: string): Promise<Review[]> {
   } catch {
     return [];
   }
+}
+export async function submitCourseReview(
+  userId: string,
+  courseId: string,
+  rating: number,
+  comment: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!userId) return { ok: false, error: "Please sign in to submit a review" };
+  if (!rating || rating < 1 || rating > 5) return { ok: false, error: "Please select a star rating (1-5)" };
+
+  try {
+    // 1. Server-side verification: check enrollment status
+    const enrolled = await isEnrolled(userId, courseId);
+    if (!enrolled) {
+      return { ok: false, error: "Only enrolled students can review this course" };
+    }
+
+    // 2. Resolve course numeric ID
+    const targetCourseId = await resolveCourseId(courseId);
+
+    // 3. Perform insert into reviews table
+    const { error } = await supabase.from("reviews").insert({
+      user_id: userId,
+      course_id: targetCourseId,
+      rating,
+      comment: comment.trim() || null,
+      status: "approved",
+    });
+
+    if (error) {
+      if (error.code === "23505") {
+        return { ok: false, error: "You have already submitted a review for this course." };
+      }
+      throw error;
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    console.error("[submitCourseReview] Insert failed:", err);
+    return { ok: false, error: err?.message || "Could not submit review." };
+  }
+}
+
+export async function resolveCourseId(courseId: string | number): Promise<string | number> {
+  const str = String(courseId);
+  if (typeof courseId === "number" || /^\d+$/.test(str) || str.startsWith("demo-")) {
+    return /^\d+$/.test(str) ? Number(str) : courseId;
+  }
+  try {
+    const { data } = await supabase.from("courses").select("id").eq("slug", str).maybeSingle();
+    if (data?.id) return data.id;
+  } catch {}
+  return courseId;
 }
 
 export async function enrollInCourse(
@@ -548,13 +610,14 @@ export async function enrollInCourse(
   }
 
   try {
+    const targetCourseId = await resolveCourseId(courseId);
     const expiresAt = new Date();
     expiresAt.setFullYear(expiresAt.getFullYear() + 1);
     // Only insert columns that exist in the enrollments table.
     // (payment_status and status are NOT columns in this table — do not add them.)
     const enrollmentData = {
       user_id: userId,
-      course_id: courseId,
+      course_id: targetCourseId,
       enrolled_at: new Date().toISOString(),
       // Same 1-year access window the mobile app enforces
       expires_at: expiresAt.toISOString(),
@@ -591,11 +654,12 @@ export async function isEnrolled(userId: string, courseId: string | number): Pro
     }
   }
   try {
+    const targetCourseId = await resolveCourseId(courseId);
     const { data } = await supabase
       .from("enrollments")
       .select("id, expires_at")
       .eq("user_id", userId)
-      .eq("course_id", courseId) // Let Supabase handle type matching
+      .eq("course_id", targetCourseId)
       .maybeSingle();
     if (!data) return false;
     // 1-year access window (shared with the mobile app): a lapsed

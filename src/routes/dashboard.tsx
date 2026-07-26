@@ -20,6 +20,7 @@ import { StreakFlame } from "@/components/dashboard/StreakFlame";
 import { Achievements } from "@/components/dashboard/Achievements";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { OnboardingModal } from "@/components/dashboard/OnboardingModal";
+import { AnnouncementBanner } from "@/components/dashboard/AnnouncementBanner";
 
 const WeeklyActivity = lazy(() =>
   import("@/components/dashboard/WeeklyActivity").then((m) => ({ default: m.WeeklyActivity })),
@@ -55,27 +56,36 @@ function DashboardPage() {
     queryKey: ["dashboard", "profile", userId],
     queryFn: () => fetchProfile(userId!),
     enabled: !!userId,
+    staleTime: 60 * 1000,
   });
   const streakQ = useQuery({
     queryKey: ["dashboard", "streak", userId],
     queryFn: () => fetchStreak(userId!),
     enabled: !!userId,
+    staleTime: 60 * 1000,
   });
   const statsQ = useQuery({
     queryKey: ["dashboard", "stats", userId],
     queryFn: () => fetchStats(userId!),
     enabled: !!userId,
+    staleTime: 60 * 1000,
   });
   const continueQ = useQuery({
     queryKey: ["dashboard", "continue", userId],
     queryFn: () => fetchContinueLesson(userId!),
     enabled: !!userId,
+    staleTime: 60 * 1000,
   });
-  const recsQ = useQuery({ queryKey: ["dashboard", "recommended"], queryFn: fetchRecommended });
+  const recsQ = useQuery({
+    queryKey: ["dashboard", "recommended"],
+    queryFn: fetchRecommended,
+    staleTime: 5 * 60 * 1000,
+  });
   const weeklyQ = useQuery({
     queryKey: ["dashboard", "weekly", userId],
     queryFn: () => fetchWeeklyActivity(userId!),
     enabled: !!userId,
+    staleTime: 60 * 1000,
   });
 
   const profile = profileQ.data ?? null;
@@ -100,15 +110,26 @@ function DashboardPage() {
           progress: 65,
           last_watched_at: new Date().toISOString(),
         });
-  const weekly = weeklyQ.data ?? [
-    { day: "Mon", date: "Mon", count: 2, isToday: false },
-    { day: "Tue", date: "Tue", count: 4, isToday: false },
-    { day: "Wed", date: "Wed", count: 1, isToday: false },
-    { day: "Thu", date: "Thu", count: 3, isToday: false },
-    { day: "Fri", date: "Fri", count: 5, isToday: true },
-    { day: "Sat", date: "Sat", count: 0, isToday: false },
-    { day: "Sun", date: "Sun", count: 0, isToday: false },
-  ];
+  const weekly =
+    weeklyQ.data ??
+    (userId
+      ? Array.from({ length: 7 }, (_, i) => {
+          const d = new Date();
+          d.setDate(d.getDate() - (6 - i));
+          const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+          const dateStr = d.toLocaleDateString("en-CA");
+          const isToday = i === 6;
+          return { day: dayName, date: dateStr, count: 0, isToday };
+        })
+      : [
+          { day: "Mon", date: "Mon", count: 2, isToday: false },
+          { day: "Tue", date: "Tue", count: 4, isToday: false },
+          { day: "Wed", date: "Wed", count: 1, isToday: false },
+          { day: "Thu", date: "Thu", count: 3, isToday: false },
+          { day: "Fri", date: "Fri", count: 5, isToday: true },
+          { day: "Sat", date: "Sat", count: 0, isToday: false },
+          { day: "Sun", date: "Sun", count: 0, isToday: false },
+        ]);
   const achievements = fetchAchievements(stats, streak);
 
   const firstName = (
@@ -135,6 +156,9 @@ function DashboardPage() {
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         <main className="mx-auto w-full max-w-6xl space-y-7 px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+          {/* Dynamic Supabase DB Announcement Banner */}
+          <AnnouncementBanner />
+
           {/* ── Platform Announcement ────────────────────────────────────── */}
           <InfoCard
             storageKey="mf_announcement_v1"

@@ -23,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { AvatarUpload } from "@/components/profile/AvatarUpload";
 import { signOut } from "@/integrations/supabase/auth";
+import { exportUserData } from "@/lib/user-data-export";
 import { type Profile } from "@/lib/dashboard-data";
 import { changePassword, updateProfile } from "@/lib/profile-data";
 import { cn } from "@/lib/utils";
@@ -574,7 +575,25 @@ export function SecurityTab({ isGoogle }: { isGoogle: boolean }) {
 }
 
 // ─── PrivacyTab ───────────────────────────────────────────────────────────────
-export function PrivacyTab() {
+export function PrivacyTab({ userId }: { userId?: string }) {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (!userId) {
+      toast.error("User session missing");
+      return;
+    }
+    setExporting(true);
+    toast.info("Generating your data export file...");
+    const res = await exportUserData(userId);
+    setExporting(false);
+    if (res.ok) {
+      toast.success("Data export downloaded successfully! 📦");
+    } else {
+      toast.error(res.error ?? "Failed to generate export");
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Privacy info */}
@@ -631,18 +650,27 @@ export function PrivacyTab() {
           {/* Export */}
           <div className="flex flex-col gap-3 rounded-xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="text-sm font-bold text-foreground">Request data export</div>
+              <div className="text-sm font-bold text-foreground">Download My Data (DPDP Act Export)</div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                We'll email you a copy of your account, progress and orders within 7 business days.
+                Download a machine-readable JSON archive of your account profile, learning history, quiz scores, and orders.
               </div>
             </div>
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => toast.success("Export requested — we'll email you soon.")}
-              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground hover:bg-secondary transition-all whitespace-nowrap"
+              onClick={handleExport}
+              disabled={exporting}
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-primary bg-primary/10 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground transition-all whitespace-nowrap disabled:opacity-50"
             >
-              <UserIcon className="h-3.5 w-3.5" aria-hidden /> Request export
+              {exporting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Exporting...
+                </>
+              ) : (
+                <>
+                  <UserIcon className="h-3.5 w-3.5" aria-hidden /> Download JSON Archive
+                </>
+              )}
             </motion.button>
           </div>
 

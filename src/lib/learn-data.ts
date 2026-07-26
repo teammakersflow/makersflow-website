@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { FALLBACK, DEMO_MODULES, type Module } from "./explore-data";
+import { FALLBACK, DEMO_MODULES, resolveCourseId, type Module } from "./explore-data";
 import {
   mapDbLessonToDetail,
   mapDbLessonResource,
@@ -148,13 +148,14 @@ export async function fetchCourseProgressMap(
     }
   }
   try {
+    const targetCourseId = await resolveCourseId(courseId);
     const { data } = await supabase
       .from("lesson_progress")
       .select(
         "lesson_id, course_id, current_time_secs, watch_percentage, time_spent_secs, is_completed, last_watched_at",
       )
       .eq("user_id", userId)
-      .eq("course_id", courseId);
+      .eq("course_id", targetCourseId);
     const map: Record<string, LessonProgressRow> = {};
     for (const row of (data ?? []) as RawDbLessonProgress[]) {
       const mapped = mapDbLessonProgress(row);
@@ -242,20 +243,43 @@ export async function markLessonComplete(userId: string, courseId: string, lesso
     return;
   }
   try {
-    const completePayload = {
-      user_id: userId,
-      lesson_id: Number(lessonId),
-      course_id: courseId,
-      is_completed: true,
-      watch_percentage: 100,
-      last_watched_at: new Date().toISOString(),
-    };
-    const { error } = await supabase
+    const targetCourseId = await resolveCourseId(courseId);
+    const lessonNum = Number(lessonId);
+    const { data: existing } = await supabase
       .from("lesson_progress")
-      .upsert(completePayload, { onConflict: "user_id,course_id,lesson_id" });
-    if (error) {
-      console.error(`[makersflow] markLessonComplete upsert failed:`, error);
-      throw error;
+      .select("id, time_spent_secs")
+      .eq("user_id", userId)
+      .eq("course_id", targetCourseId)
+      .eq("lesson_id", lessonNum)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from("lesson_progress")
+        .update({
+          is_completed: true,
+          watch_percentage: 100,
+          last_watched_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+      if (error) {
+        console.error(`[makersflow] markLessonComplete update failed:`, error);
+        throw error;
+      }
+    } else {
+      const { error } = await supabase.from("lesson_progress").insert({
+        user_id: userId,
+        lesson_id: lessonNum,
+        course_id: courseId,
+        is_completed: true,
+        watch_percentage: 100,
+        time_spent_secs: 0,
+        last_watched_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error(`[makersflow] markLessonComplete insert failed:`, error);
+        throw error;
+      }
     }
   } catch (err) {
     console.warn(`[makersflow] markLessonComplete lesson_progress threw:`, err);
@@ -385,10 +409,11 @@ export async function fetchEnrolledCourses(userId: string): Promise<EnrolledCour
       // Fetch modules and lessons for this course
       let modules: any[] = [];
 
+      const targetCourseId = await resolveCourseId(courseId);
       const { data: modulesData, error: modulesError } = await supabase
         .from("modules")
         .select("id, title, order_index")
-        .eq("course_id", courseId)
+        .eq("course_id", targetCourseId)
         .order("order_index", { ascending: true });
 
       if (modulesData && !modulesError && modulesData.length > 0) {

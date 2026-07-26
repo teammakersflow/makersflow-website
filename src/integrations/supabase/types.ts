@@ -20,6 +20,7 @@ export interface ProfileRow {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
+  phone: string | null;
   grade: string | null;
   school: string | null;
   role: string | null;
@@ -220,6 +221,27 @@ export interface NotificationRow {
   type: "info" | "success" | "warning" | "announcement";
   link_url: string | null;
   status: "draft" | "published" | "archived";
+  created_at: string;
+}
+
+export interface CourseFavoriteRow {
+  id: string;
+  user_id: string;
+  course_id: number;
+  created_at: string;
+}
+
+export interface WatchLaterRow {
+  id: string;
+  user_id: string;
+  course_id: number;
+  created_at: string;
+}
+
+export interface WishlistRow {
+  id: string;
+  user_id: string;
+  product_id: string;
   created_at: string;
 }
 

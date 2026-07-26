@@ -63,6 +63,11 @@ tmp/
 scratch/
 
 # ==========================================================
+# Git Worktrees
+# ==========================================================
+.worktrees/
+
+# ==========================================================
 # Supabase
 # ==========================================================
 
@@ -119,7 +124,6 @@ Desktop.ini
 .codex/
 .claude-flow/
 .swarm/
-.worktrees/
 .antigravity/
 
 # ==========================================================
@@ -155,12 +159,12 @@ storybook-static/
 *.crt
 
 # ==========================================================
-# IMPORTANT PROJECT ASSETS (Keep These)
+# Project Assets (KEEP TRACKED)
 # ==========================================================
-# These are part of the application and SHOULD remain tracked.
+# These are intentionally committed:
 #
-# public/avatars/              -> Default selectable avatars
-# public/certificates/         -> Certificate templates/backgrounds
-# public/course-thumbnails/    -> Course thumbnail assets
-# supabase/functions/          -> Edge Functions
-# supabase/migrations/         -> Database migrations
+# public/avatars/               - Default selectable avatars
+# public/certificates/          - Certificate templates/backgrounds
+# public/course-thumbnails/     - Course thumbnail assets
+# supabase/functions/           - Edge Functions
+# supabase/migrations/          - Database migrations

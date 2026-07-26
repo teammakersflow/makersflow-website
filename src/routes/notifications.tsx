@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Bell, Info, CheckCircle2, AlertTriangle, Megaphone, ArrowUpRight } from "lucide-react";
+import { Bell, Info, CheckCircle2, AlertTriangle, Megaphone, ArrowUpRight, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { markNotificationsAsRead } from "@/lib/notifications";
+import { toast } from "sonner";
 
 type NotificationType = "info" | "success" | "warning" | "announcement" | string;
 
@@ -52,6 +53,23 @@ function NotificationsPage() {
       });
   }, [user]);
 
+  const handleDeleteNotification = async (id: string) => {
+    if (!user) return;
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    const { error } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("[notifications] Delete failed:", error);
+      toast.error("Could not delete notification");
+    } else {
+      toast.success("Notification removed");
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="flex min-h-screen w-full bg-background">
@@ -97,14 +115,14 @@ function NotificationsPage() {
                 return (
                   <article
                     key={n.id}
-                    className="flex gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
+                    className="group relative flex gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
                   >
                     <div
                       className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${meta.className}`}
                     >
                       <Icon className="h-5 w-5" />
                     </div>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 pr-8">
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-base font-bold text-foreground">{n.title}</h2>
                         <span
@@ -140,6 +158,14 @@ function NotificationsPage() {
                         </a>
                       )}
                     </div>
+                    <button
+                      onClick={() => handleDeleteNotification(n.id)}
+                      className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-red-500/10 hover:text-red-500 transition-colors"
+                      title="Delete notification"
+                      aria-label="Delete notification"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </article>
                 );
               })}

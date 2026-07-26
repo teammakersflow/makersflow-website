@@ -312,7 +312,7 @@ function ProfilePage() {
             )}
             {tab === "notifications" && <NotificationsTab />}
             {tab === "security" && <SecurityTab isGoogle={isGoogle} />}
-            {tab === "privacy" && <PrivacyTab />}
+            {tab === "privacy" && <PrivacyTab userId={user.id} />}
           </div>
         </div>
       </main>

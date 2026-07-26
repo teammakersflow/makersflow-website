@@ -50,26 +50,41 @@ Deno.serve(async (req) => {
 
     const userId = user.id;
 
-    // 2. Use service-role client to delete all user data + auth record
+    // 2. Use service-role client to delete personal data & anonymize profile
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Delete user-owned rows from every relevant table
-    // (order matters for FK constraints — children before parents)
-    const tables: Array<{ table: string; column: string }> = [
+    // Delete non-financial user-owned learning data
+    // NOTE: orders, order_items, and invoices are intentionally EXCLUDED from hard-deletion
+    // to comply with Section 36 of India CGST Act (mandatory 6-year tax record retention).
+    const nonFinancialTables: Array<{ table: string; column: string }> = [
       { table: "lesson_progress", column: "user_id" },
       { table: "quiz_attempts", column: "user_id" },
       { table: "enrollments", column: "user_id" },
-      { table: "order_items", column: "user_id" },
-      { table: "orders", column: "user_id" },
-      { table: "announcements", column: "id" }, // skip — not user-owned
-      { table: "profiles", column: "id" },
+      { table: "course_favorites", column: "user_id" },
+      { table: "watch_later", column: "user_id" },
+      { table: "wishlist", column: "user_id" },
+      { table: "reviews", column: "user_id" },
     ];
 
-    for (const { table, column } of tables) {
-      // Skip announcements — that's admin content, not per-user data
-      if (table === "announcements") continue;
-      await admin.from(table).delete().eq(column, userId);
+    for (const { table, column } of nonFinancialTables) {
+      try {
+        await admin.from(table).delete().eq(column, userId);
+      } catch {
+        /* Ignore if optional table is absent */
+      }
     }
+
+    // Anonymize user PII in profiles table (retains row for invoice FK integrity)
+    await admin
+      .from("profiles")
+      .update({
+        full_name: "Deleted User",
+        email: `deleted_${userId.slice(0, 8)}@anonymized.local`,
+        phone: null,
+        avatar_url: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
 
     // 3. Delete the auth record (requires service role)
     const { error: deleteErr } = await admin.auth.admin.deleteUser(userId);

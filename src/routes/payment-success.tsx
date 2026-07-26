@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2, Download, ShoppingBag, GraduationCap, ReceiptText } from "lucide-react";
+import { CheckCircle2, Download, ShoppingBag, GraduationCap, ReceiptText, Share2 } from "lucide-react";
+import { shareItem } from "@/lib/share-utils";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPrice } from "@/lib/store-data";
@@ -212,6 +213,20 @@ function PaymentSuccessPage() {
                 </Link>
               )}
               <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    shareItem({
+                      title: "Order Placed — MakersFlow",
+                      text: `I just placed an order on MakersFlow for ${total ? formatPrice(total) : "STEM learning items"}!`,
+                      url: window.location.href,
+                    })
+                  }
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Share Order
+                </button>
                 <Link
                   to="/orders"
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
@@ -224,7 +239,7 @@ function PaymentSuccessPage() {
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-semibold text-foreground hover:bg-secondary transition-colors"
                 >
                   <ShoppingBag className="h-4 w-4" />
-                  Continue Shopping
+                  Store
                 </Link>
               </div>
             </div>

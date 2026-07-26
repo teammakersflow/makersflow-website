@@ -11,6 +11,8 @@ import {
   Lock,
   Minus,
   Plus,
+  GraduationCap,
+  Package,
   ShoppingBag,
   Trash2,
   Truck,
@@ -143,14 +145,22 @@ export function CartRow({
 }) {
   return (
     <div className="flex items-center gap-4 rounded-xl border border-border bg-background p-3">
-      <div
-        className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-primary/20 to-accent/20"
-        style={{
-          backgroundImage: item.thumbnail_url ? `url(${item.thumbnail_url})` : undefined,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      />
+      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/10 to-accent/10">
+        {item.thumbnail_url ? (
+          <img
+            src={item.thumbnail_url}
+            alt={item.title}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLElement).style.display = "none";
+            }}
+          />
+        ) : (
+          <div className="grid h-full w-full place-items-center text-primary/60">
+            {item.is_course ? <GraduationCap className="h-6 w-6" /> : <Package className="h-6 w-6" />}
+          </div>
+        )}
+      </div>
       <div className="min-w-0 flex-1">
         <div className="line-clamp-1 font-semibold text-foreground">{item.title}</div>
         <div className="text-sm text-muted-foreground">{formatPrice(item.price)} each</div>
@@ -736,27 +746,24 @@ export function OrderSummary({
             >
               <div className="flex items-center gap-3 px-5 py-3">
                 {/* Thumbnail */}
-                <div
-                  className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/15 to-primary-light/10"
-                  style={{
-                    backgroundImage: item.thumbnail_url ? `url(${item.thumbnail_url})` : undefined,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                >
-                  {/* Qty badge */}
+                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/10 to-accent/10">
+                  {item.thumbnail_url ? (
+                    <img
+                      src={item.thumbnail_url}
+                      alt={item.title}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center text-primary/60">
+                      {item.is_course ? <GraduationCap className="h-5 w-5" /> : <Package className="h-5 w-5" />}
+                    </div>
+                  )}
                   {item.qty > 1 && (
                     <span className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-primary text-[10px] font-bold text-white shadow">
                       {item.qty}
-                    </span>
-                  )}
-                  {/* Course indicator */}
-                  {item.is_course && !item.thumbnail_url && (
-                    <span className="absolute inset-0 grid place-items-center text-primary opacity-40">
-                      <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
-                        <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3z" />
-                        <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" />
-                      </svg>
                     </span>
                   )}
                 </div>

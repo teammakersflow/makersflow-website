@@ -6,8 +6,10 @@ import { ArrowLeft, Check, ShoppingCart, Star, Zap, ShieldCheck, Truck } from "l
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { CartIcon } from "@/components/store/CartIcon";
-import { fetchProduct, formatPrice } from "@/lib/store-data";
+import { useAuth } from "@/integrations/supabase/auth";
+import { fetchProduct, formatPrice, fetchProductReviews, submitProductReview } from "@/lib/store-data";
 import { useCart, flyToCart } from "@/lib/cart";
+import { ImageCarousel } from "@/components/common/ImageCarousel";
 
 export const Route = createFileRoute("/store/$id")({
   head: () => ({
@@ -125,48 +127,21 @@ function ProductDetailPage() {
           <div className="grid gap-8 lg:grid-cols-2">
             {/* Gallery */}
             <div>
-              <div
-                ref={heroRef}
-                className="relative aspect-square overflow-hidden rounded-3xl bg-gradient-to-br from-primary/10 via-secondary to-accent/10"
-              >
-                {images[activeImage] ? (
-                  <img
-                    src={images[activeImage]}
-                    alt={p.title}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary via-primary-light to-accent">
-                    <span className="font-display text-5xl font-bold text-white/90">
-                      {p.category ?? "Product"}
-                    </span>
-                  </div>
-                )}
-                {!p.in_stock && (
-                  <div className="absolute inset-0 grid place-items-center bg-foreground/55 backdrop-blur-sm">
-                    <span className="rounded-full bg-background px-4 py-2 text-sm font-bold text-foreground">
+              <ImageCarousel
+                images={images}
+                alt={p.title}
+                badge={
+                  !p.in_stock ? (
+                    <span className="rounded-full bg-foreground/80 px-3 py-1 text-xs font-bold text-background backdrop-blur-sm">
                       Out of Stock
                     </span>
-                  </div>
-                )}
-              </div>
-              {images.length > 1 && (
-                <div className="mt-3 flex gap-2">
-                  {images.map((src, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setActiveImage(i)}
-                      className={`h-16 w-16 overflow-hidden rounded-xl border-2 transition-all ${
-                        i === activeImage
-                          ? "border-primary"
-                          : "border-transparent opacity-70 hover:opacity-100"
-                      }`}
-                    >
-                      <img src={src} alt="" className="h-full w-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
+                  ) : p.badge ? (
+                    <span className="rounded-full bg-accent px-3 py-1 text-xs font-black uppercase text-accent-foreground shadow-md">
+                      {p.badge}
+                    </span>
+                  ) : undefined
+                }
+              />
             </div>
 
             {/* Info */}
@@ -326,8 +301,135 @@ function ProductDetailPage() {
               </div>
             </motion.div>
           </div>
+
+          {/* Product Reviews Section */}
+          <div className="mt-12 border-t border-border pt-8 space-y-6">
+            <h2 className="font-display text-2xl font-bold text-foreground">Customer Reviews</h2>
+            <ProductReviewsSection productId={p.id} />
+          </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+function ProductReviewsSection({ productId }: { productId: string }) {
+  const { user } = useAuth();
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const reviewsQ = useQuery({
+    queryKey: ["product-reviews", productId],
+    queryFn: () => fetchProductReviews(productId),
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      toast.error("Please sign in to submit a review");
+      return;
+    }
+    setSubmitting(true);
+    const res = await submitProductReview(user.id, productId, rating, comment);
+    setSubmitting(false);
+    if (res.ok) {
+      toast.success("Review submitted! Thank you for your feedback. ⭐");
+      setComment("");
+      reviewsQ.refetch();
+    } else {
+      toast.error(res.error ?? "Could not submit review");
+    }
+  };
+
+  const reviews = reviewsQ.data ?? [];
+
+  return (
+    <div className="space-y-6">
+      {user ? (
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-card p-6 space-y-4 max-w-2xl">
+          <h3 className="font-display text-base font-bold text-foreground">Write a Product Review</h3>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Rating
+            </label>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setRating(star)}
+                  className="p-1 hover:scale-110 transition-transform"
+                >
+                  <Star
+                    className={`h-6 w-6 ${
+                      star <= rating ? "fill-accent text-accent" : "text-muted-foreground/30"
+                    }`}
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Your Review
+            </label>
+            <textarea
+              rows={3}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="Share your experience with this item..."
+              className="w-full rounded-xl border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all"
+          >
+            {submitting ? "Submitting..." : "Submit Review"}
+          </button>
+        </form>
+      ) : (
+        <div className="rounded-2xl border border-border bg-card p-5 text-center max-w-2xl">
+          <p className="text-sm text-muted-foreground">Sign in to leave a review for this product.</p>
+        </div>
+      )}
+
+      {reviews.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center max-w-2xl">
+          <p className="text-muted-foreground text-sm">No reviews yet for this product. Be the first to review!</p>
+        </div>
+      ) : (
+        <div className="space-y-4 max-w-2xl">
+          {reviews.map((r) => (
+            <article key={r.id} className="rounded-2xl border border-border bg-card p-5 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-sm font-bold text-white">
+                    {(r.user_name ?? "A").slice(0, 1)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{r.user_name ?? "Verified Buyer"}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={
+                        i < r.rating ? "h-4 w-4 fill-accent text-accent" : "h-4 w-4 text-muted-foreground/30"
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+              {r.comment && <p className="text-sm leading-relaxed text-foreground">{r.comment}</p>}
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

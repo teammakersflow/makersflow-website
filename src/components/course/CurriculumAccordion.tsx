@@ -42,6 +42,11 @@ export function CurriculumAccordion({ modules, meta = {} }: CurriculumAccordionP
   const completed = meta.completedIds ?? new Set<string>();
   const locked = meta.lockedIds ?? new Set<string>();
 
+  // First module open by default — must be declared before any early return
+  const [open, setOpen] = useState<Record<string, boolean>>(() => ({
+    [modules[0]?.id ?? ""]: true,
+  }));
+
   // Handle empty modules
   if (!modules || modules.length === 0) {
     return (
@@ -58,11 +63,6 @@ export function CurriculumAccordion({ modules, meta = {} }: CurriculumAccordionP
       </div>
     );
   }
-
-  // First module open by default
-  const [open, setOpen] = useState<Record<string, boolean>>(() => ({
-    [modules[0]?.id ?? ""]: true,
-  }));
 
   const toggle = (id: string) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
 

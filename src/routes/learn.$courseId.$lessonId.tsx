@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate, useBlocker } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -75,6 +75,7 @@ function LessonPlayerPage() {
   // ── Course access gate ─────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
     async function checkAccess() {
       const targetCourseId = await resolveCourseId(courseId);
       // Fetch course metadata — FAIL-CLOSED: if query errors or returns null, deny access
@@ -83,6 +84,8 @@ function LessonPlayerPage() {
         .select("is_free, price")
         .eq("id", targetCourseId)
         .maybeSingle();
+
+      if (cancelled) return;
 
       if (courseErr || !course) {
         // Fail-closed: Never default to granting access on error or missing course record
@@ -111,13 +114,16 @@ function LessonPlayerPage() {
             .eq("status", "active"),
         ]);
 
-      if (!enrErr && (enrollCount ?? 0) > 0 || !purErr && (purchaseCount ?? 0) > 0) {
+      if (cancelled) return;
+
+      if ((!enrErr && (enrollCount ?? 0) > 0) || (!purErr && (purchaseCount ?? 0) > 0)) {
         setAccessGranted(true);
       } else {
         setAccessGranted(false);
       }
     }
     checkAccess();
+    return () => { cancelled = true; };
   }, [user, courseId]);
 
   useEffect(() => {
@@ -205,7 +211,11 @@ function LessonPlayerPage() {
     setSidebarOpen(false);
     setCelebrating(false);
     setQuizInProgress(false);
-    cancelAutoAdvance();
+    if (advanceTimer.current) {
+      clearInterval(advanceTimer.current);
+      advanceTimer.current = null;
+    }
+    setAutoAdvance(null);
   }, [lessonId]);
 
   useEffect(
@@ -244,22 +254,25 @@ function LessonPlayerPage() {
   }
 
   // Handle video ticks — fire-and-forget raw upsert to avoid triggering refetches/invalidations on every tick
-  const handleTick = (p: {
-    current_time_secs: number;
-    duration_secs: number;
-    watch_percentage: number;
-    time_spent_secs: number;
-  }) => {
-    if (!user || !lesson) return;
-    upsertLessonProgress(user.id, {
-      lesson_id: lesson.id,
-      course_id: lesson.course_id,
-      current_time_secs: p.current_time_secs,
-      watch_percentage: p.watch_percentage,
-      time_spent_secs: p.time_spent_secs,
-      is_completed: isCompleted,
-    });
-  };
+  const handleTick = useCallback(
+    (p: {
+      current_time_secs: number;
+      duration_secs: number;
+      watch_percentage: number;
+      time_spent_secs: number;
+    }) => {
+      if (!user || !lesson) return;
+      upsertLessonProgress(user.id, {
+        lesson_id: lesson.id,
+        course_id: lesson.course_id,
+        current_time_secs: p.current_time_secs,
+        watch_percentage: p.watch_percentage,
+        time_spent_secs: p.time_spent_secs,
+        is_completed: isCompleted,
+      });
+    },
+    [user, lesson, isCompleted],
+  );
 
   const handleMarkComplete = async () => {
     if (!user || !lesson) {

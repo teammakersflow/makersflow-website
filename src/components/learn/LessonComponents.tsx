@@ -8,7 +8,6 @@ import {
   Sparkles,
   X,
   ChevronRight,
-  ScrollText,
 } from "lucide-react";
 import { type LessonDetail, type LessonResource } from "@/lib/learn-data";
 import { cn } from "@/lib/utils";
@@ -257,13 +256,6 @@ export function LessonTabPanel({
             icon={MessageSquare}
             title="Discussion is coming soon"
             description="Ask questions and connect with classmates. We're rolling this out shortly."
-          />
-        )}
-        {tab === "quiz" && (
-          <ComingSoonPanel
-            icon={ListChecks}
-            title="Quiz coming next"
-            description="Test what you learned in this lesson with a short quiz."
           />
         )}
       </motion.div>

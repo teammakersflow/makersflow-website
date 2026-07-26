@@ -53,14 +53,27 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let initialised = false;
+
+    // Register the listener first so we never miss an event.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      setLoading(false);
+      // Only clear loading once — whichever of the two paths fires first wins.
+      if (!initialised) {
+        initialised = true;
+        setLoading(false);
+      }
     });
+
+    // Fallback: if the listener hasn't fired yet, resolve from the cached session.
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
+      if (!initialised) {
+        initialised = true;
+        setSession(data.session);
+        setLoading(false);
+      }
     });
+
     return () => sub.subscription.unsubscribe();
   }, []);
 

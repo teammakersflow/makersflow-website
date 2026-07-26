@@ -60,8 +60,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       /* ignore */
+    } finally {
+      loaded.current = true;
     }
-    loaded.current = true;
   }, []);
 
   useEffect(() => {

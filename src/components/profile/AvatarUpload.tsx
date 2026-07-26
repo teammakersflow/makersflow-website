@@ -33,8 +33,7 @@ export function AvatarUpload({
         <div className="relative">
           <div className="relative h-28 w-28 overflow-hidden rounded-full bg-gradient-to-br from-primary/20 to-accent/20 ring-4 ring-background">
             {resolvedAvatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={resolvedAvatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+            <img src={resolvedAvatarUrl} alt="Avatar" className="h-full w-full object-cover" />
             ) : initials ? (
               <div className="grid h-full w-full place-items-center font-display text-3xl font-bold text-primary">
                 {initials}

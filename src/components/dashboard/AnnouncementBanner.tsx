@@ -17,6 +17,7 @@ export function AnnouncementBanner() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     supabase
       .from("announcements")
       .select("id, title, message, type, link_url, status")
@@ -25,6 +26,7 @@ export function AnnouncementBanner() {
       .limit(1)
       .maybeSingle()
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (data && !error) {
           const dismissedId = sessionStorage.getItem(`dismissed_announcement_${data.id}`);
           if (!dismissedId) {
@@ -32,6 +34,7 @@ export function AnnouncementBanner() {
           }
         }
       });
+    return () => { cancelled = true; };
   }, []);
 
   if (!announcement || dismissed) return null;

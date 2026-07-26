@@ -450,7 +450,7 @@ export async function fetchEnrolledCourses(userId: string): Promise<EnrolledCour
       );
 
       let certId = certMap.get(String(courseData.id ?? courseId)) ?? null;
-      if (!certId && (completed === total && total > 0 || (enrollment as any).completed_at)) {
+      if (!certId && ((completed === total && total > 0) || (enrollment as any).completed_at)) {
         // Automatically issue certificate row if course is completed
         try {
           const { getOrCreateCertificate } = await import("./certificates");

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 
 export function SecurityTab() {
-  const [current, setCurrent] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
@@ -35,7 +34,6 @@ export function SecurityTab() {
       setMsg({ type: "error", text: "Could not update password. Please try again." });
     } else {
       setMsg({ type: "success", text: "Password updated successfully!" });
-      setCurrent("");
       setNewPass("");
       setConfirm("");
       setTimeout(() => setMsg(null), 4000);

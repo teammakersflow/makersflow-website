@@ -185,10 +185,11 @@ export function VideoPlayer({
     };
   }, []);
 
-  // Save progress on unmount
+  // Save progress on unmount — capture ref.current in the effect body so the
+  // cleanup closure closes over the value at setup time, not at teardown time.
   useEffect(() => {
+    const v = videoRef.current;
     return () => {
-      const v = videoRef.current;
       if (v && onTick) {
         const dur = v.duration || 0;
         onTick({
@@ -299,7 +300,6 @@ export function VideoPlayer({
       tabIndex={0}
       className="group relative aspect-video w-full overflow-hidden rounded-2xl bg-black text-white shadow-[var(--shadow-elegant)] focus:outline-none"
     >
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video
         ref={videoRef}
         src={src}

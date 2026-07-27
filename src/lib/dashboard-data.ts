@@ -320,6 +320,8 @@ export async function fetchWeeklyActivity(userId: string): Promise<WeeklyPoint[]
 export function fetchAchievements(stats: DashboardStats, streak: StreakInfo): Achievement[] {
   const safeStats = stats ?? { enrolled: 0, completed: 0, avgProgress: 0, totalHours: 0 };
   const safeStreak = streak ?? { current_streak: 0, longest_streak: 0 };
+  const maxStreak = Math.max(safeStreak.current_streak ?? 0, safeStreak.longest_streak ?? 0);
+
   return [
     {
       id: "first_lesson",
@@ -329,17 +331,24 @@ export function fetchAchievements(stats: DashboardStats, streak: StreakInfo): Ac
       description: "Enrolled in your first course",
     },
     {
+      id: "first_study",
+      label: "First Lesson",
+      icon: "💡",
+      unlocked: (safeStats.totalHours ?? 0) > 0 || (safeStats.completed ?? 0) >= 1,
+      description: "Completed your first study session",
+    },
+    {
       id: "streak_3",
       label: "On Fire",
       icon: "🔥",
-      unlocked: (safeStreak.current_streak ?? 0) >= 3,
+      unlocked: maxStreak >= 3,
       description: "3-day learning streak",
     },
     {
       id: "streak_7",
       label: "Week Warrior",
       icon: "⚡",
-      unlocked: (safeStreak.current_streak ?? 0) >= 7,
+      unlocked: maxStreak >= 7,
       description: "7-day learning streak",
     },
     {
@@ -355,13 +364,6 @@ export function fetchAchievements(stats: DashboardStats, streak: StreakInfo): Ac
       icon: "⏱",
       unlocked: (safeStats.totalHours ?? 0) >= 5,
       description: "5+ hours of learning",
-    },
-    {
-      id: "enrolled_3",
-      label: "Explorer",
-      icon: "🧭",
-      unlocked: (safeStats.enrolled ?? 0) >= 3,
-      description: "Enrolled in 3+ courses",
     },
   ];
 }

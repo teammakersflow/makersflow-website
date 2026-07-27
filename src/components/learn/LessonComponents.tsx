@@ -4,27 +4,28 @@ import {
   Download,
   FileText,
   ListChecks,
-  MessageSquare,
+  BookOpen,
   Sparkles,
   X,
   ChevronRight,
+  Clock,
 } from "lucide-react";
 import { type LessonDetail, type LessonResource } from "@/lib/learn-data";
 import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TabKey = "notes" | "resources" | "discussion" | "quiz";
+export type TabKey = "overview" | "quiz" | "resources" | "notes";
 
 export const TABS: {
   key: TabKey;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
-  { key: "notes", label: "Notes", icon: FileText },
-  { key: "resources", label: "Resources", icon: Download },
-  { key: "discussion", label: "Discussion", icon: MessageSquare },
+  { key: "overview", label: "Overview", icon: BookOpen },
   { key: "quiz", label: "Quiz", icon: ListChecks },
+  { key: "resources", label: "Resources", icon: Download },
+  { key: "notes", label: "Notes", icon: FileText },
 ];
 
 export function formatBytes(n: number | null) {
@@ -102,6 +103,34 @@ export function LessonTabBar({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// ─── OverviewBlock ────────────────────────────────────────────────────────────
+
+export function OverviewBlock({ lesson }: { lesson: LessonDetail }) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+      <div>
+        <span className="text-xs font-bold uppercase tracking-widest text-primary">
+          About this lesson
+        </span>
+        <h2 className="mt-1 font-display text-2xl font-bold text-foreground">
+          {lesson.title}
+        </h2>
+      </div>
+
+      <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+        {lesson.description || "No description provided for this lesson."}
+      </p>
+
+      {lesson.duration_minutes && (
+        <div className="inline-flex items-center gap-1.5 rounded-xl bg-secondary px-3 py-1.5 text-xs font-semibold text-foreground">
+          <Clock className="h-3.5 w-3.5 text-primary" />
+          <span>Duration: {lesson.duration_minutes} mins</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -203,28 +232,6 @@ export function ResourcesList({ resources }: { resources: LessonResource[] }) {
   );
 }
 
-// ─── ComingSoonPanel ──────────────────────────────────────────────────────────
-
-export function ComingSoonPanel({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center">
-      <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary/10 text-primary">
-        <Icon className="h-5 w-5" />
-      </div>
-      <h3 className="mt-3 font-display text-lg font-bold text-foreground">{title}</h3>
-      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-    </div>
-  );
-}
-
 // ─── LessonTabPanel ───────────────────────────────────────────────────────────
 
 export function LessonTabPanel({
@@ -245,19 +252,13 @@ export function LessonTabPanel({
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.18 }}
       >
+        {tab === "overview" && <OverviewBlock lesson={lesson} />}
         {tab === "notes" && (
           <article className="prose prose-sm max-w-none rounded-2xl border border-border bg-card p-5 sm:p-6">
             <NotesBlock content={lesson.notes ?? "_No notes for this lesson yet._"} />
           </article>
         )}
         {tab === "resources" && <ResourcesList resources={resources} />}
-        {tab === "discussion" && (
-          <ComingSoonPanel
-            icon={MessageSquare}
-            title="Discussion is coming soon"
-            description="Ask questions and connect with classmates. We're rolling this out shortly."
-          />
-        )}
       </motion.div>
     </AnimatePresence>
   );

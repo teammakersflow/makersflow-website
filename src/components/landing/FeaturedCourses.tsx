@@ -1,12 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Star, ChevronRight, ChevronLeft } from "lucide-react";
+import { Star, ChevronRight, ChevronLeft, Heart } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { fetchFeaturedCourses, type CourseCard } from "@/lib/landing-data";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { enrollInCourse, isEnrolled } from "@/lib/explore-data";
+import { isCourseFavorite, toggleCourseFavorite } from "@/lib/saved-items-data";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import BorderGlow from "@/components/BorderGlow";
 
@@ -29,22 +31,21 @@ export function FeaturedCourses() {
   const scrollBy = (dx: number) => scrollerRef.current?.scrollBy({ left: dx, behavior: "smooth" });
 
   return (
-    <section id="featured" className="relative py-20 sm:py-28 scroll-mt-36">
-      <div className="mx-auto max-w-7xl px-5 lg:px-8">
-        <div className="flex flex-wrap items-end justify-between gap-6">
+    <section id="featured" className="py-16 sm:py-24 scroll-mt-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="mb-3 inline-flex items-center gap-2 rounded-[var(--radius-pill)] bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-accent">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-              Popular right now
-            </p>
-            <h2 className="font-display text-3xl font-bold tracking-tight text-foreground sm:text-5xl">
-              Courses students <span className="text-primary">love</span>
+            <span className="rounded-full bg-primary/10 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+              Popular Learning Paths
+            </span>
+            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              Featured Robotics &amp; AI Courses
             </h2>
-            <p className="mt-3 max-w-xl text-muted-foreground">
-              Hands-on, project-based learning paths designed by industry mentors.
+            <p className="mt-2 text-base text-muted-foreground">
+              Handcrafted curriculum designed for middle and high school innovators.
             </p>
           </div>
-          <div className="hidden gap-2 md:flex">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon"
@@ -91,6 +92,7 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
   const [enrolled, setEnrolled] = useState(false);
+  const [isFav, setIsFav] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -99,9 +101,25 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
       setUserId(uid);
       if (uid) {
         isEnrolled(uid, c.id).then(setEnrolled);
+        isCourseFavorite(uid, c.id).then(setIsFav);
       }
     });
   }, [c.id]);
+
+  const handleToggleFav = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!userId) {
+      toast.error("Please sign in to favorite courses");
+      return;
+    }
+    const res = await toggleCourseFavorite(userId, c.id);
+    if (res.error) toast.error(res.error);
+    else {
+      setIsFav(res.favorite);
+      toast.success(res.favorite ? "Added to Favorites!" : "Removed from Favorites");
+    }
+  };
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Only navigate if clicking on the card itself, not the button
@@ -222,9 +240,24 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
             </>
           )}
         </div>
-        <h3 className="mt-2 line-clamp-2 font-display text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary">
-          {c.title}
-        </h3>
+        <div className="mt-2 flex items-start justify-between gap-2">
+          <h3 className="line-clamp-2 flex-1 font-display text-lg font-semibold leading-snug text-foreground transition-colors group-hover:text-primary">
+            {c.title}
+          </h3>
+          <button
+            type="button"
+            onClick={handleToggleFav}
+            className="shrink-0 p-1 text-muted-foreground hover:text-rose-500 transition-colors"
+            title={isFav ? "Remove from Favorites" : "Add to Favorites"}
+          >
+            <Heart
+              className={cn(
+                "h-4 w-4 transition-colors",
+                isFav ? "fill-rose-500 text-rose-500" : "",
+              )}
+            />
+          </button>
+        </div>
         {c.instructor_name && (
           <p className="mt-1 text-sm text-muted-foreground">{c.instructor_name}</p>
         )}

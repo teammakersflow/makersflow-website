@@ -28,40 +28,44 @@ export function Header() {
   return (
     <>
       <header
-        className={`fixed inset-x-0 top-0 z-40 transition-all duration-300 ${
+        className={`fixed inset-x-0 top-0 z-40 h-16 flex items-center transition-all duration-300 ${
           scrolled
             ? "border-b border-border/60 bg-background/80 backdrop-blur-xl"
             : "border-b border-transparent bg-transparent"
         }`}
       >
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 lg:px-8">
-          <Logo />
-
-          <div className="flex items-center gap-3">
-            {loading ? (
-              <div className="h-9 w-28 rounded-full bg-secondary/50 animate-pulse" />
-            ) : user ? (
-              <Button size="default" className="rounded-full px-5 font-medium shadow-sm" asChild>
-                <Link to="/dashboard">Go to Dashboard</Link>
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  size="default"
-                  className="hidden sm:inline-flex rounded-full font-medium"
-                  asChild
-                >
-                  <Link to="/login">Sign in</Link>
-                </Button>
-                <Button size="default" className="rounded-full px-5 font-medium shadow-sm" asChild>
-                  <Link to="/register">Get started</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
+        <div className="mx-auto flex w-full max-w-7xl items-center px-5 lg:px-8" />
       </header>
+
+      {/* Logo — fixed at same top-[14px] as navbar pill and auth buttons */}
+      <div className="fixed top-[14px] left-5 lg:left-8 z-50">
+        <Logo />
+      </div>
+
+      {/* Auth buttons — fixed at same top-[14px] as the navbar pill */}
+      <div className="fixed top-[14px] right-5 lg:right-8 z-50 hidden sm:flex items-center gap-3">
+        {loading ? (
+          <div className="h-9 w-28 rounded-full bg-secondary/50 animate-pulse" />
+        ) : user ? (
+          <Button size="default" className="rounded-full px-5 font-medium shadow-sm" asChild>
+            <Link to="/dashboard">Go to Dashboard</Link>
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="default"
+              className="rounded-full font-medium"
+              asChild
+            >
+              <Link to="/login">Sign in</Link>
+            </Button>
+            <Button size="default" className="rounded-full px-5 font-medium shadow-sm" asChild>
+              <Link to="/register">Get started</Link>
+            </Button>
+          </>
+        )}
+      </div>
 
       <NavBar items={NAV_ITEMS} />
     </>

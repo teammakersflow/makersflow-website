@@ -94,11 +94,7 @@ export function LegalPage({ kind, title, subtitle, updated, sections }: Props) {
               <div className="mt-6 rounded-xl border border-border bg-card p-4 text-xs text-muted-foreground">
                 Have questions?{" "}
                 <a
-                  href={
-                    kind === "privacy"
-                      ? "mailto:privacy@makersflow.com"
-                      : "mailto:support@makersflow.com"
-                  }
+                  href="mailto:team.makersflow@gmail.com"
                   className="font-semibold text-primary hover:underline"
                 >
                   Email us
@@ -127,6 +123,28 @@ export function LegalPage({ kind, title, subtitle, updated, sections }: Props) {
                     ))}
                   </ul>
                 )}
+                {s.subsections?.map((sub, j) => (
+                  <div key={j} className="mt-6">
+                    {sub.title && (
+                      <h3 className="font-display text-lg font-bold text-foreground">{sub.title}</h3>
+                    )}
+                    {sub.paragraphs?.map((p, i) => (
+                      <p key={i} className="mt-3 leading-relaxed text-foreground/80">
+                        {p}
+                      </p>
+                    ))}
+                    {sub.bullets && (
+                      <ul className="mt-3 space-y-2">
+                        {sub.bullets.map((b, i) => (
+                          <li key={i} className="flex items-start gap-2.5 text-foreground/80">
+                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gradient-to-br from-primary to-accent" />
+                            <span className="leading-relaxed">{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
               </section>
             ))}
 

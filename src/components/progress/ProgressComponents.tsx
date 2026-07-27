@@ -514,14 +514,22 @@ export function WeeklyChart({ overview }: { overview: ProgressOverview }) {
             />
             <Tooltip
               cursor={{ fill: "var(--color-secondary)", radius: 6, opacity: 0.6 }}
-              contentStyle={{
-                background: "var(--color-card)",
-                border: "1px solid var(--color-border)",
-                borderRadius: 12,
-                fontSize: 12,
+              wrapperStyle={{ outline: "none", zIndex: 50 }}
+              content={({ active, payload }) => {
+                if (!active || !payload || !payload.length) return null;
+                const data = payload[0].payload;
+                const count = Number(data.count ?? 0);
+                return (
+                  <div className="rounded-xl border border-border bg-card px-3 py-2 shadow-md">
+                    <p className="font-display text-xs font-bold text-foreground">
+                      {data.day} ({data.date})
+                    </p>
+                    <p className="mt-0.5 text-xs text-primary font-semibold">
+                      {count} {count === 1 ? "lesson touched" : "lessons touched"}
+                    </p>
+                  </div>
+                );
               }}
-              labelStyle={{ fontWeight: 600, color: "var(--color-foreground)" }}
-              formatter={(v: number) => [`${v} lesson${v !== 1 ? "s" : ""}`, "Watched"]}
             />
             <Bar dataKey="count" radius={[6, 6, 0, 0]} animationDuration={850} maxBarSize={40}>
               {overview.weekly.map((entry, i) => (

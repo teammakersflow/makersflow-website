@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Menu, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Menu, ChevronLeft, ChevronRight, Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Toggle } from "@/components/ui/toggle";
 
 interface LessonHeaderNavProps {
   courseId: string;
@@ -10,6 +11,8 @@ interface LessonHeaderNavProps {
   totalLessons: number;
   prevLesson?: { id: string; title: string };
   nextLesson?: { id: string; title: string };
+  isWatchLater?: boolean;
+  onToggleWatchLater?: () => void;
   onOpenSidebar: () => void;
 }
 
@@ -21,6 +24,8 @@ export function LessonHeaderNav({
   totalLessons,
   prevLesson,
   nextLesson,
+  isWatchLater = false,
+  onToggleWatchLater,
   onOpenSidebar,
 }: LessonHeaderNavProps) {
   return (
@@ -54,8 +59,27 @@ export function LessonHeaderNav({
         </div>
       </div>
 
-      {/* Right section: Navigation controls */}
-      <div className="flex items-center gap-1.5">
+      {/* Right section: Navigation controls + Bookmark */}
+      <div className="flex items-center gap-2">
+        {onToggleWatchLater && (
+          <Toggle
+            variant="outline"
+            size="sm"
+            pressed={isWatchLater}
+            onPressedChange={() => onToggleWatchLater()}
+            className={cn(
+              "h-9 w-9 p-0 rounded-lg transition-all",
+              isWatchLater
+                ? "bg-amber-500/15 border-amber-500/40 text-amber-500 data-[state=on]:bg-amber-500/15 data-[state=on]:text-amber-500"
+                : "text-muted-foreground",
+            )}
+            aria-label={isWatchLater ? "Remove bookmark" : "Bookmark / Watch Later"}
+            title={isWatchLater ? "Remove bookmark" : "Bookmark / Watch Later"}
+          >
+            <Bookmark className={cn("h-4 w-4", isWatchLater ? "fill-amber-500 text-amber-500" : "")} />
+          </Toggle>
+        )}
+
         <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
           <Link
             to="/learn/$courseId/$lessonId"

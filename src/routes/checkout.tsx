@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import {
-  StepIndicator,
   EmptyCart,
   CartRow,
   ShippingForm,
@@ -351,79 +349,54 @@ function CheckoutPage() {
             <ArrowLeft className="h-4 w-4" /> Continue shopping
           </Link>
           <h1 className="font-display text-3xl font-bold text-foreground md:text-4xl">Checkout</h1>
-          <StepIndicator stepIndex={stepIndex} />
-          <div className="mt-8 grid gap-6 lg:grid-cols-[1fr,360px]">
-            <div className="rounded-2xl bg-card p-5 md:p-7">
-              <AnimatePresence mode="wait">
-                {step === "cart" && (
-                  <motion.div
-                    key="cart"
-                    initial={{ opacity: 0, x: 12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -12 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    {items.length === 0 ? (
-                      <EmptyCart />
-                    ) : (
-                      <div className="space-y-3">
-                        {items.map((i) => (
-                          <CartRow
-                            key={i.id}
-                            item={i}
-                            onRemove={() => removeItem(i.id)}
-                            onQty={(q) => setQty(i.id, q)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-                {step === "shipping" && (
-                  <motion.div
-                    key="shipping"
-                    initial={{ opacity: 0, x: 12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -12 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    <ShippingForm value={shipping} onChange={setShipping} />
-                  </motion.div>
-                )}
-                {step === "payment" && (
-                  <motion.div
-                    key="payment"
-                    initial={{ opacity: 0, x: 12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -12 }}
-                    transition={{ duration: 0.25 }}
-                  >
-                    <PaymentPanel onPay={handlePayment} paying={paying} total={total} />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <div className="mt-7 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (step === "shipping") setStep("cart");
-                    else if (step === "payment") setStep("shipping");
-                  }}
-                  disabled={step === "cart"}
-                  className="inline-flex items-center gap-1 rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground disabled:invisible"
-                >
-                  <ArrowLeft className="h-4 w-4" /> Back
-                </button>
-                {step !== "payment" && (
-                  <button
-                    onClick={advance}
-                    disabled={step === "cart" && items.length === 0}
-                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-light px-6 py-3 text-sm font-semibold text-primary-foreground shadow-[var(--shadow-glow-primary)] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-                  >
-                    Continue <ArrowRight className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+          <div className="mt-6 grid gap-6 lg:grid-cols-[1fr,360px]">
+            <div>
+              <Stepper
+                initialStep={1}
+                onStepChange={(s) => {
+                  const key = STEPS[s - 1]?.key as StepKey | undefined;
+                  if (key) setStep(key);
+                }}
+                onFinalStepCompleted={() => {}}
+                backButtonText="Back"
+                nextButtonText="Continue"
+                nextButtonProps={{
+                  onClick: async (e: React.MouseEvent) => {
+                    e.preventDefault();
+                    await advance();
+                  },
+                }}
+                stepCircleContainerClassName="!max-w-full"
+                contentClassName="!overflow-visible"
+              >
+                {/* Step 1 — Cart Review */}
+                <Step>
+                  {items.length === 0 ? (
+                    <EmptyCart />
+                  ) : (
+                    <div className="space-y-3">
+                      {items.map((i) => (
+                        <CartRow
+                          key={i.id}
+                          item={i}
+                          onRemove={() => removeItem(i.id)}
+                          onQty={(q) => setQty(i.id, q)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </Step>
+
+                {/* Step 2 — Shipping Info */}
+                <Step>
+                  <ShippingForm value={shipping} onChange={setShipping} />
+                </Step>
+
+                {/* Step 3 — Payment */}
+                <Step>
+                  <PaymentPanel onPay={handlePayment} paying={paying} total={total} />
+                </Step>
+              </Stepper>
             </div>
             <OrderSummary
               items={items}

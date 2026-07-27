@@ -15,6 +15,7 @@ import {
   Bell,
   Receipt,
   PanelLeft,
+  Heart,
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { signOut } from "@/integrations/supabase/auth";
@@ -38,6 +39,7 @@ const NAV = [
   { label: "Explore", to: "/explore", icon: Compass },
   { label: "My Learning", to: "/my-learning", icon: GraduationCap },
   { label: "Progress", to: "/progress", icon: LineChart },
+  { label: "Saved Items", to: "/favorites", icon: Heart },
   { label: "Store", to: "/store", icon: ShoppingBag },
   { label: "My Orders", to: "/orders", icon: Receipt },
   { label: "Profile", to: "/profile", icon: User },

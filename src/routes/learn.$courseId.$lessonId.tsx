@@ -38,6 +38,7 @@ import {
 } from "@/hooks/useLearnData";
 import { upsertLessonProgress } from "@/lib/learn-data";
 import { fetchCourseDetail, fetchCourseModules, resolveCourseId } from "@/lib/explore-data";
+import { isWatchLater, toggleWatchLater } from "@/lib/saved-items-data";
 import { useQuery } from "@tanstack/react-query";
 
 export const Route = createFileRoute("/learn/$courseId/$lessonId")({
@@ -53,7 +54,7 @@ function LessonPlayerPage() {
 
   // ── ALL state hooks must come before any conditional returns ──────────
   const [accessGranted, setAccessGranted] = useState<boolean | null>(null);
-  const [tab, setTab] = useState<TabKey>("notes");
+  const [tab, setTab] = useState<TabKey>("overview");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState<{ secondsLeft: number; targetId: string } | null>(
@@ -181,6 +182,11 @@ function LessonPlayerPage() {
   });
   const progressQ = useCourseProgressMap(user?.id, courseId);
   const resourcesQ = useLessonResources(lessonId);
+  const watchLaterQ = useQuery({
+    queryKey: ["watch_later", user?.id, courseId],
+    queryFn: () => (user?.id ? isWatchLater(user.id, courseId) : false),
+    enabled: !!user?.id,
+  });
 
   const lesson = lessonQ.data;
   const course = courseQ.data;
@@ -342,6 +348,19 @@ function LessonPlayerPage() {
     );
   }
 
+  const handleToggleWatchLater = async () => {
+    if (!user) {
+      toast.error("Please sign in to bookmark courses");
+      return;
+    }
+    const res = await toggleWatchLater(user.id, courseId);
+    if (res.error) toast.error(res.error);
+    else {
+      toast.success(res.saved ? "Added to Watch Later!" : "Removed from Watch Later");
+      watchLaterQ.refetch();
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-background">
       {/* Sidebar — desktop */}
@@ -395,6 +414,8 @@ function LessonPlayerPage() {
           totalLessons={flatLessons.length}
           prevLesson={prevLesson}
           nextLesson={nextLesson}
+          isWatchLater={!!watchLaterQ.data}
+          onToggleWatchLater={handleToggleWatchLater}
           onOpenSidebar={() => setSidebarOpen(true)}
         />
 

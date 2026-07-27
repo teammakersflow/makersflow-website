@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { Star, Users, Clock, BookOpen } from "lucide-react";
+import { Star, Users, Clock, BookOpen, Heart } from "lucide-react";
 import type { CourseCard } from "@/lib/landing-data";
+import { cn } from "@/lib/utils";
 
 const CATEGORY_GRADIENT: Record<string, string> = {
   Robotics: "from-[#4F46E5] via-[#6366F1] to-[#FF6B35]",
@@ -26,14 +27,24 @@ const LEVEL_STYLE: Record<string, string> = {
 };
 
 // Estimated duration from price tier
-function estimateDuration(price: number | null, isFree: boolean): string {
+function estimateDuration(price: number | null | undefined, isFree: boolean): string {
   if (isFree) return "4–6h";
   if (!price || price < 1000) return "6–8h";
   if (price < 2000) return "8–12h";
   return "12–20h";
 }
 
-export function CourseCardGrid({ c, index }: { c: CourseCard; index: number }) {
+export function CourseCardGrid({
+  c,
+  index,
+  isFav = false,
+  onToggleFav,
+}: {
+  c: CourseCard;
+  index: number;
+  isFav?: boolean;
+  onToggleFav?: (id: string) => void;
+}) {
   const grad = (c.category && CATEGORY_GRADIENT[c.category]) || "from-primary to-accent";
   const levelStyle =
     (c.level && LEVEL_STYLE[c.level]) || "bg-secondary text-secondary-foreground border-border";
@@ -129,10 +140,31 @@ export function CourseCardGrid({ c, index }: { c: CourseCard; index: number }) {
               )}
             </div>
 
-            {/* Title */}
-            <h3 className="font-display text-base font-bold leading-snug text-foreground transition-colors group-hover:text-primary line-clamp-2">
-              {c.title}
-            </h3>
+            {/* Title + Favorite Heart Row (Inline next to Title matching Mobile layout) */}
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="font-display text-base font-bold leading-snug text-foreground transition-colors group-hover:text-primary line-clamp-2 flex-1">
+                {c.title}
+              </h3>
+              {onToggleFav && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onToggleFav(c.id);
+                  }}
+                  className="shrink-0 p-1 text-muted-foreground hover:text-rose-500 transition-colors"
+                  title={isFav ? "Remove from Favorites" : "Add to Favorites"}
+                >
+                  <Heart
+                    className={cn(
+                      "h-4 w-4 transition-colors",
+                      isFav ? "fill-rose-500 text-rose-500" : "",
+                    )}
+                  />
+                </button>
+              )}
+            </div>
 
             {/* Rating + students */}
             <div className="flex items-center gap-3 text-xs text-muted-foreground">

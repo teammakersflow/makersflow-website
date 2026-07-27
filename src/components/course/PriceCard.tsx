@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Check } from "lucide-react";
+import { Check, Heart, Clock, Share2 } from "lucide-react";
 import type { CourseDetail } from "@/lib/explore-data";
 
 export function PriceCard({
@@ -73,69 +73,38 @@ export function PriceCard({
         <button
           type="button"
           onClick={onToggleFavorite}
-          className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border text-xs font-medium transition-all ${
+          className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold transition-all ${
             isFavorite
               ? "border-rose-500/30 bg-rose-500/10 text-rose-500"
-              : "border-border bg-background/50 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
+              : "border-border bg-background/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
           }`}
           title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
         >
-          <svg
-            className={`h-4 w-4 ${isFavorite ? "fill-rose-500 text-rose-500" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-            />
-          </svg>
+          <Heart className={`h-4 w-4 ${isFavorite ? "fill-rose-500 text-rose-500" : ""}`} />
           {isFavorite ? "Saved" : "Favorite"}
         </button>
 
         <button
           type="button"
           onClick={onToggleWatchLater}
-          className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border text-xs font-medium transition-all ${
+          className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold transition-all ${
             isWatchLater
               ? "border-amber-500/30 bg-amber-500/10 text-amber-500"
-              : "border-border bg-background/50 text-muted-foreground hover:bg-accent/10 hover:text-foreground"
+              : "border-border bg-background/50 text-muted-foreground hover:bg-secondary hover:text-foreground"
           }`}
           title={isWatchLater ? "Remove from Watch Later" : "Watch Later"}
         >
-          <svg
-            className={`h-4 w-4 ${isWatchLater ? "fill-amber-500 text-amber-500" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
+          <Clock className={`h-4 w-4 ${isWatchLater ? "fill-amber-500 text-amber-500" : ""}`} />
           Watch Later
         </button>
 
         <button
           type="button"
           onClick={onShare}
-          className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-background/50 text-xs font-medium text-muted-foreground transition-all hover:bg-accent/10 hover:text-foreground"
+          className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-background/50 text-xs font-semibold text-muted-foreground transition-all hover:bg-secondary hover:text-foreground"
           title="Share Course"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-            />
-          </svg>
+          <Share2 className="h-4 w-4" />
           Share
         </button>
       </div>

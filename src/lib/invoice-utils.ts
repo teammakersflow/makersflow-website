@@ -259,6 +259,9 @@ export function buildInvoiceHtml(data: InvoiceData, sellerOverride?: SellerSetti
   const dateStr = data.invoiceDate.toLocaleDateString("en-IN", {
     day: "2-digit", month: "short", year: "numeric",
   });
+  const timeStr = data.invoiceDate.toLocaleTimeString("en-IN", {
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  });
 
   const R = "&#8377;";
 
@@ -423,7 +426,7 @@ export function buildInvoiceHtml(data: InvoiceData, sellerOverride?: SellerSetti
       <div class="inv-title">Tax Invoice</div>
       <table>
         <tr><td>Invoice No.</td><td><b>${data.invoiceNumber}</b></td></tr>
-        <tr><td>Date</td><td>${dateStr}</td></tr>
+        <tr><td>Date &amp; Time</td><td>${dateStr}, ${timeStr} IST</td></tr>
         <tr><td>Payment ID</td><td style="font-size:9px;">${data.paymentId}</td></tr>
         <tr><td>Status</td><td><span class="paid-badge">PAID IN FULL</span></td></tr>
       </table>

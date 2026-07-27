@@ -178,7 +178,15 @@ function ProductDetailPage() {
               </h1>
 
               {p.rating != null && (
-                <div className="flex items-center gap-2 text-sm">
+                <a
+                  href="#customer-reviews"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById("customer-reviews")?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="inline-flex items-center gap-2 text-sm rounded-full bg-secondary/60 px-3 py-1.5 hover:bg-secondary transition-all w-fit cursor-pointer"
+                  title="Scroll to customer reviews"
+                >
                   <div className="flex items-center gap-1 text-accent">
                     {Array.from({ length: 5 }).map((_, i) => (
                       <Star
@@ -191,7 +199,7 @@ function ProductDetailPage() {
                   {p.total_reviews != null && (
                     <span className="text-muted-foreground">({p.total_reviews} reviews)</span>
                   )}
-                </div>
+                </a>
               )}
 
               <div className="flex items-end gap-3">
@@ -303,7 +311,7 @@ function ProductDetailPage() {
           </div>
 
           {/* Product Reviews Section */}
-          <div className="mt-12 border-t border-border pt-8 space-y-6">
+          <div id="customer-reviews" className="mt-12 border-t border-border pt-8 space-y-6">
             <h2 className="font-display text-2xl font-bold text-foreground">Customer Reviews</h2>
             <ProductReviewsSection productId={p.id} />
           </div>

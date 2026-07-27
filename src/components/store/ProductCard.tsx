@@ -234,26 +234,9 @@ export function ProductCard({ p, index }: { p: Product; index: number }) {
 
             {/* Discount — top right */}
             {discount && p.in_stock && (
-              <span className="absolute right-12 top-3 rounded-full bg-foreground/85 px-2.5 py-1 text-[10px] font-black text-background backdrop-blur-sm">
+              <span className="absolute right-3 top-3 rounded-full bg-foreground/85 px-2.5 py-1 text-[10px] font-black text-background backdrop-blur-sm">
                 -{discount}%
               </span>
-            )}
-
-            {/* Wishlist button — top right */}
-            {!p.is_course && (
-              <button
-                type="button"
-                onClick={handleToggleWishlist}
-                className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-background/80 shadow-md backdrop-blur-md transition-all hover:scale-110 active:scale-95"
-                title={wishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
-              >
-                <Heart
-                  className={cn(
-                    "h-4 w-4 transition-colors",
-                    wishlisted ? "fill-rose-500 text-rose-500" : "text-foreground/80 hover:text-rose-500",
-                  )}
-                />
-              </button>
             )}
 
             {/* Out of stock overlay */}
@@ -302,9 +285,27 @@ export function ProductCard({ p, index }: { p: Product; index: number }) {
               </span>
             )}
 
-            <h3 className="line-clamp-2 font-display text-base font-bold leading-snug text-foreground transition-colors group-hover:text-primary">
-              {p.title}
-            </h3>
+            {/* Title + Wishlist Heart Row (Inline next to Title matching Mobile layout) */}
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="line-clamp-2 flex-1 font-display text-base font-bold leading-snug text-foreground transition-colors group-hover:text-primary">
+                {p.title}
+              </h3>
+              {!p.is_course && (
+                <button
+                  type="button"
+                  onClick={handleToggleWishlist}
+                  className="shrink-0 p-1 text-muted-foreground hover:text-rose-500 transition-colors"
+                  title={wishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
+                >
+                  <Heart
+                    className={cn(
+                      "h-4 w-4 transition-colors",
+                      wishlisted ? "fill-rose-500 text-rose-500" : "",
+                    )}
+                  />
+                </button>
+              )}
+            </div>
 
             {/* Rating */}
             {p.rating != null && (

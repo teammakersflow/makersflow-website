@@ -5,6 +5,7 @@ import { AuthLayout } from "@/components/auth/AuthLayout";
 import { FloatingField } from "@/components/auth/FloatingField";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { GoogleButton } from "@/components/auth/GoogleButton";
+import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
 import { signInWithPassword, signInWithGoogle } from "@/integrations/supabase/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { AnimatePresence, motion } from "framer-motion";
@@ -41,6 +42,7 @@ function LoginPage() {
   const [resetSent, setResetSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [legalModal, setLegalModal] = useState<"terms" | "privacy" | null>(null);
 
   const update = (k: keyof typeof values) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setValues((v) => ({ ...v, [k]: e.target.value }));
@@ -189,7 +191,34 @@ function LoginPage() {
         </div>
 
         <GoogleButton onClick={onGoogle} disabled={googleLoading} />
+
+        <div className="pt-2 text-center text-xs text-muted-foreground">
+          By signing in, you agree to our{" "}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setLegalModal("terms");
+            }}
+            className="font-semibold text-foreground underline hover:text-primary transition-colors inline-block"
+          >
+            Terms of Service
+          </button>{" "}
+          and{" "}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              setLegalModal("privacy");
+            }}
+            className="font-semibold text-foreground underline hover:text-primary transition-colors inline-block"
+          >
+            Privacy Policy
+          </button>
+        </div>
       </form>
+
+      <AuthLegalModal type={legalModal} onClose={() => setLegalModal(null)} />
     </AuthLayout>
   );
 }

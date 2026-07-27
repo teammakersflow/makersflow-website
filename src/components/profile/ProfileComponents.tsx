@@ -27,6 +27,7 @@ import { exportUserData } from "@/lib/user-data-export";
 import { type Profile } from "@/lib/dashboard-data";
 import { changePassword, updateProfile } from "@/lib/profile-data";
 import { cn } from "@/lib/utils";
+import { DeleteAccountModal } from "@/components/profile/DeleteAccountModal";
 
 // ─── Field ────────────────────────────────────────────────────────────────────
 export function Field({
@@ -577,6 +578,7 @@ export function SecurityTab({ isGoogle }: { isGoogle: boolean }) {
 // ─── PrivacyTab ───────────────────────────────────────────────────────────────
 export function PrivacyTab({ userId }: { userId?: string }) {
   const [exporting, setExporting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleExport = async () => {
     if (!userId) {
@@ -694,7 +696,7 @@ export function PrivacyTab({ userId }: { userId?: string }) {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
-                onClick={() => toast.success("Deletion request received — we'll confirm by email.")}
+                onClick={() => setShowDeleteModal(true)}
                 className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-red-300 dark:border-red-800 bg-white dark:bg-card px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all whitespace-nowrap"
               >
                 <Trash2 className="h-3.5 w-3.5" aria-hidden /> Delete account
@@ -703,6 +705,8 @@ export function PrivacyTab({ userId }: { userId?: string }) {
           </div>
         </div>
       </SectionCard>
+
+      <DeleteAccountModal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} />
     </div>
   );
 }

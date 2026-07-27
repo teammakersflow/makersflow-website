@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, Users, Clock, BarChart3, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -6,6 +7,7 @@ import { CurriculumAccordion } from "@/components/course/CurriculumAccordion";
 import { type CourseDetail, type Module, type Review, submitCourseReview } from "@/lib/explore-data";
 import { ImageCarousel } from "@/components/common/ImageCarousel";
 import Folder from "@/components/Folder";
+import { supabase } from "@/integrations/supabase/client";
 
 // ─── Stat ─────────────────────────────────────────────────────────────────────
 
@@ -101,7 +103,15 @@ export function StickyEnrollBar({
 
 // ─── CourseHero ───────────────────────────────────────────────────────────────
 
-export function CourseHero({ course, onBack }: { course: CourseDetail; onBack: () => void }) {
+export function CourseHero({
+  course,
+  onBack,
+  onSelectReviewsTab,
+}: {
+  course: CourseDetail;
+  onBack: () => void;
+  onSelectReviewsTab?: () => void;
+}) {
   return (
     <section
       className="relative overflow-hidden"
@@ -163,11 +173,16 @@ export function CourseHero({ course, onBack }: { course: CourseDetail; onBack: (
                   by <span className="font-semibold">{course.instructor_name}</span>
                 </span>
               )}
-              <span className="inline-flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onSelectReviewsTab}
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 backdrop-blur hover:bg-white/20 transition-all text-left"
+                title="View reviews"
+              >
                 <Star className="h-4 w-4 fill-accent text-accent" />
                 <span className="font-semibold">{course.rating?.toFixed(1) ?? "—"}</span>
-                <span className="text-white/70">({course.total_reviews ?? 0})</span>
-              </span>
+                <span className="text-white/70">({course.total_reviews ?? 0} reviews)</span>
+              </button>
               <span className="inline-flex items-center gap-1.5">
                 <Users className="h-4 w-4" />
                 {course.enrolled_count > 0
@@ -197,9 +212,80 @@ export function CourseHero({ course, onBack }: { course: CourseDetail; onBack: (
   );
 }
 
+// ─── FolderWithTooltip ────────────────────────────────────────────────────────
+
+function FolderWithTooltip({
+  isEmpty,
+  children,
+}: {
+  isEmpty: boolean;
+  children: React.ReactNode;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      className="shrink-0 relative"
+      style={{ transform: "scale(0.6)", transformOrigin: "left center" }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {children}
+      {isEmpty && hovered && (
+        <div
+          className="pointer-events-none absolute whitespace-nowrap rounded-lg bg-foreground/90 px-3 py-1.5 text-xs font-medium text-background shadow-lg"
+          style={{ bottom: "110%", left: "50%", transform: "translateX(-50%)" }}
+        >
+          No resources available
+          <span
+            className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent"
+            style={{ borderTopColor: "rgba(0,0,0,0.85)" }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── OverviewTab ──────────────────────────────────────────────────────────────
 
-export function OverviewTab({ course }: { course: CourseDetail }) {
+export function OverviewTab({
+  course,
+  onSelectReviewsTab,
+}: {
+  course: CourseDetail;
+  onSelectReviewsTab?: () => void;
+}) {
+  // Fetch real admin-uploaded resources for this course's lessons
+  const { data: courseResources = [] } = useQuery({
+    queryKey: ["course-resources", course.id],
+    queryFn: async () => {
+      // Get all lesson IDs for this course via modules
+      const { data: lessons } = await supabase
+        .from("lessons")
+        .select("id")
+        .in(
+          "module_id",
+          (await supabase.from("modules").select("id").eq("course_id", course.id)).data?.map(
+            (m: { id: number }) => m.id,
+          ) ?? [],
+        );
+
+      if (!lessons || lessons.length === 0) return [];
+
+      const lessonIds = lessons.map((l: { id: number }) => l.id);
+      const { data: resources } = await supabase
+        .from("lesson_resources")
+        .select("id, title, url, type")
+        .in("lesson_id", lessonIds)
+        .order("created_at", { ascending: true });
+
+      return resources ?? [];
+    },
+    staleTime: 60_000,
+  });
+
+  const resourceTitles = courseResources.map((r: { title: string }) => r.title);
+
   return (
     <div className="space-y-6">
       <div>
@@ -231,24 +317,41 @@ export function OverviewTab({ course }: { course: CourseDetail }) {
       </div>
 
       {/* 3D Interactive Project Folder */}
-      <div className="rounded-2xl border border-border bg-card/60 p-6 backdrop-blur-md">
-        <div className="flex flex-col sm:flex-row items-center gap-6">
-          <Folder
-            color="#4F46E5"
-            size={1}
-            items={["Schematics.pdf", "SourceCode.zip", "PartsList.csv"]}
-          />
-          <div>
+      <div className="rounded-2xl border border-border bg-card/60 p-4 backdrop-blur-md">
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          {/* Folder wrapper — tooltip shown on hover when empty */}
+          <FolderWithTooltip isEmpty={resourceTitles.length === 0}>
+            <Folder
+              color="#4F46E5"
+              size={1}
+              items={resourceTitles.slice(0, 3)}
+            />
+          </FolderWithTooltip>
+          <div className="sm:pl-4">
             <h3 className="font-display text-base font-bold text-foreground">
-              Course Resources & Starter Files
+              Course Resources &amp; Files
             </h3>
             <p className="mt-1 text-xs text-muted-foreground max-w-md">
-              Click the interactive 3D folder to preview and access downloadable circuit diagrams,
-              microcontroller source code, and hardware BOM lists.
+              {resourceTitles.length === 0
+                ? "No downloadable resources have been added to this course yet."
+                : `${resourceTitles.length} file${resourceTitles.length !== 1 ? "s" : ""} available — click the folder to explore.`}
             </p>
+            {resourceTitles.length > 0 && (
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {resourceTitles.slice(0, 6).map((name: string) => (
+                  <li
+                    key={name}
+                    className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                  >
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       </div>
+
 
       <div>
         <h3 className="font-display text-lg font-bold text-foreground">What you'll learn</h3>
@@ -262,6 +365,28 @@ export function OverviewTab({ course }: { course: CourseDetail }) {
             </li>
           ))}
         </ul>
+      </div>
+
+      {/* Student Reviews Preview Banner */}
+      <div className="rounded-2xl border border-border bg-card p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h3 className="font-display text-base font-bold text-foreground flex items-center gap-2">
+            <Star className="h-5 w-5 fill-accent text-accent" />
+            Student Reviews &amp; Rating ({course.rating?.toFixed(1) ?? "—"})
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {course.total_reviews ?? 0} reviews from enrolled makers. Read feedback or submit your own review!
+          </p>
+        </div>
+        {onSelectReviewsTab && (
+          <button
+            type="button"
+            onClick={onSelectReviewsTab}
+            className="shrink-0 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary/90 transition-all shadow-sm"
+          >
+            Read &amp; Write Reviews →
+          </button>
+        )}
       </div>
     </div>
   );

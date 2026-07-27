@@ -207,7 +207,11 @@ function CourseDetailPage() {
           onEnroll={handleEnroll}
           show={showSticky}
         />
-        <CourseHero course={course} onBack={() => navigate({ to: "/explore" })} />
+        <CourseHero
+          course={course}
+          onBack={() => navigate({ to: "/explore" })}
+          onSelectReviewsTab={() => setTab("reviews")}
+        />
 
         <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-10">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
@@ -222,7 +226,12 @@ function CourseDetailPage() {
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2 }}
                   >
-                    {tab === "overview" && <OverviewTab course={course} />}
+                    {tab === "overview" && (
+                      <OverviewTab
+                        course={course}
+                        onSelectReviewsTab={() => setTab("reviews")}
+                      />
+                    )}
                     {tab === "curriculum" && (
                       <CurriculumTab modules={modulesQ.data ?? []} isLoading={modulesQ.isLoading} />
                     )}

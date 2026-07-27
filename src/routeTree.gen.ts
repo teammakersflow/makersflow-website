@@ -23,6 +23,7 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as NewsRouteImport } from './routes/news'
 import { Route as MyLearningRouteImport } from './routes/my-learning'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as EmptyStatesDemoRouteImport } from './routes/empty-states-demo'
 import { Route as DashboardDemoRouteImport } from './routes/dashboard-demo'
@@ -107,6 +108,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FavoritesRoute = FavoritesRouteImport.update({
+  id: '/favorites',
+  path: '/favorites',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ExploreRoute = ExploreRouteImport.update({
   id: '/explore',
   path: '/explore',
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/dashboard-demo': typeof DashboardDemoRoute
   '/empty-states-demo': typeof EmptyStatesDemoRoute
   '/explore': typeof ExploreRoute
+  '/favorites': typeof FavoritesRoute
   '/login': typeof LoginRoute
   '/my-learning': typeof MyLearningRoute
   '/news': typeof NewsRoute
@@ -211,6 +218,7 @@ export interface FileRoutesByTo {
   '/dashboard-demo': typeof DashboardDemoRoute
   '/empty-states-demo': typeof EmptyStatesDemoRoute
   '/explore': typeof ExploreRoute
+  '/favorites': typeof FavoritesRoute
   '/login': typeof LoginRoute
   '/my-learning': typeof MyLearningRoute
   '/news': typeof NewsRoute
@@ -241,6 +249,7 @@ export interface FileRoutesById {
   '/dashboard-demo': typeof DashboardDemoRoute
   '/empty-states-demo': typeof EmptyStatesDemoRoute
   '/explore': typeof ExploreRoute
+  '/favorites': typeof FavoritesRoute
   '/login': typeof LoginRoute
   '/my-learning': typeof MyLearningRoute
   '/news': typeof NewsRoute
@@ -272,6 +281,7 @@ export interface FileRouteTypes {
     | '/dashboard-demo'
     | '/empty-states-demo'
     | '/explore'
+    | '/favorites'
     | '/login'
     | '/my-learning'
     | '/news'
@@ -301,6 +311,7 @@ export interface FileRouteTypes {
     | '/dashboard-demo'
     | '/empty-states-demo'
     | '/explore'
+    | '/favorites'
     | '/login'
     | '/my-learning'
     | '/news'
@@ -330,6 +341,7 @@ export interface FileRouteTypes {
     | '/dashboard-demo'
     | '/empty-states-demo'
     | '/explore'
+    | '/favorites'
     | '/login'
     | '/my-learning'
     | '/news'
@@ -360,6 +372,7 @@ export interface RootRouteChildren {
   DashboardDemoRoute: typeof DashboardDemoRoute
   EmptyStatesDemoRoute: typeof EmptyStatesDemoRoute
   ExploreRoute: typeof ExploreRoute
+  FavoritesRoute: typeof FavoritesRoute
   LoginRoute: typeof LoginRoute
   MyLearningRoute: typeof MyLearningRoute
   NewsRoute: typeof NewsRoute
@@ -481,6 +494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/favorites': {
+      id: '/favorites'
+      path: '/favorites'
+      fullPath: '/favorites'
+      preLoaderRoute: typeof FavoritesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/explore': {
       id: '/explore'
       path: '/explore'
@@ -584,6 +604,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardDemoRoute: DashboardDemoRoute,
   EmptyStatesDemoRoute: EmptyStatesDemoRoute,
   ExploreRoute: ExploreRoute,
+  FavoritesRoute: FavoritesRoute,
   LoginRoute: LoginRoute,
   MyLearningRoute: MyLearningRoute,
   NewsRoute: NewsRoute,

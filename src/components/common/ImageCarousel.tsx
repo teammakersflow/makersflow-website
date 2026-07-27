@@ -21,8 +21,10 @@ export function ImageCarousel({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  // Normalize images array (ensure at least 1 fallback if empty)
-  const validImages = images && images.length > 0 ? images : [];
+  // Normalize & deduplicate images array (ensure at least 1 fallback if empty)
+  const validImages = Array.from(
+    new Set((images && images.length > 0 ? images : []).filter(Boolean)),
+  );
 
   useEffect(() => {
     // Reset index if images change
@@ -94,7 +96,7 @@ export function ImageCarousel({
         <button
           type="button"
           onClick={() => setLightboxOpen(true)}
-          className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-background/80 backdrop-blur-md opacity-0 transition-opacity group-hover:opacity-100 hover:scale-110 active:scale-95 shadow-sm text-foreground"
+          className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-background/80 backdrop-blur-md opacity-70 transition-opacity group-hover:opacity-100 hover:scale-110 active:scale-95 shadow-sm text-foreground"
           title="Open Fullscreen Lightbox"
         >
           <Maximize2 className="h-4 w-4" />
@@ -106,7 +108,7 @@ export function ImageCarousel({
             <button
               type="button"
               onClick={handlePrev}
-              className="absolute left-3 top-1/2 z-10 -translate-y-1/2 grid h-10 w-10 place-items-center rounded-full bg-background/80 backdrop-blur-md text-foreground shadow-md transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95"
+              className="absolute left-3 top-1/2 z-10 -translate-y-1/2 grid h-10 w-10 place-items-center rounded-full bg-background/80 backdrop-blur-md text-foreground shadow-md transition-all opacity-70 group-hover:opacity-100 hover:scale-110 active:scale-95"
               aria-label="Previous image"
             >
               <ChevronLeft className="h-5 w-5" />
@@ -115,7 +117,7 @@ export function ImageCarousel({
             <button
               type="button"
               onClick={handleNext}
-              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 grid h-10 w-10 place-items-center rounded-full bg-background/80 backdrop-blur-md text-foreground shadow-md transition-all opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95"
+              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 grid h-10 w-10 place-items-center rounded-full bg-background/80 backdrop-blur-md text-foreground shadow-md transition-all opacity-70 group-hover:opacity-100 hover:scale-110 active:scale-95"
               aria-label="Next image"
             >
               <ChevronRight className="h-5 w-5" />

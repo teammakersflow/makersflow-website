@@ -53,13 +53,11 @@ Deno.serve(async (req) => {
     // 2. Use service-role client to delete personal data & anonymize profile
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Delete non-financial user-owned learning data
-    // NOTE: orders, order_items, and invoices are intentionally EXCLUDED from hard-deletion
-    // to comply with Section 36 of India CGST Act (mandatory 6-year tax record retention).
     const nonFinancialTables: Array<{ table: string; column: string }> = [
       { table: "lesson_progress", column: "user_id" },
       { table: "quiz_attempts", column: "user_id" },
       { table: "enrollments", column: "user_id" },
+      { table: "streaks", column: "user_id" },
       { table: "course_favorites", column: "user_id" },
       { table: "watch_later", column: "user_id" },
       { table: "wishlist", column: "user_id" },

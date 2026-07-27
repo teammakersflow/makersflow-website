@@ -7,6 +7,8 @@ import { AuthLayout } from "@/components/auth/AuthLayout";
 import { FloatingField } from "@/components/auth/FloatingField";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { GoogleButton } from "@/components/auth/GoogleButton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
 import { signUpWithPassword, signInWithGoogle } from "@/integrations/supabase/auth";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -58,6 +60,9 @@ function RegisterPage() {
     grade: "" as FormValues["grade"],
     school: "",
   });
+  const [agreed, setAgreed] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
+  const [legalModal, setLegalModal] = useState<"terms" | "privacy" | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -73,6 +78,11 @@ function RegisterPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    let valid = true;
+    if (!agreed) {
+      setTermsError("You must agree to the Terms of Service and Privacy Policy to continue");
+      valid = false;
+    }
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
       const fe: Partial<Record<keyof FormValues, string>> = {};
@@ -80,17 +90,19 @@ function RegisterPage() {
         fe[issue.path[0] as keyof FormValues] = issue.message;
       }
       setErrors(fe);
-      return;
+      valid = false;
     }
+    if (!valid || !parsed.success) return;
+    const formData = parsed.data;
     setLoading(true);
     const { data, error } = await signUpWithPassword(
-      parsed.data.email,
-      parsed.data.password,
+      formData.email,
+      formData.password,
       {
-        full_name: parsed.data.full_name,
-        phone: parsed.data.phone || null,
-        grade: parsed.data.grade,
-        school: parsed.data.school,
+        full_name: formData.full_name,
+        phone: formData.phone || null,
+        grade: formData.grade,
+        school: formData.school,
         role: "student",
       },
       redirect,
@@ -109,11 +121,11 @@ function RegisterPage() {
     if (data.user && data.session) {
       const profilePayload = {
         id: data.user.id,
-        full_name: parsed.data.full_name,
-        email: parsed.data.email,
-        phone: parsed.data.phone || null,
-        grade: parsed.data.grade,
-        school: parsed.data.school,
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone || null,
+        grade: formData.grade,
+        school: formData.school,
         role: "student",
       };
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -171,15 +183,38 @@ function RegisterPage() {
           onChange={update("email")}
           error={errors.email}
         />
-        <FloatingField
-          id="phone"
-          label="Mobile number (optional)"
-          type="tel"
-          autoComplete="tel"
-          value={values.phone}
-          onChange={update("phone")}
-          error={errors.phone}
-        />
+        {/* Phone field with +91 prefix */}
+        <div className="space-y-1.5">
+          <div className="relative flex overflow-hidden rounded-xl border border-border bg-card transition-all focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/15">
+            <span className="flex shrink-0 items-center border-r border-border bg-secondary/50 px-3 text-sm font-semibold text-muted-foreground select-none">
+              +91
+            </span>
+            <div className="relative flex-1">
+              <input
+                id="phone"
+                type="tel"
+                inputMode="numeric"
+                maxLength={10}
+                autoComplete="tel-national"
+                value={values.phone}
+                onChange={update("phone")}
+                placeholder=" "
+                className="peer block w-full bg-transparent px-4 pb-2 pt-5 text-sm text-foreground outline-none"
+              />
+              <label
+                htmlFor="phone"
+                className="pointer-events-none absolute left-4 top-3 origin-left bg-card px-1 font-sans text-sm text-muted-foreground transition-all duration-150 peer-placeholder-shown:top-3 peer-placeholder-shown:scale-100 peer-focus:-top-0.5 peer-focus:scale-[0.82] peer-focus:text-primary peer-[:not(:placeholder-shown)]:-top-0.5 peer-[:not(:placeholder-shown)]:scale-[0.82]"
+              >
+                Mobile number
+              </label>
+            </div>
+          </div>
+          {errors.phone && (
+            <p className="flex items-center gap-1.5 pl-1 text-xs font-medium text-destructive">
+              {errors.phone}
+            </p>
+          )}
+        </div>
         <FloatingField
           id="password"
           label="Password"
@@ -239,24 +274,52 @@ function RegisterPage() {
           )}
         </AnimatePresence>
 
+        {/* Terms & Privacy Checkbox */}
+        <div className="space-y-1 pt-1">
+          <div className="flex items-start gap-2.5">
+            <Checkbox
+              id="terms-agree"
+              checked={agreed}
+              onCheckedChange={(c) => {
+                setAgreed(!!c);
+                setTermsError(null);
+              }}
+              className="mt-0.5"
+            />
+            <label
+              htmlFor="terms-agree"
+              className="text-xs text-muted-foreground leading-snug cursor-pointer select-none"
+            >
+              I agree to the{" "}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setLegalModal("terms");
+                }}
+                className="font-semibold text-foreground underline hover:text-primary transition-colors inline-block"
+              >
+                Terms of Service
+              </button>{" "}
+              and{" "}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setLegalModal("privacy");
+                }}
+                className="font-semibold text-foreground underline hover:text-primary transition-colors inline-block"
+              >
+                Privacy Policy
+              </button>
+            </label>
+          </div>
+          {termsError && <p className="text-xs text-destructive">{termsError}</p>}
+        </div>
+
         <SubmitButton loading={loading} loadingText="Creating account...">
           Create account
         </SubmitButton>
-
-        <p className="text-center text-xs text-muted-foreground">
-          By creating an account you agree to our{" "}
-          <Link to="/terms" className="font-medium underline hover:text-primary transition-colors">
-            Terms
-          </Link>{" "}
-          &{" "}
-          <Link
-            to="/privacy"
-            className="font-medium underline hover:text-primary transition-colors"
-          >
-            Privacy Policy
-          </Link>
-          .
-        </p>
 
         <div className="relative py-2">
           <div className="absolute inset-0 flex items-center">
@@ -271,6 +334,15 @@ function RegisterPage() {
 
         <GoogleButton onClick={onGoogle} disabled={googleLoading} label="Sign up with Google" />
       </form>
+
+      <AuthLegalModal
+        type={legalModal}
+        onClose={() => setLegalModal(null)}
+        onAgree={() => {
+          setAgreed(true);
+          setTermsError(null);
+        }}
+      />
     </AuthLayout>
   );
 }

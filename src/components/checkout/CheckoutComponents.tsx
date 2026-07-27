@@ -145,7 +145,7 @@ export function CartRow({
 }) {
   return (
     <div className="flex items-center gap-4 rounded-xl border border-border bg-background p-3">
-      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/10 to-accent/10">
+      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/10 to-accent/10">
         {item.thumbnail_url ? (
           <img
             src={item.thumbnail_url}
@@ -746,7 +746,7 @@ export function OrderSummary({
             >
               <div className="flex items-center gap-3 px-5 py-3">
                 {/* Thumbnail */}
-                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/10 to-accent/10">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/10 to-accent/10">
                   {item.thumbnail_url ? (
                     <img
                       src={item.thumbnail_url}

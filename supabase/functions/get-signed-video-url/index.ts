@@ -6,6 +6,7 @@
  * before returning a streamable video URL.
  */
 
+// @ts-ignore — Deno URL imports are resolved at runtime by the edge runtime
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -24,7 +25,7 @@ function json(data: unknown, status = 200) {
   });
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: CORS });
   }

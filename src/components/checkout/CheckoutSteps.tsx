@@ -2,52 +2,58 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * The Cart → Checkout → Payment bar from the app, adapted for one long page:
- * a step is "done" once its section is filled in, and clicking a step scrolls
- * to it instead of hiding the others.
+ * Cart → Checkout → Payment. A step is ticked only once the customer has
+ * actually moved past it, so an empty cart can't show a completed "Checkout".
+ * Completed steps are clickable to go back; steps ahead are not.
  */
 
 export const CHECKOUT_STEPS = [
-  { key: "cart", label: "Cart", anchor: "checkout-cart" },
-  { key: "details", label: "Checkout", anchor: "checkout-address" },
-  { key: "payment", label: "Payment", anchor: "checkout-payment" },
+  { key: "cart", label: "Cart" },
+  { key: "address", label: "Checkout" },
+  { key: "payment", label: "Payment" },
 ] as const;
 
 export type CheckoutStepKey = (typeof CHECKOUT_STEPS)[number]["key"];
 
-function scrollToAnchor(anchor: string) {
-  if (typeof document === "undefined") return;
-  document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+export function stepIndexOf(step: CheckoutStepKey): number {
+  return CHECKOUT_STEPS.findIndex((s) => s.key === step);
 }
 
 export function CheckoutSteps({
   current,
-  completed,
+  onSelect,
 }: {
   current: CheckoutStepKey;
-  /** Steps the customer has satisfied — drives the check marks. */
-  completed: CheckoutStepKey[];
+  /** Called when the customer clicks a step they've already completed. */
+  onSelect?: (key: CheckoutStepKey) => void;
 }) {
+  const currentIndex = stepIndexOf(current);
+
   return (
     <nav aria-label="Checkout progress" className="flex items-center gap-2 sm:gap-3">
       {CHECKOUT_STEPS.map((step, index) => {
-        const isDone = completed.includes(step.key);
-        const isCurrent = current === step.key;
+        const isDone = index < currentIndex;
+        const isCurrent = index === currentIndex;
 
         return (
           <div key={step.key} className="flex flex-1 items-center gap-2 sm:gap-3">
             <button
               type="button"
-              onClick={() => scrollToAnchor(step.anchor)}
+              disabled={!isDone}
+              onClick={() => isDone && onSelect?.(step.key)}
               aria-current={isCurrent ? "step" : undefined}
-              className="flex shrink-0 items-center gap-2 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+              className={cn(
+                "flex shrink-0 items-center gap-2 rounded-full outline-none transition",
+                "focus-visible:ring-2 focus-visible:ring-primary/60",
+                isDone ? "cursor-pointer hover:opacity-80" : "cursor-default",
+              )}
             >
               <span
                 className={cn(
                   "grid h-7 w-7 place-items-center rounded-full text-xs font-bold transition-colors",
-                  isDone && "bg-primary text-primary-foreground",
-                  !isDone && isCurrent && "bg-primary text-primary-foreground",
-                  !isDone && !isCurrent && "bg-secondary text-muted-foreground",
+                  isDone || isCurrent
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground",
                 )}
               >
                 {isDone ? <Check className="h-4 w-4" /> : index + 1}
@@ -65,7 +71,10 @@ export function CheckoutSteps({
             {index < CHECKOUT_STEPS.length - 1 && (
               <span
                 aria-hidden
-                className={cn("h-px flex-1 transition-colors", isDone ? "bg-primary" : "bg-border")}
+                className={cn(
+                  "h-px flex-1 transition-colors",
+                  index < currentIndex ? "bg-primary" : "bg-border",
+                )}
               />
             )}
           </div>

@@ -44,7 +44,8 @@ export function SlideToPay({
   const maxOffset = () => {
     const track = trackRef.current;
     if (!track) return 0;
-    return Math.max(track.clientWidth - 64 - 8, 0); // handle 64px, 4px padding each side
+    // clientWidth includes the 4px padding on each side; handle is 56px wide.
+    return Math.max(track.clientWidth - 56 - 8, 0);
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -86,7 +87,7 @@ export function SlideToPay({
       <div
         ref={trackRef}
         className={cn(
-          "relative h-16 w-full select-none overflow-hidden rounded-full p-1 transition-opacity",
+          "relative flex h-16 w-full select-none items-center overflow-hidden rounded-full p-1 transition-opacity",
           locked
             ? "bg-secondary opacity-70"
             : "bg-gradient-to-r from-primary via-primary to-accent",
@@ -95,7 +96,7 @@ export function SlideToPay({
         {/* Label sits under the handle and fades as the handle covers it */}
         <span
           className={cn(
-            "pointer-events-none absolute inset-0 grid place-items-center px-16 text-center text-base font-bold",
+            "pointer-events-none absolute inset-0 grid place-items-center px-20 text-center text-base font-bold",
             locked ? "text-muted-foreground" : "text-primary-foreground",
           )}
           style={{ opacity: dragging ? 0.45 : 1 }}
@@ -125,7 +126,7 @@ export function SlideToPay({
                 : `Pay ${formatPrice(amount)}. Slide right, or press Enter.`
           }
           className={cn(
-            "relative grid h-14 w-16 touch-none place-items-center rounded-full bg-card shadow-lg outline-none",
+            "relative grid h-14 w-14 shrink-0 touch-none place-items-center rounded-full bg-card shadow-lg outline-none",
             "focus-visible:ring-4 focus-visible:ring-primary-foreground/50",
             locked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing",
             !dragging && "transition-transform duration-300 ease-out",

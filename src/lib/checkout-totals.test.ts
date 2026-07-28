@@ -162,3 +162,37 @@ describe("parseEtdDays", () => {
     expect(parseEtdDays("unknown")).toBeNull();
   });
 });
+
+describe("delivery is not charged before a destination is known", () => {
+  it("would otherwise show the flat fallback fee on step 1", () => {
+    // With no address picked, resolveShippingQuote falls back to the flat fee.
+    // Checkout must hold this out of the total until a PIN code exists,
+    // otherwise the price moves under the customer between steps.
+    const quote = resolveShippingQuote({
+      hasPhysical: true,
+      subtotal: 100,
+      rate: null,
+      settings: DEFAULT_SHIPPING_SETTINGS,
+    });
+    expect(quote.fee).toBe(DEFAULT_SHIPPING_SETTINGS.fee);
+
+    const pending = computeTotals({ items: [item(), item({ id: "p2" })], shippingFee: 0 });
+    expect(pending.total).toBe(109); // 100 + 9 GST, no delivery yet
+
+    const settled = computeTotals({ items: [item(), item({ id: "p2" })], shippingFee: 89 });
+    expect(settled.total).toBe(198);
+  });
+});
+
+describe("courier field-name tolerance", () => {
+  it("reads the courier and ETA whichever key the function used", () => {
+    const fromEtd = resolveShippingQuote({
+      hasPhysical: true,
+      subtotal: 100,
+      rate: { success: true, fee: 89, courier: "Xpressbees Air", etd: "2 Days" },
+      settings: DEFAULT_SHIPPING_SETTINGS,
+    });
+    expect(fromEtd.courier).toBe("Xpressbees Air");
+    expect(fromEtd.etdDays).toBe(2);
+  });
+});

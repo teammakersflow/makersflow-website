@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { EmptyCart } from "@/components/checkout/CheckoutComponents";
@@ -23,6 +23,7 @@ import {
 import { useCart, type CartItem } from "@/lib/cart";
 import { computeTotals, hasPhysicalItems, totalWeightKg } from "@/lib/checkout-totals";
 import { fetchCourseDetail } from "@/lib/explore-data";
+import { formatPrice } from "@/lib/store-data";
 import { runRazorpayCheckout } from "@/lib/razorpay-checkout";
 import {
   DEFAULT_SHIPPING_SETTINGS,
@@ -65,18 +66,16 @@ function pickThumbnail(row: DbRow): string | null {
   return Array.isArray(images) && typeof images[0] === "string" ? images[0] : null;
 }
 
-function scrollTo(anchor: string) {
-  document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 function CheckoutPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { course: courseParam } = Route.useSearch();
   const { items, subtotal, removeItem, setQty, clear, addItem, syncItems } = useCart();
 
+  const [step, setStep] = useState<CheckoutStepKey>("cart");
   const [promo, setPromo] = useState<PromoState>({ status: "idle" });
   const [applyingPromo, setApplyingPromo] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
   const [paying, setPaying] = useState(false);
 
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
@@ -93,17 +92,33 @@ function CheckoutPage() {
     [addresses, selectedAddressId],
   );
 
+  const goToStep = useCallback((next: CheckoutStepKey) => {
+    setStep(next);
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  // Emptying the cart from a later step must not strand the customer there.
+  useEffect(() => {
+    if (items.length === 0 && step !== "cart") setStep("cart");
+  }, [items.length, step]);
+
   // ── Re-sync the cart against the database ────────────────────────────────
   // A cart lives in localStorage forever, so a basket filled weeks ago can
   // carry a stale price, an outdated GST rate, or a wrong `is_course` flag.
   // The last one is the dangerous one: a physical kit mis-flagged as a course
   // silently skips delivery. Look every item up in BOTH tables by its raw id
   // and let the database decide what it actually is.
+  const syncedRef = useRef(false);
+
   useEffect(() => {
+    // The cart hydrates from localStorage in the provider's own effect, and
+    // child effects run before parent ones — so on the very first pass `items`
+    // is still empty. Wait for the real cart, then sync exactly once.
+    if (syncedRef.current) return;
     const live = items.filter((i) => !i.id.startsWith("demo-"));
     if (live.length === 0) return;
+    syncedRef.current = true;
 
-    // Products sit in the cart under their own uuid, courses under "course-<uuid>".
     const productIds = live.filter((i) => !i.id.startsWith("course-")).map((i) => i.id);
     const courseIds = live.map((i) => courseKeyFor(i));
 
@@ -162,9 +177,8 @@ function CheckoutPage() {
     return () => {
       cancelled = true;
     };
-    // Runs once on open — re-running per cart edit would fight the user's typing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // `syncedRef` keeps this to a single run despite the `items` dependency.
+  }, [items, syncItems]);
 
   // ── Admin shipping settings ───────────────────────────────────────────────
   useEffect(() => {
@@ -275,31 +289,24 @@ function CheckoutPage() {
     [needsDelivery, subtotal, rate, settings, selectedAddress?.state],
   );
 
+  // Delivery is only real once we know where the parcel is going. Before an
+  // address is picked, the fallback flat fee would otherwise appear as a firm
+  // charge and then change — so hold it out of the total until step 2.
+  const destinationKnown = /^\d{6}$/.test(selectedAddress?.pincode ?? "");
+  // A default address auto-selects on load, so a PIN code can exist before the
+  // customer has chosen anything. Delivery still doesn't belong on the cart
+  // step — it is only settled once they reach (and confirm) the address step.
+  const deliveryPending = needsDelivery && (step === "cart" || !destinationKnown || rateLoading);
+
   const totals = useMemo(
     () =>
       computeTotals({
         items,
         discount: promo.status === "applied" ? promo.amount : 0,
-        // Don't bill a half-known rate: while the courier is answering, hold at
-        // zero rather than flashing the flat fee and moving the total.
-        shippingFee: rateLoading && needsDelivery ? 0 : quote.fee,
+        shippingFee: deliveryPending ? 0 : quote.fee,
       }),
-    [items, promo, quote.fee, rateLoading, needsDelivery],
+    [items, promo, quote.fee, deliveryPending],
   );
-
-  // ── Progress bar state ────────────────────────────────────────────────────
-  const completedSteps = useMemo(() => {
-    const done: CheckoutStepKey[] = [];
-    if (items.length > 0) done.push("cart");
-    if (selectedAddress && !validateAddress(selectedAddress)) done.push("details");
-    return done;
-  }, [items.length, selectedAddress]);
-
-  const currentStep: CheckoutStepKey = completedSteps.includes("details")
-    ? "payment"
-    : completedSteps.includes("cart")
-      ? "details"
-      : "cart";
 
   // ── Promo code ────────────────────────────────────────────────────────────
   const applyPromo = async (raw: string) => {
@@ -368,22 +375,8 @@ function CheckoutPage() {
     toast.success("Address removed");
   };
 
-  // ── Pay ───────────────────────────────────────────────────────────────────
-  const payBlockedReason = (): string | null => {
-    if (items.length === 0) return "Your cart is empty";
-    if (!user) return "Sign in to pay";
-    if (!selectedAddress) return needsDelivery ? "Add a delivery address" : "Add billing details";
-    const problem = validateAddress(selectedAddress);
-    if (problem) return problem;
-    if (rateLoading) return "Checking delivery…";
-    return null;
-  };
-
-  const blockedReason = payBlockedReason();
-
-  const handlePay = async () => {
-    if (paying) return;
-
+  // ── Step 1 → 2 ────────────────────────────────────────────────────────────
+  const continueFromCart = async () => {
     if (items.length === 0) {
       toast.error("Your cart is empty");
       return;
@@ -393,44 +386,72 @@ function CheckoutPage() {
       navigate({ to: "/login", search: { redirect: "/checkout" } });
       return;
     }
+
+    setAdvancing(true);
+    const soldOut = await findSoldOutItem();
+    setAdvancing(false);
+
+    if (soldOut) {
+      toast.error(`"${soldOut}" just went out of stock. Remove it to continue.`);
+      return;
+    }
+    goToStep("address");
+  };
+
+  // ── Step 2 → 3 ────────────────────────────────────────────────────────────
+  const continueFromAddress = () => {
     if (!selectedAddress) {
       toast.error(needsDelivery ? "Choose a delivery address" : "Add your billing details");
-      scrollTo("checkout-address");
       return;
     }
+    const problem = validateAddress(selectedAddress);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+    if (rateLoading) {
+      toast.info("Still checking delivery for this PIN code…");
+      return;
+    }
+    goToStep("payment");
+  };
 
-    const addressProblem = validateAddress(selectedAddress);
-    if (addressProblem) {
-      toast.error(addressProblem);
-      scrollTo("checkout-address");
-      return;
-    }
+  /** Returns the title of the first out-of-stock item, or null. */
+  const findSoldOutItem = async (): Promise<string | null> => {
+    const productIds = items.filter((i) => !i.is_course).map((i) => i.id);
+    if (productIds.length === 0) return null;
+
+    const { data } = await supabase
+      .from("products")
+      .select("id, title, stock_quantity, in_stock")
+      .in("id", productIds);
+
+    const rows = (data ?? []) as Array<{
+      title: string;
+      stock_quantity: number;
+      in_stock: boolean;
+    }>;
+    const soldOut = rows.find(
+      (p) => p.in_stock === false || (p.stock_quantity !== -1 && p.stock_quantity <= 0),
+    );
+    return soldOut?.title ?? null;
+  };
+
+  // ── Pay ───────────────────────────────────────────────────────────────────
+  const handlePay = async () => {
+    if (paying) return;
+    if (!user || !selectedAddress) return;
 
     setPaying(true);
     try {
-      // Stock check happens here, immediately before charging, so a product
-      // that sold out while the cart sat open can't be paid for.
-      const productIds = items.filter((i) => !i.is_course).map((i) => i.id);
-      if (productIds.length > 0) {
-        const { data: stock } = await supabase
-          .from("products")
-          .select("id, title, stock_quantity, in_stock")
-          .in("id", productIds);
-
-        const soldOut = (
-          (stock ?? []) as Array<{
-            id: string;
-            title: string;
-            stock_quantity: number;
-            in_stock: boolean;
-          }>
-        ).filter((p) => p.in_stock === false || (p.stock_quantity !== -1 && p.stock_quantity <= 0));
-
-        if (soldOut.length > 0) {
-          toast.error(`"${soldOut[0].title}" just went out of stock. Remove it to continue.`);
-          setPaying(false);
-          return;
-        }
+      // Re-check stock immediately before charging: a product can sell out
+      // between reviewing the cart and confirming payment.
+      const soldOut = await findSoldOutItem();
+      if (soldOut) {
+        toast.error(`"${soldOut}" just went out of stock. Remove it to continue.`);
+        goToStep("cart");
+        setPaying(false);
+        return;
       }
 
       const shipping: ShippingAddress = {
@@ -471,8 +492,8 @@ function CheckoutPage() {
             }
           }
 
-          // The order row is written by the edge function/webhook under the
-          // service role, so poll briefly for it before redirecting.
+          // The order row is written by the edge function under the service
+          // role, so poll briefly for it before redirecting.
           let dbOrderId: string | null = null;
           for (let attempt = 0; attempt < 3; attempt++) {
             const { data } = await supabase
@@ -515,6 +536,8 @@ function CheckoutPage() {
     );
   }
 
+  const addressReady = Boolean(selectedAddress && !validateAddress(selectedAddress));
+
   return (
     <div className="flex min-h-screen w-full bg-background">
       <AppSidebar />
@@ -529,8 +552,8 @@ function CheckoutPage() {
 
           <h1 className="font-display text-3xl font-bold text-foreground md:text-4xl">Checkout</h1>
 
-          <div className="sticky top-0 z-20 -mx-4 mt-5 border-b border-border bg-background/90 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
-            <CheckoutSteps current={currentStep} completed={completedSteps} />
+          <div className="mt-5 border-b border-border pb-4">
+            <CheckoutSteps current={step} onSelect={goToStep} />
           </div>
 
           {items.length === 0 ? (
@@ -538,51 +561,193 @@ function CheckoutPage() {
               <EmptyCart />
             </div>
           ) : (
-            <>
-              <div className="mt-6 space-y-6 pb-6">
-                <OrderSummaryCard
-                  items={items}
-                  totals={totals}
-                  quote={quote}
-                  quoteLoading={rateLoading}
-                  needsDelivery={needsDelivery}
-                  freeShippingThreshold={settings.threshold}
-                  promo={promo}
-                  onApplyPromo={applyPromo}
-                  onRemovePromo={() => setPromo({ status: "idle" })}
-                  applyingPromo={applyingPromo}
-                  onQty={setQty}
-                  onRemove={removeItem}
-                />
+            <div className="mt-6 space-y-6">
+              {/* ── Step 1: review the cart ───────────────────────────────── */}
+              {step === "cart" && (
+                <>
+                  <OrderSummaryCard
+                    items={items}
+                    totals={totals}
+                    quote={quote}
+                    quoteLoading={rateLoading}
+                    needsDelivery={needsDelivery}
+                    deliveryPending={deliveryPending}
+                    promo={promo}
+                    onApplyPromo={applyPromo}
+                    onRemovePromo={() => setPromo({ status: "idle" })}
+                    applyingPromo={applyingPromo}
+                    onQty={setQty}
+                    onRemove={removeItem}
+                  />
 
-                <AddressBook
-                  addresses={addresses}
-                  selectedId={selectedAddressId}
-                  onSelect={setSelectedAddressId}
-                  onSave={saveAddress}
-                  onDelete={removeAddress}
-                  loading={addressesLoading}
-                  quote={quote}
-                  quoteLoading={rateLoading}
-                  needsDelivery={needsDelivery}
-                />
+                  <StepFooter
+                    total={totals.total}
+                    totalLabel={deliveryPending ? "Total before delivery" : "Total"}
+                  >
+                    <PrimaryButton onClick={continueFromCart} loading={advancing}>
+                      Continue to address
+                    </PrimaryButton>
+                  </StepFooter>
+                </>
+              )}
 
-                <PaymentSection totals={totals} needsDelivery={needsDelivery} />
-              </div>
+              {/* ── Step 2: choose where it ships ─────────────────────────── */}
+              {step === "address" && (
+                <>
+                  <AddressBook
+                    addresses={addresses}
+                    selectedId={selectedAddressId}
+                    onSelect={setSelectedAddressId}
+                    onSave={saveAddress}
+                    onDelete={removeAddress}
+                    loading={addressesLoading}
+                    quote={quote}
+                    quoteLoading={rateLoading}
+                    needsDelivery={needsDelivery}
+                  />
 
-              <div className="sticky bottom-0 -mx-4 border-t border-border bg-background/95 px-4 py-4 backdrop-blur md:-mx-8 md:px-8">
-                <SlideToPay
-                  amount={totals.total}
-                  onComplete={handlePay}
-                  loading={paying}
-                  disabled={blockedReason !== null}
-                  disabledReason={blockedReason ?? undefined}
-                />
-              </div>
-            </>
+                  {!addressReady && (
+                    <p className="text-sm text-muted-foreground">
+                      {addresses.length === 0
+                        ? "Add an address above to continue."
+                        : "Select an address to continue."}
+                    </p>
+                  )}
+
+                  <StepFooter
+                    total={totals.total}
+                    totalLabel={deliveryPending ? "Total before delivery" : "Total"}
+                  >
+                    <SecondaryButton onClick={() => goToStep("cart")}>Back</SecondaryButton>
+                    <PrimaryButton onClick={continueFromAddress} disabled={!addressReady}>
+                      Continue to payment
+                    </PrimaryButton>
+                  </StepFooter>
+                </>
+              )}
+
+              {/* ── Step 3: pay ───────────────────────────────────────────── */}
+              {step === "payment" && (
+                <>
+                  {selectedAddress && (
+                    <section className="rounded-2xl border border-border bg-card p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {needsDelivery ? "Delivering to" : "Billing to"}
+                          </p>
+                          <p className="mt-1 font-semibold text-foreground">
+                            {selectedAddress.full_name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedAddress.city}, {selectedAddress.state} —{" "}
+                            {selectedAddress.pincode}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => goToStep("address")}
+                          className="shrink-0 rounded-lg px-2 py-1 text-sm font-semibold text-primary transition hover:bg-primary/10"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    </section>
+                  )}
+
+                  <PaymentSection totals={totals} needsDelivery={needsDelivery} />
+
+                  <div className="space-y-5 pt-4">
+                    <SlideToPay
+                      amount={totals.total}
+                      onComplete={handlePay}
+                      loading={paying}
+                      disabled={!addressReady || items.length === 0}
+                      disabledReason="Complete the steps above"
+                    />
+                    <div className="flex justify-center">
+                      <SecondaryButton onClick={() => goToStep("address")} disabled={paying}>
+                        Back
+                      </SecondaryButton>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </main>
     </div>
+  );
+}
+
+// ─── Footer & buttons ────────────────────────────────────────────────────────
+
+function StepFooter({
+  total,
+  totalLabel,
+  children,
+}: {
+  total: number;
+  totalLabel: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {totalLabel}
+        </p>
+        <p className="font-display text-2xl font-bold text-foreground">{formatPrice(total)}</p>
+      </div>
+      <div className="flex items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+function PrimaryButton({
+  onClick,
+  children,
+  loading,
+  disabled,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+  loading?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading || disabled}
+      className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50 sm:flex-none"
+    >
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      {children}
+      {!loading && <ArrowRight className="h-4 w-4" />}
+    </button>
+  );
+}
+
+function SecondaryButton({
+  onClick,
+  children,
+  disabled,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-3 text-sm font-semibold text-foreground transition hover:bg-secondary disabled:opacity-50"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      {children}
+    </button>
   );
 }

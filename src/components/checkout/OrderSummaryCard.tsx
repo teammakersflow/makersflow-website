@@ -1,16 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  Check,
-  GraduationCap,
-  Loader2,
-  Minus,
-  Package,
-  Plus,
-  Trash2,
-  Truck,
-  X,
-} from "lucide-react";
+import { Check, GraduationCap, Loader2, Minus, Package, Plus, Trash2, X } from "lucide-react";
 import type { CartItem } from "@/lib/cart";
 import type { Totals } from "@/lib/checkout-totals";
 import type { ShippingQuote } from "@/lib/shipping";
@@ -33,7 +23,7 @@ export function OrderSummaryCard({
   quote,
   quoteLoading,
   needsDelivery,
-  freeShippingThreshold,
+  deliveryPending,
   promo,
   onApplyPromo,
   onRemovePromo,
@@ -46,7 +36,8 @@ export function OrderSummaryCard({
   quote: ShippingQuote | null;
   quoteLoading: boolean;
   needsDelivery: boolean;
-  freeShippingThreshold: number;
+  /** True until a destination PIN code is known — no fee is charged yet. */
+  deliveryPending?: boolean;
   promo: PromoState;
   onApplyPromo: (code: string) => void;
   onRemovePromo: () => void;
@@ -59,6 +50,7 @@ export function OrderSummaryCard({
   const shippingLabel = () => {
     if (!needsDelivery) return "No delivery needed";
     if (quoteLoading) return "Calculating…";
+    if (deliveryPending) return "Delivery";
     if (quote?.courier) return `via ${quote.courier}`;
     return "Delivery";
   };
@@ -186,24 +178,20 @@ export function OrderSummaryCard({
           <Row
             label={shippingLabel()}
             value={
-              quoteLoading && needsDelivery
-                ? "…"
+              needsDelivery && deliveryPending
+                ? "Calculated at next step"
                 : totals.shippingFee === 0
                   ? "Free"
                   : `+${formatPrice(totals.shippingFee)}`
             }
-            tone={totals.shippingFee === 0 && needsDelivery ? "positive" : "default"}
+            tone={
+              totals.shippingFee === 0 && needsDelivery && !deliveryPending ? "positive" : "default"
+            }
           />
           {needsDelivery && !quoteLoading && quote?.etdDays && (
             <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
               <Check className="h-3 w-3" />
               Est. delivery: {quote.etdDays} {quote.etdDays === 1 ? "day" : "days"}
-            </p>
-          )}
-          {needsDelivery && totals.shippingFee > 0 && freeShippingThreshold > totals.subtotal && (
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-accent">
-              <Truck className="h-3 w-3" />
-              Add {formatPrice(freeShippingThreshold - totals.subtotal)} more for free delivery
             </p>
           )}
         </div>

@@ -153,7 +153,7 @@ export async function fetchShiprocketRate(params: {
       return null;
     }
 
-    const rate = data as ShiprocketRate;
+    const rate = normalizeRate(data);
     rateCache.set(cacheKey, rate);
     return rate;
   } catch (err) {
@@ -161,6 +161,49 @@ export async function fetchShiprocketRate(params: {
     rateCache.set(cacheKey, null);
     return null;
   }
+}
+
+/**
+ * The edge function is shared with the mobile app and has gone through a few
+ * shapes — courier has appeared as `courier`, `courier_name` and `courierName`,
+ * and the ETA as `etd`, `estimated_delivery_days` or `delivery_days`. Accept
+ * all of them rather than silently dropping the courier name from the UI.
+ */
+function normalizeRate(data: unknown): ShiprocketRate {
+  const row = (data ?? {}) as Record<string, unknown>;
+  const nested = (row.data ?? row.rate ?? {}) as Record<string, unknown>;
+
+  const pick = (...keys: string[]): unknown => {
+    for (const key of keys) {
+      if (row[key] !== undefined && row[key] !== null && row[key] !== "") return row[key];
+      if (nested[key] !== undefined && nested[key] !== null && nested[key] !== "")
+        return nested[key];
+    }
+    return undefined;
+  };
+
+  const feeRaw = pick("fee", "rate", "shipping_fee", "shippingFee", "freight_charge", "amount");
+  const courierRaw = pick("courier", "courier_name", "courierName", "carrier", "courier_company");
+  const etdRaw = pick(
+    "etd",
+    "estimated_delivery_days",
+    "estimatedDeliveryDays",
+    "delivery_days",
+    "etd_days",
+    "eta",
+  );
+
+  if (import.meta.env.DEV) {
+    console.info("[shipping] rate response:", data);
+  }
+
+  return {
+    success: true,
+    fee: feeRaw === undefined ? null : Number(feeRaw),
+    courier: courierRaw === undefined ? null : String(courierRaw),
+    etd: etdRaw === undefined ? null : String(etdRaw),
+    source: "shiprocket",
+  };
 }
 
 /**

@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { CartItem } from "@/lib/cart";
-import type { ShippingAddress } from "@/components/checkout/CheckoutComponents";
+import type { ShippingAddress } from "@/lib/addresses";
 
 type RazorpayWindow = typeof window & {
   Razorpay?: new (opts: Record<string, unknown>) => { open: () => void };
@@ -28,9 +28,15 @@ export async function runRazorpayCheckout(opts: {
   couponId?: string;
   discountAmount?: number;
   taxAmount?: number;
+  /** Delivery charge already shown to the customer. */
+  shippingFee?: number;
+  /** Courier that quoted the fee, for the order record. */
+  courier?: string | null;
   totalAmount?: number;
   userId?: string;
-  onSuccess: (orderId: string) => Promise<void> | void;
+  /** Called when the server's amount differs from what was on screen. */
+  onAmountAdjusted?: (serverAmountInRupees: number) => void;
+  onSuccess: (razorpayOrderId: string) => Promise<void> | void;
 }) {
   const ok = await loadRazorpayScript();
   if (!ok) throw new Error("Could not load Razorpay. Check your connection.");
@@ -46,13 +52,28 @@ export async function runRazorpayCheckout(opts: {
           price: i.price,
         })),
         total_amount: opts.totalAmount,
+        // Shipping is priced on the client from the selected address, so send
+        // the resolved figure rather than letting the server guess a flat fee.
         include_shipping: true,
+        shipping_fee: opts.shippingFee ?? 0,
+        shipping_address: opts.shipping,
+        shipping_courier: opts.courier ?? null,
+        tax_amount: opts.taxAmount ?? 0,
+        discount_amount: opts.discountAmount ?? 0,
+        coupon_code: opts.couponCode ?? null,
+        coupon_id: opts.couponId ?? null,
         currency: "INR",
         receipt: `web_${Date.now()}`,
-        notes: { source: "web", items: opts.items.length },
+        notes: {
+          source: "web",
+          items: opts.items.length,
+          pincode: opts.shipping.pincode,
+          courier: opts.courier ?? "",
+        },
       },
     },
   );
+
   if (orderErr || !orderData)
     throw new Error(orderErr?.message ?? "Could not create payment order");
 
@@ -64,12 +85,25 @@ export async function runRazorpayCheckout(opts: {
     amount?: number;
     currency?: string;
   };
+
   const razorpayOrderId = order.id ?? order.order_id;
   const keyId =
     order.key ?? order.key_id ?? (import.meta.env.VITE_RAZORPAY_KEY_ID as string | undefined);
+
   if (!razorpayOrderId) throw new Error("Payment order missing id");
   if (!keyId) throw new Error("Missing Razorpay key");
   if (!order.amount) throw new Error("Payment order missing amount");
+
+  // The server decides the real amount. If it disagrees with the total we
+  // displayed, say so rather than silently charging a different number.
+  const serverRupees = Math.round(order.amount / 100);
+  if (opts.totalAmount != null && Math.abs(serverRupees - opts.totalAmount) > 1) {
+    console.warn(
+      `[razorpay] Amount mismatch — screen ₹${opts.totalAmount}, server ₹${serverRupees}. ` +
+        "Check that create-razorpay-order honours shipping_fee.",
+    );
+    opts.onAmountAdjusted?.(serverRupees);
+  }
 
   await new Promise<void>((resolve, reject) => {
     const rzp = new (window as RazorpayWindow).Razorpay!({
@@ -80,6 +114,7 @@ export async function runRazorpayCheckout(opts: {
       name: "MakersFlow",
       description: `${opts.items.length} item(s)`,
       prefill: { name: opts.userName, email: opts.userEmail, contact: opts.userPhone },
+      notes: { address: `${opts.shipping.city}, ${opts.shipping.state} ${opts.shipping.pincode}` },
       theme: { color: "#4F46E5" },
       handler: async (resp: {
         razorpay_payment_id: string;
@@ -100,13 +135,17 @@ export async function runRazorpayCheckout(opts: {
                 coupon_id: opts.couponId,
                 discount_amount: opts.discountAmount ?? 0,
                 tax_amount: opts.taxAmount ?? 0,
+                shipping_fee: opts.shippingFee ?? 0,
+                shipping_address: opts.shipping,
               },
             },
           );
+
           if (verifyErr) throw new Error(verifyErr.message);
           const v = verify as { verified?: boolean; success?: boolean } | null;
           if (v && (v.verified === false || v.success === false))
             throw new Error("Payment verification failed");
+
           await opts.onSuccess(resp.razorpay_order_id);
           resolve();
         } catch (err) {

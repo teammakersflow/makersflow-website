@@ -30,6 +30,13 @@ type CartCtx = {
   setQty: (id: string, qty: number) => void;
   clear: () => void;
   updateGstRates: (map: Map<string, number>) => void;
+  /**
+   * Overwrite live fields (price, GST, type, title, image) from the database.
+   * A cart persists in localStorage indefinitely, so a basket filled weeks ago
+   * can hold a stale price or a wrong `is_course` flag — which would misprice
+   * the order and skip delivery. Checkout calls this on open to re-sync.
+   */
+  syncItems: (map: Map<string, Partial<CartItem>>) => void;
   /** target DOMRect for fly-to-cart animations */
   cartIconRef: React.MutableRefObject<HTMLElement | null>;
   bump: number;
@@ -108,6 +115,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
             const key = item.is_course ? (item.course_id ?? item.id) : item.id;
             const freshRate = map.get(key);
             return freshRate !== undefined ? { ...item, gst_rate: freshRate } : item;
+          }),
+        ),
+      // Re-sync any subset of fields from the DB, keyed by cart item id.
+      syncItems: (map: Map<string, Partial<CartItem>>) =>
+        setItems((c) =>
+          c.map((item) => {
+            const patch = map.get(item.id);
+            return patch ? { ...item, ...patch } : item;
           }),
         ),
     };

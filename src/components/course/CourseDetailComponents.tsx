@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, Users, Clock, BarChart3, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -405,6 +405,7 @@ export function ReviewSubmissionForm({
   enrolled: boolean;
   onSubmitted: () => void;
 }) {
+  const qc = useQueryClient();
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -435,6 +436,9 @@ export function ReviewSubmissionForm({
     if (res.ok) {
       toast.success("Review submitted! Thank you for your feedback. ⭐");
       setComment("");
+      qc.invalidateQueries({ queryKey: ["course", courseId] });
+      qc.invalidateQueries({ queryKey: ["course", courseId, "reviews"] });
+      qc.invalidateQueries({ queryKey: ["explore", "courses"] });
       onSubmitted();
     } else {
       toast.error(res.error ?? "Failed to submit review");

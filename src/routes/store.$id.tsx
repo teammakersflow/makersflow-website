@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Check, ShoppingCart, Star, Zap, ShieldCheck, Truck } from "lucide-react";
 import { toast } from "sonner";
@@ -323,6 +323,7 @@ function ProductDetailPage() {
 
 function ProductReviewsSection({ productId }: { productId: string }) {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -344,7 +345,9 @@ function ProductReviewsSection({ productId }: { productId: string }) {
     if (res.ok) {
       toast.success("Review submitted! Thank you for your feedback. ⭐");
       setComment("");
-      reviewsQ.refetch();
+      qc.invalidateQueries({ queryKey: ["product-reviews", productId] });
+      qc.invalidateQueries({ queryKey: ["store", "product", productId] });
+      qc.invalidateQueries({ queryKey: ["store", "products"] });
     } else {
       toast.error(res.error ?? "Could not submit review");
     }

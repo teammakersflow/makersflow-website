@@ -43,13 +43,15 @@ function StorePage() {
   const { user, loading } = useRequireAuth();
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
-  const [priceFilter, setPriceFilter] = useState<"all" | "under500" | "500to1000" | "above1000">(
+  const [priceFilter, setPriceFilter] = useState<"all" | "under1000" | "1000to2000" | "above2000">(
     "all",
   );
+  const [sortOrder, setSortOrder] = useState<"default" | "price-asc" | "price-desc" | "rating">("default");
 
   const productsQ = useQuery({
     queryKey: ["store", "products"],
     queryFn: fetchProducts,
+    staleTime: 5 * 60 * 1000,
   });
 
   const categories = useMemo(() => getProductCategories(productsQ.data ?? []), [productsQ.data]);
@@ -57,18 +59,29 @@ function StorePage() {
   const filtered = useMemo(() => {
     const list = productsQ.data ?? [];
     const q = search.trim().toLowerCase();
-    return list.filter((p) => {
+    const result = list.filter((p) => {
       const matchCat = category === "All" || p.category === category;
       const matchQ =
         !q || p.title.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q);
       const matchPrice =
         priceFilter === "all" ||
-        (priceFilter === "under500" && p.price < 500) ||
-        (priceFilter === "500to1000" && p.price >= 500 && p.price <= 1000) ||
-        (priceFilter === "above1000" && p.price > 1000);
+        (priceFilter === "under1000" && p.price < 1000) ||
+        (priceFilter === "1000to2000" && p.price >= 1000 && p.price <= 2000) ||
+        (priceFilter === "above2000" && p.price > 2000);
       return matchCat && matchQ && matchPrice;
     });
-  }, [productsQ.data, category, search, priceFilter]);
+
+    if (sortOrder === "price-asc") {
+      return [...result].sort((a, b) => a.price - b.price);
+    }
+    if (sortOrder === "price-desc") {
+      return [...result].sort((a, b) => b.price - a.price);
+    }
+    if (sortOrder === "rating") {
+      return [...result].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+    }
+    return result;
+  }, [productsQ.data, category, search, priceFilter, sortOrder]);
 
   if (loading || !user) return null;
 
@@ -165,9 +178,19 @@ function StorePage() {
                 className="rounded-xl border border-border bg-secondary px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
               >
                 <option value="all">All prices</option>
-                <option value="under500">Under ₹500</option>
-                <option value="500to1000">₹500 – ₹1000</option>
-                <option value="above1000">Above ₹1000</option>
+                <option value="under1000">Under ₹1,000</option>
+                <option value="1000to2000">₹1,000 – ₹2,000</option>
+                <option value="above2000">Above ₹2,000</option>
+              </select>
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+                className="rounded-xl border border-border bg-secondary px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+              >
+                <option value="default">Sort by: Featured</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+                <option value="rating">Top Rated</option>
               </select>
             </div>
           </div>
@@ -197,11 +220,11 @@ function StorePage() {
                   onClick={() => setPriceFilter("all")}
                   className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-medium hover:bg-primary/20 transition"
                 >
-                  {priceFilter === "under500"
-                    ? "Under ₹500"
-                    : priceFilter === "500to1000"
-                      ? "₹500–₹1000"
-                      : "Above ₹1000"}{" "}
+                  {priceFilter === "under1000"
+                    ? "Under ₹1,000"
+                    : priceFilter === "1000to2000"
+                      ? "₹1,000–₹2,000"
+                      : "Above ₹2,000"}{" "}
                   <X className="h-3 w-3" />
                 </button>
               )}

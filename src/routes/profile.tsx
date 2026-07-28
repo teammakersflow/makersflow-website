@@ -128,6 +128,7 @@ function ProfilePage() {
     id: user.id,
     full_name: (user.user_metadata?.full_name as string) ?? null,
     email: user.email ?? null,
+    phone: (user.user_metadata?.phone as string) ?? null,
     avatar_url: (user.user_metadata?.avatar_url as string) ?? null,
     grade: null,
     school: null,

@@ -219,11 +219,20 @@ function StatCard({
 }
 
 export function StatsGrid({ overview }: { overview: ProgressOverview }) {
+  const isMins = overview.time_unit === "m";
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {STAT_DEFS.map((def, i) => (
-        <StatCard key={def.key} def={def} value={overview[def.key]} delay={i * 0.07} />
-      ))}
+      {STAT_DEFS.map((def, i) => {
+        const isTime = def.key === "total_hours";
+        const modifiedDef = isTime
+          ? {
+              ...def,
+              label: isMins ? "Minutes learned" : "Hours learned",
+              suffix: overview.time_unit ?? "h",
+            }
+          : def;
+        return <StatCard key={def.key} def={modifiedDef} value={overview[def.key]} delay={i * 0.07} />;
+      })}
     </div>
   );
 }
@@ -656,6 +665,7 @@ export function BadgesGrid({
   overview: ProgressOverview;
   completedCourses: number;
 }) {
+  const actualHours = overview.raw_hours ?? (overview.total_secs ? overview.total_secs / 3600 : 0);
   const badges: BadgeDef[] = [
     {
       id: "first-steps",
@@ -664,7 +674,7 @@ export function BadgesGrid({
       emoji: "🚀",
       icon: Sparkles,
       gradient: "from-[#6C63FF] to-[#8B83FF]",
-      unlocked: overview.total_hours > 0 || overview.current_streak > 0,
+      unlocked: (overview.total_secs ?? 0) > 0 || overview.current_streak > 0,
     },
     {
       id: "streak-3",
@@ -718,7 +728,7 @@ export function BadgesGrid({
       emoji: "⏱",
       icon: Clock,
       gradient: "from-[#FF6B35] to-[#8B5CF6]",
-      unlocked: overview.total_hours >= 10,
+      unlocked: actualHours >= 10,
     },
     {
       id: "quiz-master",

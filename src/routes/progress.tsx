@@ -41,11 +41,13 @@ function ProgressPage() {
     queryKey: ["progress-overview", user?.id],
     queryFn: () => fetchProgressOverview(user!.id),
     enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
   });
   const coursesQ = useQuery({
-    queryKey: ["my-learning", user?.id],
+    queryKey: ["enrolled-courses", user?.id],
     queryFn: () => fetchEnrolledCourses(user!.id),
     enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
   });
 
   const overview = overviewQ.data;

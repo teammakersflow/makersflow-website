@@ -5,6 +5,10 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    server: {
+      port: 8081,
+      host: true,
+    },
     resolve: {
       tsconfigPaths: true,
     },

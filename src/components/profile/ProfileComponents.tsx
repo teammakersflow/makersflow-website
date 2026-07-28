@@ -19,6 +19,7 @@ import {
   BookOpen,
   GraduationCap,
   School,
+  Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AvatarUpload } from "@/components/profile/AvatarUpload";
@@ -27,6 +28,7 @@ import { exportUserData } from "@/lib/user-data-export";
 import { type Profile } from "@/lib/dashboard-data";
 import { changePassword, updateProfile } from "@/lib/profile-data";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 import { DeleteAccountModal } from "@/components/profile/DeleteAccountModal";
 
 // ─── Field ────────────────────────────────────────────────────────────────────
@@ -252,6 +254,7 @@ export function AccountTab({
   const [form, setForm] = useState({
     full_name: profile.full_name ?? "",
     email: profile.email ?? "",
+    phone: profile.phone ?? "",
     grade: profile.grade ?? "",
     school: profile.school ?? "",
     avatar_url: profile.avatar_url ?? "",
@@ -268,6 +271,7 @@ export function AccountTab({
     setSaving(true);
     const res = await updateProfile(profile.id, {
       full_name: form.full_name.trim() || null,
+      phone: form.phone.trim() || null,
       grade: form.grade.trim() || null,
       school: form.school.trim() || null,
     });
@@ -314,6 +318,15 @@ export function AccountTab({
             hint={
               isGoogle ? "Managed by your Google account" : "Email changes happen via verification"
             }
+          />
+          <Field
+            label="Mobile number (+91)"
+            icon={Phone}
+            value={form.phone}
+            onChange={(v) => set("phone", v)}
+            type="tel"
+            placeholder="10-digit mobile number"
+            hint="Used for SMS order tracking and login verification"
           />
           <Field
             label="Grade"
@@ -548,7 +561,21 @@ export function SecurityTab({ isGoogle }: { isGoogle: boolean }) {
               <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> Connected
             </span>
           ) : (
-            <span className="text-xs text-muted-foreground">Not connected</span>
+            <button
+              type="button"
+              onClick={async () => {
+                const { error } = await supabase.auth.signInWithOAuth({
+                  provider: "google",
+                  options: { redirectTo: `${window.location.origin}/profile` },
+                });
+                if (error) {
+                  toast.error(error.message || "Failed to connect Google account");
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground hover:bg-secondary hover:border-primary/30 transition-all"
+            >
+              Connect Google
+            </button>
           )}
         </div>
       </SectionCard>
@@ -562,9 +589,11 @@ export function SecurityTab({ isGoogle }: { isGoogle: boolean }) {
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
           onClick={async () => {
-            await signOut();
-            toast.success("Signed out");
-            window.location.href = "/";
+            await signOut("global");
+            localStorage.clear();
+            sessionStorage.clear();
+            toast.success("Signed out of all sessions");
+            window.location.replace("/login");
           }}
           className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-secondary hover:border-primary/30 transition-all"
         >
@@ -652,9 +681,9 @@ export function PrivacyTab({ userId }: { userId?: string }) {
           {/* Export */}
           <div className="flex flex-col gap-3 rounded-xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="text-sm font-bold text-foreground">Download My Data (DPDP Act Export)</div>
+              <div className="text-sm font-bold text-foreground">Download Personal Data Summary</div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                Download a machine-readable JSON archive of your account profile, learning history, quiz scores, and orders.
+                Download a complete archive of your account profile, learning history, quiz scores, and order receipts.
               </div>
             </div>
             <motion.button
@@ -670,7 +699,7 @@ export function PrivacyTab({ userId }: { userId?: string }) {
                 </>
               ) : (
                 <>
-                  <UserIcon className="h-3.5 w-3.5" aria-hidden /> Download JSON Archive
+                  <UserIcon className="h-3.5 w-3.5" aria-hidden /> Download Data Archive
                 </>
               )}
             </motion.button>

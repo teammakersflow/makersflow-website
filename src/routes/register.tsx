@@ -111,7 +111,14 @@ function RegisterPage() {
     if (error) {
       console.error("[register] Sign up failed:", error);
       setLoading(false);
-      setFormError("Could not create account. If you already registered, please sign in.");
+      setFormError(error.message || "Could not create account. Please try again.");
+      return;
+    }
+
+    // Check if Supabase returned a user with an empty identities array (indicates user already exists when email confirmation is enabled)
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setLoading(false);
+      setFormError("An account with this email address already exists. Please sign in instead.");
       return;
     }
 

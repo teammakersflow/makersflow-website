@@ -138,6 +138,14 @@ export function VideoPlayer({
     else v.addEventListener("loadedmetadata", apply, { once: true });
   }, [initialTime]);
 
+  // Keep playback rate synchronized with video element
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) {
+      v.playbackRate = rate;
+    }
+  }, [rate, src, playing]);
+
   const emitTick = useCallback(
     (force = false) => {
       const v = videoRef.current;
@@ -318,7 +326,10 @@ export function VideoPlayer({
           setShowControls(true); // Show controls instantly!
           emitTick(true);
         }}
-        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
+        onLoadedMetadata={(e) => {
+          setDuration(e.currentTarget.duration || 0);
+          e.currentTarget.playbackRate = rate;
+        }}
         onTimeUpdate={(e) => {
           setCurrent(e.currentTarget.currentTime);
           emitTick();

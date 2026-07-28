@@ -26,7 +26,7 @@ export async function changePassword(
   const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) {
     console.error("[changePassword] Auth error:", error);
-    return { ok: false, error: "Could not update password. Please try again." };
+    return { ok: false, error: error.message || "Could not update password. Please try again." };
   }
   return { ok: true };
 }

@@ -43,6 +43,7 @@ export function useEnrolledCourses(userId: string | undefined) {
     queryKey: ["enrolled-courses", userId],
     queryFn: () => fetchEnrolledCourses(userId!),
     enabled: Boolean(userId),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -51,6 +52,7 @@ export function useProgressOverview(userId: string | undefined) {
     queryKey: ["progress-overview", userId],
     queryFn: () => fetchProgressOverview(userId!),
     enabled: Boolean(userId),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

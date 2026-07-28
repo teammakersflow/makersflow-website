@@ -35,8 +35,8 @@ export async function signInWithGoogle(redirect?: string) {
   });
 }
 
-export async function signOut() {
-  return supabase.auth.signOut();
+export async function signOut(scope: "global" | "local" | "others" = "global") {
+  return supabase.auth.signOut({ scope });
 }
 
 export async function getCurrentUser(): Promise<User | null> {

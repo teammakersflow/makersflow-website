@@ -147,8 +147,12 @@ export async function fetchProducts(): Promise<Product[]> {
       .from("products")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error || !data) return [];
-    return (data as Record<string, unknown>[]).map(normalize);
+    if (error || !data || data.length === 0) return FALLBACK;
+    const normalized = (data as Record<string, unknown>[]).map(normalize);
+    // Deduplicate by ID to guarantee zero duplicates in UI
+    const uniqueMap = new Map<string, Product>();
+    normalized.forEach((p) => uniqueMap.set(p.id, p));
+    return Array.from(uniqueMap.values());
   } catch (err) {
     console.warn(`[makersflow] fetchProducts products threw, using fallback:`, err);
     return FALLBACK;
@@ -224,7 +228,7 @@ export async function submitProductReview(
 export function getProductCategories(items: Product[]): string[] {
   const set = new Set<string>();
   items.forEach((p) => p.category && set.add(p.category));
-  return ["All", ...Array.from(set)];
+  return Array.from(set);
 }
 
 export function formatPrice(n: number): string {

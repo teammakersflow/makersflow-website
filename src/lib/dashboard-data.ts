@@ -13,6 +13,7 @@ export type Profile = {
   id: string;
   full_name: string | null;
   email: string | null;
+  phone: string | null;
   avatar_url: string | null;
   grade: string | null;
   school: string | null;
@@ -24,6 +25,8 @@ export type DashboardStats = {
   completed: number;
   avgProgress: number;
   totalHours: number;
+  rawHours?: number;
+  totalSecs?: number;
   formattedTime?: string;
   timeUnit?: "h" | "m";
 };
@@ -67,7 +70,7 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
     async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id, full_name, email, avatar_url, grade, school, role")
+        .select("id, full_name, email, phone, avatar_url, grade, school, role")
         .eq("id", userId)
         .maybeSingle();
       return (data as Profile | null) ?? null;
@@ -127,9 +130,10 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
           : Math.round((totalSecs / 3600) * 10) / 10;
       const formattedTime = totalSecs < 3600 ? `${displayVal}m` : `${displayVal}h`;
       const totalHours = displayVal;
+      const rawHours = Math.round((totalSecs / 3600) * 10) / 10;
 
       if (enrRows.length === 0) {
-        return { enrolled: 0, completed: 0, avgProgress: 0, totalHours, formattedTime, timeUnit };
+        return { enrolled: 0, completed: 0, avgProgress: 0, totalHours, rawHours, totalSecs, formattedTime, timeUnit };
       }
 
       const rows = [];
@@ -181,12 +185,14 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
         completed,
         avgProgress: avg,
         totalHours,
+        rawHours,
+        totalSecs,
         formattedTime,
         timeUnit,
       };
       return statsResult;
     },
-    { enrolled: 0, completed: 0, avgProgress: 0, totalHours: 0, formattedTime: "0m", timeUnit: "m" },
+    { enrolled: 0, completed: 0, avgProgress: 0, totalHours: 0, rawHours: 0, totalSecs: 0, formattedTime: "0m", timeUnit: "m" },
     "fetchStats",
   );
 }
@@ -318,9 +324,10 @@ export async function fetchWeeklyActivity(userId: string): Promise<WeeklyPoint[]
 }
 
 export function fetchAchievements(stats: DashboardStats, streak: StreakInfo): Achievement[] {
-  const safeStats = stats ?? { enrolled: 0, completed: 0, avgProgress: 0, totalHours: 0 };
+  const safeStats = stats ?? { enrolled: 0, completed: 0, avgProgress: 0, totalHours: 0, rawHours: 0, totalSecs: 0 };
   const safeStreak = streak ?? { current_streak: 0, longest_streak: 0 };
   const maxStreak = Math.max(safeStreak.current_streak ?? 0, safeStreak.longest_streak ?? 0);
+  const actualHours = safeStats.rawHours ?? (safeStats.totalSecs ? safeStats.totalSecs / 3600 : 0);
 
   return [
     {
@@ -334,7 +341,7 @@ export function fetchAchievements(stats: DashboardStats, streak: StreakInfo): Ac
       id: "first_study",
       label: "First Lesson",
       icon: "💡",
-      unlocked: (safeStats.totalHours ?? 0) > 0 || (safeStats.completed ?? 0) >= 1,
+      unlocked: (safeStats.totalSecs ?? 0) > 0 || (safeStats.completed ?? 0) >= 1,
       description: "Completed your first study session",
     },
     {
@@ -362,7 +369,7 @@ export function fetchAchievements(stats: DashboardStats, streak: StreakInfo): Ac
       id: "hours_5",
       label: "Dedicated",
       icon: "⏱",
-      unlocked: (safeStats.totalHours ?? 0) >= 5,
+      unlocked: actualHours >= 5,
       description: "5+ hours of learning",
     },
   ];

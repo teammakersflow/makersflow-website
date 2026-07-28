@@ -34,7 +34,7 @@ export function CourseTabs({
             {isActive && (
               <motion.span
                 layoutId="course-tab-underline"
-                className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-primary to-accent"
+                className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-primary to-primary-light"
                 transition={{ type: "spring", stiffness: 420, damping: 32 }}
               />
             )}

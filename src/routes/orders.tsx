@@ -577,8 +577,14 @@ function OrdersPage() {
 
       setCourses(Array.from(courseMap.values()));
 
-      // Payments: derive from orders if payments table is empty, failing-closed to "pending" if status is missing
+      // Payments: derive from orders if payments table is empty, or merge coupon_code from matching order
       const paymentList = (p.data as Payment[]) ?? [];
+      const orderMapByRazorpay = new Map<string, Order>();
+      orderList.forEach((ord: any) => {
+        if (ord.razorpay_order_id) orderMapByRazorpay.set(ord.razorpay_order_id, ord);
+        if (ord.id) orderMapByRazorpay.set(ord.id, ord);
+      });
+
       if (paymentList.length === 0 && orderList.length > 0) {
         const derivedPayments: Payment[] = orderList.map((ord: any) => ({
           id: ord.id,
@@ -594,7 +600,18 @@ function OrdersPage() {
         }));
         setPayments(derivedPayments);
       } else {
-        setPayments(paymentList);
+        const mergedPayments = paymentList.map((pay: any) => {
+          const matchingOrder =
+            orderMapByRazorpay.get(pay.order_id) ||
+            orderMapByRazorpay.get(pay.razorpay_payment_id) ||
+            orderMapByRazorpay.get(pay.id);
+          return {
+            ...pay,
+            coupon_code: pay.coupon_code || matchingOrder?.coupon_code || null,
+            discount_amount: pay.discount_amount || matchingOrder?.discount_amount || 0,
+          };
+        });
+        setPayments(mergedPayments);
       }
 
       setRefunds((ref.data as Refund[]) ?? []);

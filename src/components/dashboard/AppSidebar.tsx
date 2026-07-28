@@ -17,24 +17,13 @@ import {
   PanelLeft,
   Heart,
 } from "lucide-react";
-import { Logo } from "@/components/brand/Logo";
 import { signOut } from "@/integrations/supabase/auth";
 import { cn } from "@/lib/utils";
 import { hasUnreadNotifications } from "@/lib/notifications";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import {
-  SidebarHeader,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarFooter,
-} from "@/components/ui/sidebar";
+import { Logo } from "@/components/brand/Logo";
 
-
-const NAV = [
+const PRIMARY_NAV = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
   { label: "Explore", to: "/explore", icon: Compass },
   { label: "My Learning", to: "/my-learning", icon: GraduationCap },
@@ -42,6 +31,11 @@ const NAV = [
   { label: "Saved Items", to: "/favorites", icon: Heart },
   { label: "Store", to: "/store", icon: ShoppingBag },
   { label: "My Orders", to: "/orders", icon: Receipt },
+] as const;
+
+const SECONDARY_NAV = [
+  { label: "Notifications", to: "/notifications", icon: Bell },
+  { label: "News & Updates", to: "/news", icon: Newspaper },
   { label: "Profile", to: "/profile", icon: User },
 ] as const;
 
@@ -75,7 +69,7 @@ export function AppSidebar() {
     <>
       {/* Mobile top bar */}
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur md:hidden">
-        <Logo />
+        <Logo size="sm" />
         <button
           onClick={() => setMobileOpen(true)}
           className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-card text-foreground"
@@ -85,129 +79,123 @@ export function AppSidebar() {
         </button>
       </header>
 
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar - Claude Aesthetic (Minimal, Flat, Generous Spacing) */}
       <aside
         className={cn(
           "sticky top-0 z-30 hidden h-screen shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground transition-[width] duration-300 md:flex",
-          collapsed ? "w-[76px]" : "w-[260px]",
+          collapsed ? "w-[64px]" : "w-[240px]",
         )}
       >
-        <SidebarHeader className="flex h-16 items-center border-b border-border px-4 flex-row justify-between">
-          {!collapsed && <Logo />}
+        {/* Header with inline horizontal toggle button */}
+        <div className="flex h-14 items-center justify-between border-b border-border/60 px-4 shrink-0">
+          {!collapsed && <Logo size="sm" />}
           <button
             onClick={() => setCollapsed((c) => !c)}
             aria-label="Toggle sidebar"
-            className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
           >
             <PanelLeft className="h-4 w-4" />
           </button>
-        </SidebarHeader>
+        </div>
 
-        <SidebarContent className="p-2 flex-1 overflow-y-auto">
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu className="space-y-1">
-                {NAV.map((item) => {
-                  const active = pathname === item.to;
-                  const Icon = item.icon;
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={active}
-                        tooltip={collapsed ? item.label : undefined}
-                        className={cn(
-                          "rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                          active
-                            ? "bg-gradient-to-r from-primary to-primary-light text-primary-foreground shadow-[var(--shadow-glow-primary)]"
-                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                          collapsed && "justify-center",
+        {/* Content Navigation List */}
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+          {/* Main Navigation Group */}
+          <div>
+            {!collapsed && (
+              <div className="px-2 mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground/60 uppercase">
+                Menu
+              </div>
+            )}
+            <ul className="space-y-1">
+              {PRIMARY_NAV.map((item) => {
+                const active = pathname === item.to;
+                const Icon = item.icon;
+                return (
+                  <li key={item.to}>
+                    <Link
+                      to={item.to}
+                      title={collapsed ? item.label : undefined}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                        active
+                          ? "font-semibold text-foreground bg-accent/50"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary/40",
+                        collapsed && "justify-center px-0",
+                      )}
+                    >
+                      <Icon className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Secondary Navigation Group */}
+          <div>
+            {!collapsed && (
+              <div className="px-2 mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground/60 uppercase">
+                Account & Updates
+              </div>
+            )}
+            <ul className="space-y-1">
+              {SECONDARY_NAV.map((item) => {
+                const active = pathname === item.to;
+                const Icon = item.icon;
+                const isNotif = item.to === "/notifications";
+                return (
+                  <li key={item.to}>
+                    <Link
+                      to={item.to}
+                      title={collapsed ? item.label : undefined}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                        active
+                          ? "font-semibold text-foreground bg-accent/50"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary/40",
+                        collapsed && "justify-center px-0",
+                      )}
+                    >
+                      <span className="relative shrink-0 flex items-center justify-center">
+                        <Icon className={cn("h-4 w-4", active ? "text-primary" : "text-muted-foreground")} />
+                        {isNotif && unread && (
+                          <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-destructive" />
                         )}
-                      >
-                        <Link to={item.to} className="flex items-center gap-3">
-                          <Icon className="h-[18px] w-[18px] shrink-0" />
-                          {!collapsed && <span>{item.label}</span>}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
+                      </span>
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
 
-        <SidebarFooter className="border-t border-border p-3 flex flex-col gap-1">
-          <SidebarMenu className="space-y-1">
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === "/notifications"}
-                tooltip={collapsed ? "Notifications" : undefined}
-                className={cn(
-                  "rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                  pathname === "/notifications"
-                    ? "bg-gradient-to-r from-primary to-primary-light text-primary-foreground shadow-[var(--shadow-glow-primary)]"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                  collapsed && "justify-center",
-                )}
-              >
-                <Link to="/notifications" className="flex items-center gap-3">
-                  <span className="relative shrink-0">
-                    <Bell className="h-[18px] w-[18px]" />
-                    {unread && (
-                      <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar" />
-                    )}
-                  </span>
-                  {!collapsed && <span>Notifications</span>}
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === "/news"}
-                tooltip={collapsed ? "News & Updates" : undefined}
-                className={cn(
-                  "rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                  pathname === "/news"
-                    ? "bg-gradient-to-r from-primary to-primary-light text-primary-foreground shadow-[var(--shadow-glow-primary)]"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                  collapsed && "justify-center",
-                )}
-              >
-                <Link to="/news" className="flex items-center gap-3">
-                  <Newspaper className="h-[18px] w-[18px] shrink-0" />
-                  {!collapsed && <span>News & Updates</span>}
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-
+        {/* Footer section with Theme & Logout */}
+        <div className="border-t border-border/60 p-3 flex flex-col gap-1 shrink-0">
           <div
             className={cn(
-              "flex items-center gap-2 px-1 py-1.5",
+              "flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground",
               collapsed ? "justify-center" : "justify-between",
             )}
           >
-            {!collapsed && (
-              <span className="text-xs font-semibold text-muted-foreground">Theme</span>
-            )}
+            {!collapsed && <span>Theme</span>}
             <ThemeToggle />
           </div>
 
           <button
             onClick={handleLogout}
             className={cn(
-              "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive",
-              collapsed && "justify-center",
+              "flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors",
+              collapsed && "justify-center px-0",
             )}
           >
-            <LogOut className="h-[18px] w-[18px] shrink-0" />
+            <LogOut className="h-4 w-4 shrink-0" />
             {!collapsed && <span>Logout</span>}
           </button>
-        </SidebarFooter>
+        </div>
       </aside>
 
       {/* Mobile drawer */}
@@ -229,7 +217,7 @@ export function AppSidebar() {
               className="fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r border-border bg-sidebar text-sidebar-foreground md:hidden"
             >
               <div className="flex h-14 items-center justify-between border-b border-border px-4">
-                <Logo />
+                <Logo size="sm" />
                 <button
                   onClick={() => setMobileOpen(false)}
                   className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-secondary"
@@ -238,69 +226,78 @@ export function AppSidebar() {
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto p-3">
-                <ul className="space-y-1">
-                  {NAV.map((item) => {
-                    const active = pathname === item.to;
-                    const Icon = item.icon;
-                    return (
-                      <li key={item.to}>
-                        <Link
-                          to={item.to}
-                          className={cn(
-                            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                            active
-                              ? "bg-gradient-to-r from-primary to-primary-light text-primary-foreground shadow-[var(--shadow-glow-primary)]"
-                              : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                          )}
-                        >
-                          <Icon className="h-[18px] w-[18px] shrink-0" />
-                          <span>{item.label}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
+              <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                <div>
+                  <div className="px-2 mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground/60 uppercase">
+                    Menu
+                  </div>
+                  <ul className="space-y-1">
+                    {PRIMARY_NAV.map((item) => {
+                      const active = pathname === item.to;
+                      const Icon = item.icon;
+                      return (
+                        <li key={item.to}>
+                          <Link
+                            to={item.to}
+                            className={cn(
+                              "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                              active
+                                ? "font-semibold text-foreground bg-accent/50"
+                                : "text-muted-foreground hover:text-foreground hover:bg-secondary/40",
+                            )}
+                          >
+                            <Icon className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+                            <span>{item.label}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+                <div>
+                  <div className="px-2 mb-2 text-[10px] font-semibold tracking-wider text-muted-foreground/60 uppercase">
+                    Account & Updates
+                  </div>
+                  <ul className="space-y-1">
+                    {SECONDARY_NAV.map((item) => {
+                      const active = pathname === item.to;
+                      const Icon = item.icon;
+                      const isNotif = item.to === "/notifications";
+                      return (
+                        <li key={item.to}>
+                          <Link
+                            to={item.to}
+                            className={cn(
+                              "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors",
+                              active
+                                ? "font-semibold text-foreground bg-accent/50"
+                                : "text-muted-foreground hover:text-foreground hover:bg-secondary/40",
+                            )}
+                          >
+                            <span className="relative shrink-0 flex items-center justify-center">
+                              <Icon className={cn("h-4 w-4", active ? "text-primary" : "text-muted-foreground")} />
+                              {isNotif && unread && (
+                                <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-destructive" />
+                              )}
+                            </span>
+                            <span>{item.label}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               </div>
               <div className="border-t border-border p-3 flex flex-col gap-1">
-                <Link
-                  to="/notifications"
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                    pathname === "/notifications"
-                      ? "bg-gradient-to-r from-primary to-primary-light text-primary-foreground shadow-[var(--shadow-glow-primary)]"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                  )}
-                >
-                  <span className="relative shrink-0">
-                    <Bell className="h-[18px] w-[18px]" />
-                    {unread && (
-                      <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-sidebar" />
-                    )}
-                  </span>
-                  <span>Notifications</span>
-                </Link>
-                <Link
-                  to="/news"
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                    pathname === "/news"
-                      ? "bg-gradient-to-r from-primary to-primary-light text-primary-foreground shadow-[var(--shadow-glow-primary)]"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                  )}
-                >
-                  <Newspaper className="h-[18px] w-[18px] shrink-0" />
-                  <span>News & Updates</span>
-                </Link>
-                <div className="flex items-center justify-between px-3 py-2">
-                  <span className="text-xs font-semibold text-muted-foreground">Theme</span>
+                <div className="flex items-center justify-between px-2 py-1.5 text-xs text-muted-foreground">
+                  <span>Theme</span>
                   <ThemeToggle />
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="h-4 w-4 shrink-0" />
                   <span>Logout</span>
                 </button>
               </div>
@@ -312,7 +309,7 @@ export function AppSidebar() {
       {/* Mobile bottom nav */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 z-30 mb-5 w-auto max-w-[95vw] md:hidden">
         <div className="flex items-center gap-1.5 bg-background/80 border border-border backdrop-blur-lg py-1 px-1.5 rounded-full shadow-lg">
-          {NAV.slice(0, 5).map((item) => {
+          {PRIMARY_NAV.slice(0, 5).map((item) => {
             const active = pathname === item.to;
             const Icon = item.icon;
             return (

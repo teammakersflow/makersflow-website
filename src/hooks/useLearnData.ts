@@ -19,6 +19,7 @@ export function useLesson(courseId: string, lessonId: string) {
     queryKey: ["lesson", courseId, lessonId],
     queryFn: () => fetchLesson(courseId, lessonId),
     enabled: Boolean(courseId && lessonId),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -27,6 +28,7 @@ export function useLessonResources(lessonId: string) {
     queryKey: ["lesson-resources", lessonId],
     queryFn: () => fetchLessonResources(lessonId),
     enabled: Boolean(lessonId),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -35,6 +37,7 @@ export function useCourseProgressMap(userId: string | undefined, courseId: strin
     queryKey: ["course-progress-map", userId, courseId],
     queryFn: () => fetchCourseProgressMap(userId!, courseId),
     enabled: Boolean(userId && courseId),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

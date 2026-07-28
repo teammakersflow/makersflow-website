@@ -482,8 +482,8 @@ export function VideoPlayer({
                   <Settings className="h-4 w-4 transition-transform duration-200 hover:rotate-45" />
                 </CtrlBtn>
                 {speedOpen && (
-                  <div className="absolute bottom-full right-0 mb-2 w-40 min-w-[160px] overflow-hidden rounded-xl border border-white/15 bg-black/95 py-1 backdrop-blur shadow-2xl z-30">
-                    <div className="border-b border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white/50 whitespace-nowrap">
+                  <div className="absolute bottom-full right-0 mb-2 w-48 min-w-[180px] overflow-hidden rounded-xl border border-white/15 bg-black/95 py-1 backdrop-blur shadow-2xl z-30">
+                    <div className="border-b border-white/10 px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white/60">
                       Playback Speed
                     </div>
                     {SPEEDS.map((s) => (

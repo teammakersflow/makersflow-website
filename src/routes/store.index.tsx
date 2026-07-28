@@ -175,7 +175,7 @@ function StorePage() {
               <select
                 value={priceFilter}
                 onChange={(e) => setPriceFilter(e.target.value as typeof priceFilter)}
-                className="rounded-xl border border-border bg-secondary px-3 py-1.5 text-sm font-medium text-foreground outline-none cursor-pointer focus:border-primary hover:border-primary/50 transition-colors"
+                className="appearance-none rounded-xl border border-border bg-secondary px-3.5 pr-8 py-1.5 text-sm font-medium text-foreground outline-none cursor-pointer focus:border-primary hover:border-primary/50 transition-colors bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23a3a3a3%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%3D%22%20stroke-linejoin%3D%22round%3D%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:1rem_1rem] bg-[right_0.5rem_center] bg-no-repeat"
               >
                 <option value="all">All prices</option>
                 <option value="under1000">Under ₹1,000</option>
@@ -185,7 +185,7 @@ function StorePage() {
               <select
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-                className="rounded-xl border border-border bg-secondary px-3 py-1.5 text-sm font-medium text-foreground outline-none cursor-pointer focus:border-primary hover:border-primary/50 transition-colors"
+                className="appearance-none rounded-xl border border-border bg-secondary px-3.5 pr-8 py-1.5 text-sm font-medium text-foreground outline-none cursor-pointer focus:border-primary hover:border-primary/50 transition-colors bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23a3a3a3%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%3D%22%20stroke-linejoin%3D%22round%3D%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:1rem_1rem] bg-[right_0.5rem_center] bg-no-repeat"
               >
                 <option value="default">Sort by: Featured</option>
                 <option value="price-asc">Price: Low to High</option>

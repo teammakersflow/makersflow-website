@@ -1,190 +1,300 @@
-import { useEffect, useRef } from "react";
+import { useRef, useEffect } from "react";
+import "./CursorGrid.css";
 
-interface CursorGridProps {
-  gridSize?: number;
+const FALLOFF_CURVES: Record<string, (t: number) => number> = {
+  linear: (t) => t,
+  smooth: (t) => t * t * (3 - 2 * t),
+  sharp: (t) => t * t * t,
+};
+
+const hexToRgb = (hex: string): [number, number, number] => {
+  const h = hex.replace("#", "");
+  const v = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const num = parseInt(v.slice(0, 6), 16);
+  return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+};
+
+export interface CursorGridProps {
+  cellSize?: number;
+  color?: string;
+  radius?: number;
+  falloff?: "linear" | "smooth" | "sharp";
+  holdTime?: number;
+  fadeDuration?: number;
+  lineWidth?: number;
+  maxOpacity?: number;
+  fillOpacity?: number;
+  gridOpacity?: number;
+  cellRadius?: number;
+  clickPulse?: boolean;
+  pulseSpeed?: number;
   className?: string;
+  gridSize?: number; // Backward compatibility
 }
 
-export function CursorGrid({ gridSize = 40, className = "" }: CursorGridProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function CursorGrid({
+  cellSize = 70,
+  color = "#3B82F6",
+  radius = 140,
+  falloff = "smooth",
+  holdTime = 400,
+  fadeDuration = 800,
+  lineWidth = 1.2,
+  maxOpacity = 1,
+  fillOpacity = 0,
+  gridOpacity = 0,
+  cellRadius = 0,
+  clickPulse = true,
+  pulseSpeed = 600,
+  className = "",
+  gridSize,
+}: CursorGridProps) {
+  const effectiveCellSize = gridSize ?? cellSize;
   const containerRef = useRef<HTMLDivElement>(null);
-  const mouseRef = useRef({ x: -9999, y: -9999, targetX: -9999, targetY: -9999, inside: false });
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const propsRef = useRef<Required<CursorGridProps>>({} as any);
+  const wakeRef = useRef<(() => void) | null>(null);
+
+  propsRef.current = {
+    cellSize: effectiveCellSize,
+    color,
+    radius,
+    falloff,
+    holdTime,
+    fadeDuration,
+    lineWidth,
+    maxOpacity,
+    fillOpacity,
+    gridOpacity,
+    cellRadius,
+    clickPulse,
+    pulseSpeed,
+    className,
+    gridSize: effectiveCellSize,
+  };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
     const container = containerRef.current;
-    if (!canvas || !container) return;
+    const canvas = canvasRef.current;
+    if (!container || !canvas) return;
 
-    const ctx = canvas.getContext("2d", { alpha: true });
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    let rafId: number;
-    let width = 0;
-    let height = 0;
+    let cols = 0;
+    let rows = 0;
+    let offX = 0;
+    let offY = 0;
+    let alphas = new Float32Array(0);
+    let touched = new Float64Array(0);
+    let w = 0;
+    let h = 0;
+    const pulses: Array<{ x: number; y: number; t0: number }> = [];
+    let raf = 0;
+    let running = false;
+    let lastFrame = 0;
 
-    const resize = () => {
-      const rect = container.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-
-      ctx.scale(dpr, dpr);
+    const rebuild = () => {
+      const p = propsRef.current;
+      w = container.offsetWidth;
+      h = container.offsetHeight;
+      canvas.width = Math.max(1, Math.round(w * dpr));
+      canvas.height = Math.max(1, Math.round(h * dpr));
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cols = Math.ceil(w / p.cellSize) + 1;
+      rows = Math.ceil(h / p.cellSize) + 1;
+      offX = (w - cols * p.cellSize) / 2;
+      offY = (h - rows * p.cellSize) / 2;
+      alphas = new Float32Array(cols * rows);
+      touched = new Float64Array(cols * rows);
     };
 
-    resize();
-    const resizeObs = new ResizeObserver(resize);
-    resizeObs.observe(container);
-
-    const onPointerMove = (e: PointerEvent) => {
-      const rect = container.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      if (x >= -50 && x <= rect.width + 50 && y >= -50 && y <= rect.height + 50) {
-        mouseRef.current.targetX = x;
-        mouseRef.current.targetY = y;
-        mouseRef.current.inside = true;
-      } else {
-        mouseRef.current.inside = false;
-      }
+    const cellCenter = (i: number): [number, number] => {
+      const p = propsRef.current;
+      const cx = offX + (i % cols) * p.cellSize + p.cellSize / 2;
+      const cy = offY + Math.floor(i / cols) * p.cellSize + p.cellSize / 2;
+      return [cx, cy];
     };
 
-    const onPointerLeave = () => {
-      mouseRef.current.inside = false;
-    };
-
-    window.addEventListener("pointermove", onPointerMove, { passive: true });
-    document.addEventListener("pointerleave", onPointerLeave);
-
-    const isDark = () => document.documentElement.classList.contains("dark");
-
-    const render = () => {
-      ctx.clearRect(0, 0, width, height);
-
-      const m = mouseRef.current;
-      // Smooth interpolation for fluid cursor movement
-      m.x += (m.targetX - m.x) * 0.15;
-      m.y += (m.targetY - m.y) * 0.15;
-
-      const dark = isDark();
-
-      // Base Grid Colors
-      const baseLineColor = dark ? "rgba(255, 255, 255, 0.07)" : "rgba(0, 0, 0, 0.06)";
-      const baseDotColor = dark ? "rgba(255, 255, 255, 0.18)" : "rgba(0, 0, 0, 0.15)";
-
-      const cols = Math.ceil(width / gridSize) + 1;
-      const rows = Math.ceil(height / gridSize) + 1;
-
-      // 1. Draw Base Grid Lines
-      ctx.strokeStyle = baseLineColor;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-
-      for (let c = 0; c <= cols; c++) {
-        const x = c * gridSize;
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-      }
-      for (let r = 0; r <= rows; r++) {
-        const y = r * gridSize;
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-      }
-      ctx.stroke();
-
-      // 2. Draw Base Intersection Crosses/Dots
-      ctx.fillStyle = baseDotColor;
-      for (let r = 0; r <= rows; r++) {
-        for (let c = 0; c <= cols; c++) {
-          const x = c * gridSize;
-          const y = r * gridSize;
-          ctx.beginPath();
-          ctx.arc(x, y, 1.2, 0, Math.PI * 2);
-          ctx.fill();
+    const energize = (x: number, y: number, boost?: number) => {
+      const p = propsRef.current;
+      const r = Math.max(p.radius, 1);
+      const ease = FALLOFF_CURVES[p.falloff] ?? FALLOFF_CURVES.linear;
+      const now = performance.now();
+      const minCol = Math.max(0, Math.floor((x - r - offX) / p.cellSize));
+      const maxCol = Math.min(cols - 1, Math.floor((x + r - offX) / p.cellSize));
+      const minRow = Math.max(0, Math.floor((y - r - offY) / p.cellSize));
+      const maxRow = Math.min(rows - 1, Math.floor((y + r - offY) / p.cellSize));
+      for (let cRow = minRow; cRow <= maxRow; cRow++) {
+        for (let cCol = minCol; cCol <= maxCol; cCol++) {
+          const i = cRow * cols + cCol;
+          const [cx, cy] = cellCenter(i);
+          const dist = Math.hypot(cx - x, cy - y);
+          if (dist > r) continue;
+          const level = ease(1 - dist / r) * p.maxOpacity * (boost ?? 1);
+          if (level > alphas[i]) {
+            alphas[i] = level;
+            touched[i] = now;
+          } else if (level > 0) {
+            touched[i] = now;
+          }
         }
       }
+    };
 
-      // 3. Highlight grid squares and lines under mouse cursor
-      if (m.inside || (m.x > 0 && m.x < width && m.y > 0 && m.y < height)) {
-        const glowRadius = 220;
-        const cellHighlightColor = dark ? "99, 102, 241" : "79, 70, 229";
+    const draw = (now: number) => {
+      const p = propsRef.current;
+      const dt = Math.min(now - lastFrame, 50);
+      lastFrame = now;
+      ctx.clearRect(0, 0, w, h);
+      const [cr, cg, cb] = hexToRgb(p.color);
 
-        // Highlight grid tiles
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            const cellX = c * gridSize;
-            const cellY = r * gridSize;
-            const dist = Math.hypot(m.x - (cellX + gridSize / 2), m.y - (cellY + gridSize / 2));
-            if (dist < glowRadius) {
-              const alpha = Math.max(0, (1 - dist / glowRadius) * 0.22);
-              ctx.fillStyle = `rgba(${cellHighlightColor}, ${alpha})`;
-              ctx.fillRect(cellX + 1, cellY + 1, gridSize - 2, gridSize - 2);
+      if (p.gridOpacity > 0) {
+        ctx.strokeStyle = `rgba(${cr}, ${cg}, ${cb}, ${p.gridOpacity})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let cCol = 0; cCol <= cols; cCol++) {
+          const x = Math.round(offX + cCol * p.cellSize) + 0.5;
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, h);
+        }
+        for (let cRow = 0; cRow <= rows; cRow++) {
+          const y = Math.round(offY + cRow * p.cellSize) + 0.5;
+          ctx.moveTo(0, y);
+          ctx.lineTo(w, y);
+        }
+        ctx.stroke();
+      }
+
+      for (let pi = pulses.length - 1; pi >= 0; pi--) {
+        const pulse = pulses[pi];
+        const age = (now - pulse.t0) / 1000;
+        const ringR = age * p.pulseSpeed;
+        if (ringR > Math.hypot(w, h)) {
+          pulses.splice(pi, 1);
+          continue;
+        }
+        const band = p.cellSize;
+        const minCol = Math.max(0, Math.floor((pulse.x - ringR - band - offX) / p.cellSize));
+        const maxCol = Math.min(cols - 1, Math.floor((pulse.x + ringR + band - offX) / p.cellSize));
+        const minRow = Math.max(0, Math.floor((pulse.y - ringR - band - offY) / p.cellSize));
+        const maxRow = Math.min(rows - 1, Math.floor((pulse.y + ringR + band - offY) / p.cellSize));
+        for (let cRow = minRow; cRow <= maxRow; cRow++) {
+          for (let cCol = minCol; cCol <= maxCol; cCol++) {
+            const i = cRow * cols + cCol;
+            const [cx, cy] = cellCenter(i);
+            const dist = Math.hypot(cx - pulse.x, cy - pulse.y);
+            if (Math.abs(dist - ringR) < band / 2 && p.maxOpacity > alphas[i]) {
+              alphas[i] = p.maxOpacity;
+              touched[i] = now;
             }
           }
         }
-
-        // Highlight Grid Lines near cursor
-        ctx.lineWidth = 1.8;
-
-        for (let c = 0; c <= cols; c++) {
-          const x = c * gridSize;
-          const dist = Math.abs(x - m.x);
-          if (dist < glowRadius) {
-            const alpha = (1 - dist / glowRadius) * 0.45;
-            ctx.strokeStyle = dark
-              ? `rgba(129, 140, 248, ${alpha})`
-              : `rgba(79, 70, 229, ${alpha})`;
-            ctx.beginPath();
-            ctx.moveTo(x, Math.max(0, m.y - glowRadius));
-            ctx.lineTo(x, Math.min(height, m.y + glowRadius));
-            ctx.stroke();
-          }
-        }
-
-        for (let r = 0; r <= rows; r++) {
-          const y = r * gridSize;
-          const dist = Math.abs(y - m.y);
-          if (dist < glowRadius) {
-            const alpha = (1 - dist / glowRadius) * 0.45;
-            ctx.strokeStyle = dark
-              ? `rgba(129, 140, 248, ${alpha})`
-              : `rgba(79, 70, 229, ${alpha})`;
-            ctx.beginPath();
-            ctx.moveTo(Math.max(0, m.x - glowRadius), y);
-            ctx.lineTo(Math.min(width, m.x + glowRadius), y);
-            ctx.stroke();
-          }
-        }
       }
 
-      rafId = requestAnimationFrame(render);
+      let anyVisible = pulses.length > 0;
+      const fadeStep = dt / Math.max(p.fadeDuration, 16);
+      const half = p.cellSize / 2;
+
+      for (let i = 0; i < alphas.length; i++) {
+        let a = alphas[i];
+        if (a <= 0) continue;
+        if (now - touched[i] > p.holdTime) {
+          a = Math.max(0, a - fadeStep);
+          alphas[i] = a;
+          if (a <= 0) continue;
+        }
+        anyVisible = true;
+
+        const [cx, cy] = cellCenter(i);
+        const gradient = ctx.createRadialGradient(cx, cy, half * 0.1, cx, cy, p.cellSize);
+        gradient.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${a})`);
+        gradient.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
+
+        const x = cx - half + 0.5;
+        const y = cy - half + 0.5;
+        const s = p.cellSize - 1;
+
+        ctx.beginPath();
+        if (p.cellRadius > 0) {
+          ctx.roundRect(x, y, s, s, p.cellRadius);
+        } else {
+          ctx.rect(x, y, s, s);
+        }
+        if (p.fillOpacity > 0) {
+          ctx.fillStyle = `rgba(${cr}, ${cg}, ${cb}, ${a * p.fillOpacity})`;
+          ctx.fill();
+        }
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = p.lineWidth;
+        ctx.stroke();
+      }
+
+      if (anyVisible) {
+        raf = requestAnimationFrame(draw);
+      } else {
+        running = false;
+        if (propsRef.current.gridOpacity <= 0) ctx.clearRect(0, 0, w, h);
+      }
     };
 
-    rafId = requestAnimationFrame(render);
+    const wake = () => {
+      if (running) return;
+      running = true;
+      lastFrame = performance.now();
+      raf = requestAnimationFrame(draw);
+    };
+    wakeRef.current = wake;
+
+    const toLocal = (e: MouseEvent): [number, number] => {
+      const rect = canvas.getBoundingClientRect();
+      return [e.clientX - rect.left, e.clientY - rect.top];
+    };
+
+    const onPointerMove = (e: MouseEvent) => {
+      const [x, y] = toLocal(e);
+      energize(x, y);
+      wake();
+    };
+
+    const onPointerDown = (e: MouseEvent) => {
+      if (!propsRef.current.clickPulse) return;
+      const [x, y] = toLocal(e);
+      pulses.push({ x, y, t0: performance.now() });
+      wake();
+    };
+
+    const ro = new ResizeObserver(() => {
+      rebuild();
+      wake();
+    });
+    ro.observe(container);
+    rebuild();
+    wake();
+
+    container.addEventListener("pointermove", onPointerMove);
+    container.addEventListener("pointerdown", onPointerDown);
 
     return () => {
-      cancelAnimationFrame(rafId);
-      resizeObs.disconnect();
-      window.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerleave", onPointerLeave);
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      container.removeEventListener("pointermove", onPointerMove);
+      container.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [gridSize]);
+  }, [effectiveCellSize]);
+
+  useEffect(() => {
+    wakeRef.current?.();
+  }, [gridOpacity, color, lineWidth, maxOpacity, fillOpacity, cellRadius]);
 
   return (
-    <div
-      ref={containerRef}
-      aria-hidden="true"
-      className={`absolute inset-0 pointer-events-none overflow-hidden ${className}`}
-    >
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 block h-full w-full pointer-events-none"
-      />
+    <div ref={containerRef} className={`cursor-grid${className ? ` ${className}` : ""}`}>
+      <canvas ref={canvasRef} className="cursor-grid__canvas" />
     </div>
   );
 }
+
+export default CursorGrid;

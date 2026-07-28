@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Star, Users, Clock, BarChart3, ArrowLeft } from "lucide-react";
+import { Star, Users, Clock, BarChart3, ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { CurriculumAccordion } from "@/components/course/CurriculumAccordion";
-import { type CourseDetail, type Module, type Review, submitCourseReview } from "@/lib/explore-data";
+import { type CourseDetail, type Module, type Review, submitCourseReview, fetchMyCourseReview } from "@/lib/explore-data";
 import { ImageCarousel } from "@/components/common/ImageCarousel";
 import Folder from "@/components/Folder";
 import { supabase } from "@/integrations/supabase/client";
@@ -151,40 +151,29 @@ export function CourseHero({
               )}
             </div>
             <h1
-              className="mt-4 max-w-3xl font-display text-3xl font-bold leading-tight text-white sm:text-5xl"
-              style={{ textShadow: "0 2px 24px rgba(0,0,0,0.45)" }}
+              className="mt-4 max-w-3xl font-display text-3xl font-extrabold leading-tight text-white sm:text-4xl lg:text-5xl"
+              style={{ textShadow: "0 2px 20px rgba(0,0,0,0.8)" }}
             >
               {course.title}
             </h1>
-            {course.description && (
-              <p
-                className="mt-4 max-w-2xl text-base text-white/90 sm:text-lg"
-                style={{ textShadow: "0 1px 12px rgba(0,0,0,0.5)" }}
-              >
-                {course.description}
-              </p>
-            )}
-            <div
-              className="mt-6 flex flex-wrap items-center gap-5 text-sm text-white/95"
-              style={{ textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}
-            >
+            <div className="mt-5 inline-flex flex-wrap items-center gap-3 rounded-full bg-slate-900/90 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white backdrop-blur-xl border border-slate-700/80 shadow-2xl">
               {course.instructor_name && (
-                <span>
-                  by <span className="font-semibold">{course.instructor_name}</span>
+                <span className="text-slate-200">
+                  by <span className="font-bold text-white">{course.instructor_name}</span>
                 </span>
               )}
               <button
                 type="button"
                 onClick={onSelectReviewsTab}
-                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 backdrop-blur hover:bg-white/20 transition-all text-left"
+                className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 hover:bg-white/20 transition-all text-left border border-white/15"
                 title="View reviews"
               >
-                <Star className="h-4 w-4 fill-accent text-accent" />
-                <span className="font-semibold">{course.rating?.toFixed(1) ?? "—"}</span>
-                <span className="text-white/70">({course.total_reviews ?? 0} reviews)</span>
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400 shrink-0" />
+                <span className="font-extrabold text-white">{course.rating?.toFixed(1) ?? "—"}</span>
+                <span className="text-slate-200 font-medium">({course.total_reviews ?? 0} reviews)</span>
               </button>
-              <span className="inline-flex items-center gap-1.5">
-                <Users className="h-4 w-4" />
+              <span className="inline-flex items-center gap-1.5 text-slate-200 font-medium">
+                <Users className="h-4 w-4 text-slate-300 shrink-0" />
                 {course.enrolled_count > 0
                   ? `${course.enrolled_count.toLocaleString()} enrolled`
                   : "Be the first to enroll"}
@@ -410,19 +399,26 @@ export function ReviewSubmissionForm({
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  if (!userId) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-5 text-center">
-        <p className="text-sm text-muted-foreground">Sign in and enroll in this course to leave a review.</p>
-      </div>
-    );
-  }
+  const myReviewQ = useQuery({
+    queryKey: ["course", courseId, "myReview", userId],
+    queryFn: () => fetchMyCourseReview(userId!, courseId),
+    enabled: !!userId && enrolled,
+  });
 
-  if (!enrolled) {
+  const myReview = myReviewQ.data;
+
+  useEffect(() => {
+    if (myReview) {
+      setRating(myReview.rating);
+      setComment(myReview.comment ?? "");
+    }
+  }, [myReview]);
+
+  if (!userId || !enrolled) {
     return (
       <div className="rounded-2xl border border-border bg-card p-5 text-center">
         <p className="text-sm font-medium text-muted-foreground">
-          🔒 Only enrolled students can write a course review.
+          Enroll in this course to leave a review
         </p>
       </div>
     );
@@ -434,10 +430,10 @@ export function ReviewSubmissionForm({
     const res = await submitCourseReview(userId, courseId, rating, comment);
     setSubmitting(false);
     if (res.ok) {
-      toast.success("Review submitted! Thank you for your feedback. ⭐");
-      setComment("");
+      toast.success("Review submitted! Your review is pending approval and will be visible once approved. ⏳");
       qc.invalidateQueries({ queryKey: ["course", courseId] });
       qc.invalidateQueries({ queryKey: ["course", courseId, "reviews"] });
+      qc.invalidateQueries({ queryKey: ["course", courseId, "myReview", userId] });
       qc.invalidateQueries({ queryKey: ["explore", "courses"] });
       onSubmitted();
     } else {
@@ -447,7 +443,48 @@ export function ReviewSubmissionForm({
 
   return (
     <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-card p-6 space-y-4">
-      <h4 className="font-display text-base font-bold text-foreground">Write a Review</h4>
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="font-display text-base font-bold text-foreground">
+          {myReview ? "Your Review" : "Write a Review"}
+        </h4>
+        {myReview && (
+          <div
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+              myReview.status === "approved"
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                : myReview.status === "rejected"
+                ? "bg-destructive/10 text-destructive"
+                : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            {myReview.status === "approved" && (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Approved</span>
+              </>
+            )}
+            {myReview.status === "pending" && (
+              <>
+                <Clock className="h-3.5 w-3.5" />
+                <span>Pending Admin Approval</span>
+              </>
+            )}
+            {myReview.status === "rejected" && (
+              <>
+                <XCircle className="h-3.5 w-3.5" />
+                <span>Rejected</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {myReview?.status === "pending" && (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
+          ⏳ Your review has been submitted and is currently awaiting approval from an admin before appearing publicly.
+        </div>
+      )}
+
       <div>
         <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
           Rating
@@ -486,7 +523,7 @@ export function ReviewSubmissionForm({
         disabled={submitting}
         className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all"
       >
-        {submitting ? "Submitting..." : "Submit Review"}
+        {submitting ? "Submitting..." : myReview ? "Update Review" : "Submit Review"}
       </button>
     </form>
   );

@@ -88,8 +88,23 @@ export async function resendConfirmationEmail(email: string) {
   });
 }
 
-export async function signOut() {
-  return supabase.auth.signOut();
+export async function signOut(scope?: "global" | "local" | "others") {
+  const res = await supabase.auth.signOut(scope ? { scope } : undefined);
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem("makersflow.auth");
+      sessionStorage.removeItem("makersflow.auth");
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith("sb-") || key.includes("supabase.auth"))) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not clear auth storage:", e);
+    }
+  }
+  return res;
 }
 
 export async function getCurrentUser(): Promise<User | null> {

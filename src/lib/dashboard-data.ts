@@ -101,14 +101,19 @@ export async function fetchStreak(userId: string): Promise<StreakInfo> {
 export async function fetchStats(userId: string): Promise<DashboardStats> {
   return safe(
     async () => {
-      const [{ data: enr }, { data: timeData }] = await Promise.all([
+      const [{ data: enr }, { data: pur }, { data: timeData }] = await Promise.all([
         supabase
           .from("enrollments")
           .select("id, course_id, completed_at")
           .eq("user_id", userId),
         supabase
+          .from("course_purchases")
+          .select("id, course_id, status")
+          .eq("user_id", userId)
+          .eq("status", "active"),
+        supabase
           .from("lesson_progress")
-          .select("time_spent_secs")
+          .select("lesson_id, time_spent_secs, watch_percentage, is_completed")
           .eq("user_id", userId),
       ]);
 
@@ -118,21 +123,115 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
           course_id: string | number;
           completed_at?: string | null;
         }>) ?? [];
+      const purRows = (pur as Array<{ id: string; course_id: string | number }>) ?? [];
 
-      const totalSecs = (timeData ?? []).reduce(
-        (sum: number, row: any) => sum + (Number(row?.time_spent_secs) || 0),
-        0,
-      );
+      // Combine unique course IDs from enrollments and course_purchases
+      const courseMap = new Map<string, { course_id: string | number; completed_at?: string | null }>();
+      for (const r of enrRows) {
+        if (r?.course_id) courseMap.set(String(r.course_id), r);
+      }
+      for (const r of purRows) {
+        if (r?.course_id && !courseMap.has(String(r.course_id))) {
+          courseMap.set(String(r.course_id), { course_id: r.course_id, completed_at: null });
+        }
+      }
+
+      // ── Accurate Learned Time Calculation ──────────────────────────
+      const lpRows = (timeData as Array<{
+        lesson_id: number | string;
+        time_spent_secs?: number | null;
+        watch_percentage?: number | null;
+        is_completed?: boolean | null;
+      }>) ?? [];
+
+      // Extract demo progress rows from localStorage
+      const demoLpRows: Array<{
+        lesson_id: string;
+        time_spent_secs?: number | null;
+        watch_percentage?: number | null;
+        is_completed?: boolean | null;
+      }> = [];
+
+      try {
+        const prefix = `demo_progress_${userId}_`;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith(prefix)) {
+            const map = JSON.parse(localStorage.getItem(key) || "{}");
+            for (const item of Object.values(map) as any[]) {
+              if (item) {
+                demoLpRows.push({
+                  lesson_id: item.lesson_id,
+                  time_spent_secs: item.time_spent_secs ?? 0,
+                  watch_percentage: item.watch_percentage ?? 0,
+                  is_completed: item.is_completed ?? false,
+                });
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[makersflow] Error reading demo progress for stats:", err);
+      }
+
+      const dbLessonIds = lpRows
+        .map((r) => Number(r.lesson_id))
+        .filter((id) => !isNaN(id) && id > 0);
+
+      const lessonDurationsMap = new Map<string | number, number>();
+      if (dbLessonIds.length > 0) {
+        const { data: lessonMeta } = await supabase
+          .from("lessons")
+          .select("id, duration_secs")
+          .in("id", dbLessonIds);
+
+        (lessonMeta ?? []).forEach((l: any) => {
+          if (l?.id) {
+            const secsVal = Number(l.duration_secs) || 0;
+            lessonDurationsMap.set(l.id, secsVal);
+            lessonDurationsMap.set(String(l.id), secsVal);
+          }
+        });
+      }
+
+      let totalSecs = 0;
+      for (const r of lpRows) {
+        const spent = Number(r.time_spent_secs) || 0;
+        const dbDur = lessonDurationsMap.get(r.lesson_id) ?? lessonDurationsMap.get(Number(r.lesson_id)) ?? 0;
+        const durSecs = dbDur > 0 ? dbDur : (spent > 0 ? spent : 180);
+        const pct = Number(r.watch_percentage) || 0;
+
+        if (r.is_completed || pct >= 80) {
+          totalSecs += durSecs;
+        } else {
+          const pctSecs = durSecs > 0 ? Math.round((pct / 100) * durSecs) : spent;
+          totalSecs += Math.max(spent, pctSecs);
+        }
+      }
+
+      const demoLessonsFlat = DEMO_MODULES.flatMap((m) => m.lessons ?? []);
+      for (const r of demoLpRows) {
+        const demoL = demoLessonsFlat.find((dl) => dl.id === r.lesson_id);
+        const durSecs = (demoL?.duration_minutes ?? 10) * 60;
+        const pct = Number(r.watch_percentage) || 0;
+        const spent = Number(r.time_spent_secs) || 0;
+
+        if (r.is_completed || pct >= 80) {
+          totalSecs += durSecs;
+        } else {
+          const pctSecs = Math.round((pct / 100) * durSecs);
+          totalSecs += Math.max(spent, pctSecs);
+        }
+      }
+
+      const totalMinutes = Math.round(totalSecs / 60);
       const timeUnit: "h" | "m" = totalSecs < 3600 ? "m" : "h";
-      const displayVal =
-        totalSecs < 3600
-          ? Math.round(totalSecs / 60)
-          : Math.round((totalSecs / 3600) * 10) / 10;
-      const formattedTime = totalSecs < 3600 ? `${displayVal}m` : `${displayVal}h`;
-      const totalHours = displayVal;
+      const displayVal = totalSecs < 3600 ? totalMinutes : Math.round((totalSecs / 3600) * 10) / 10;
+      const formattedTime = totalSecs < 3600 ? `${totalMinutes}m` : `${displayVal}h`;
       const rawHours = Math.round((totalSecs / 3600) * 10) / 10;
+      const totalHours = totalSecs < 3600 ? totalMinutes : rawHours;
 
-      if (enrRows.length === 0) {
+      if (courseMap.size === 0 && demoLpRows.length === 0) {
         return { enrolled: 0, completed: 0, avgProgress: 0, totalHours, rawHours, totalSecs, formattedTime, timeUnit };
       }
 

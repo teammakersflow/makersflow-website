@@ -119,9 +119,9 @@ html {
   --muted: oklch(0.955 0.008 270);
   --muted-foreground: oklch(0.45 0.03 265); /* Darkened for accessibility contrast */
 
-  --accent: oklch(0.703 0.183 42); /* #FF6B35 Vibrant Orange */
-  --accent-foreground: oklch(0.99 0.003 60);
-  --accent-light: oklch(0.755 0.16 45); /* #FF8A50 */
+  --accent: oklch(0.62 0.22 255); /* #3B82F6 Vibrant Electric Blue */
+  --accent-foreground: oklch(0.99 0.003 270);
+  --accent-light: oklch(0.68 0.19 250); /* #60A5FA */
 
   --success: oklch(0.708 0.156 162); /* #10B981 */
   --success-foreground: oklch(0.99 0.003 160);

@@ -574,18 +574,22 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
   try {
     const { data: prog } = await supabase
       .from("lesson_progress")
-      .select("time_spent_secs, last_watched_at, is_completed")
+      .select("lesson_id, time_spent_secs, watch_percentage, last_watched_at, is_completed")
       .eq("user_id", userId);
     const prows =
       (prog as Array<{
+        lesson_id: number | string;
         time_spent_secs: number | null;
+        watch_percentage: number | null;
         last_watched_at: string | null;
         is_completed: boolean | null;
       }>) ?? [];
 
     // Add demo progress records
     const demoProgressRows: Array<{
+      lesson_id: string;
       time_spent_secs: number | null;
+      watch_percentage: number | null;
       last_watched_at: string | null;
       is_completed: boolean | null;
     }> = [];
@@ -598,7 +602,9 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
           for (const item of Object.values(map) as any[]) {
             if (item) {
               demoProgressRows.push({
+                lesson_id: item.lesson_id,
                 time_spent_secs: item.time_spent_secs ?? 0,
+                watch_percentage: item.watch_percentage ?? 0,
                 last_watched_at: item.last_watched_at ?? null,
                 is_completed: item.is_completed ?? false,
               });
@@ -610,22 +616,68 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
       console.warn("[makersflow] Failed to parse demo progress from localStorage:", err);
     }
 
-    const allRows = [...prows, ...demoProgressRows];
+    const dbLessonIds = prows
+      .map((r) => Number(r.lesson_id))
+      .filter((id) => !isNaN(id) && id > 0);
+
+    const lessonDurationsMap = new Map<string | number, number>();
+    if (dbLessonIds.length > 0) {
+      const { data: lessonMeta } = await supabase
+        .from("lessons")
+        .select("id, duration_secs")
+        .in("id", dbLessonIds);
+
+      (lessonMeta ?? []).forEach((l: any) => {
+        if (l?.id) {
+          const secsVal = Number(l.duration_secs) || 0;
+          lessonDurationsMap.set(l.id, secsVal);
+          lessonDurationsMap.set(String(l.id), secsVal);
+        }
+      });
+    }
 
     let secs = 0;
     const byDay: Record<string, number> = {};
-    for (const r of allRows) {
-      secs += r.time_spent_secs ?? 0;
+
+    for (const r of prows) {
+      const spent = Number(r.time_spent_secs) || 0;
+      const dbDur = lessonDurationsMap.get(r.lesson_id) ?? lessonDurationsMap.get(Number(r.lesson_id)) ?? 0;
+      const durSecs = dbDur > 0 ? dbDur : (spent > 0 ? spent : 180);
+      const pct = Number(r.watch_percentage) || 0;
+
+      if (r.is_completed || pct >= 80) {
+        secs += durSecs;
+      } else {
+        const pctSecs = durSecs > 0 ? Math.round((pct / 100) * durSecs) : spent;
+        secs += Math.max(spent, pctSecs);
+      }
+
       if (r.last_watched_at) {
         const key = r.last_watched_at.slice(0, 10);
         byDay[key] = (byDay[key] ?? 0) + 1;
       }
     }
-    // ── FIX ────────────────────────────────────────────────────────────────
-    // Math.round(secs / 3600) turned 7 minutes of study into 0, so the Progress
-    // page rendered "\u2014" under a "Start your first lesson" subtitle for a user
-    // with a live 2-day streak. It also tripped isEmptyState and locked the
-    // first-lesson achievement. Keep one decimal so short sessions survive.
+
+    const demoLessonsFlat = DEMO_MODULES.flatMap((m) => m.lessons ?? []);
+    for (const r of demoProgressRows) {
+      const demoL = demoLessonsFlat.find((dl) => dl.id === r.lesson_id);
+      const durSecs = (demoL?.duration_minutes ?? 10) * 60;
+      const pct = Number(r.watch_percentage) || 0;
+      const spent = Number(r.time_spent_secs) || 0;
+
+      if (r.is_completed || pct >= 80) {
+        secs += durSecs;
+      } else {
+        const pctSecs = Math.round((pct / 100) * durSecs);
+        secs += Math.max(spent, pctSecs);
+      }
+
+      if (r.last_watched_at) {
+        const key = r.last_watched_at.slice(0, 10);
+        byDay[key] = (byDay[key] ?? 0) + 1;
+      }
+    }
+
     totalHours = Math.round((secs / 3600) * 10) / 10;
     totalMinutes = Math.round(secs / 60);
     for (const a of activity) a.count = byDay[a.date] ?? 0;

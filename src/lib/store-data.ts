@@ -171,22 +171,36 @@ export async function fetchProduct(id: string): Promise<Product | null> {
 
 export async function fetchProductReviews(productId: string): Promise<any[]> {
   try {
-    const { data, error } = await supabase
+    const { data: reviews, error } = await supabase
       .from("reviews")
-      .select("id, rating, comment, created_at, user:profiles!reviews_user_id_fkey(full_name, avatar_url)")
+      .select("id, rating, comment, created_at, user_id")
       .eq("product_id", productId)
+      .eq("status", "approved")
       .order("created_at", { ascending: false })
       .limit(20);
 
-    if (error || !data || data.length === 0) return [];
+    if (error || !reviews || reviews.length === 0) return [];
 
-    return (data as any[]).map((r) => ({
+    const userIds = Array.from(new Set(reviews.map((r) => r.user_id))).filter(Boolean);
+    let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase.rpc("get_approved_reviewer_profiles", {
+        p_user_ids: userIds,
+      });
+      if (profiles) {
+        (profiles as any[]).forEach((p) => {
+          profilesMap[p.id] = p;
+        });
+      }
+    }
+
+    return reviews.map((r) => ({
       id: r.id,
       rating: r.rating,
       comment: r.comment,
       created_at: r.created_at,
-      user_name: r.user?.full_name ?? null,
-      user_avatar: r.user?.avatar_url ?? null,
+      user_name: profilesMap[r.user_id]?.full_name ?? null,
+      user_avatar: profilesMap[r.user_id]?.avatar_url ?? null,
     }));
   } catch {
     return [];
@@ -203,13 +217,16 @@ export async function submitProductReview(
   if (!rating || rating < 1 || rating > 5) return { ok: false, error: "Please select a star rating (1-5)" };
 
   try {
-    const { error } = await supabase.from("reviews").insert({
-      user_id: userId,
-      product_id: productId,
-      rating,
-      comment: comment.trim() || null,
-      status: "approved",
-    });
+    const { error } = await supabase.from("reviews").upsert(
+      {
+        user_id: userId,
+        product_id: productId,
+        rating,
+        comment: comment.trim() || null,
+        status: "pending",
+      },
+      { onConflict: "user_id,product_id" },
+    );
 
     if (error) {
       if (error.code === "23505") {

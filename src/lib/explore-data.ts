@@ -215,8 +215,8 @@ export async function fetchExploreCourses(filters: ExploreFilters): Promise<Cour
       gst_rate: c.gst_rate ?? 18,
       is_free: c.is_free,
       thumbnail_url: c.thumbnail_url,
-      rating: null,
-      total_reviews: null,
+      rating: c.rating == null ? null : Number(c.rating),
+      total_reviews: c.total_reviews == null ? null : Number(c.total_reviews),
       instructor_name: null,
     }));
   } catch (err: any) {
@@ -400,8 +400,8 @@ export async function fetchCourseDetail(id: string): Promise<CourseDetail> {
       gst_rate: c.gst_rate ?? 18,
       is_free: c.is_free ?? false,
       thumbnail_url: c.thumbnail_url,
-      rating: null,
-      total_reviews: null,
+      rating: c.rating == null ? null : Number(c.rating),
+      total_reviews: c.total_reviews == null ? null : Number(c.total_reviews),
       instructor_name: null,
       description: c.description ?? "No description available.",
       enrolled_count: enrollCount ?? 0,
@@ -506,29 +506,64 @@ export async function fetchCourseModules(courseId: string): Promise<Module[]> {
 export async function fetchCourseReviews(courseId: string): Promise<Review[]> {
   try {
     const targetCourseId = await resolveCourseId(courseId);
-    const { data, error } = await supabase
+    const { data: reviews, error } = await supabase
       .from("reviews")
-      .select(
-        "id, rating, comment, created_at, user:profiles!reviews_user_id_fkey(full_name, avatar_url)",
-      )
+      .select("id, rating, comment, created_at, user_id")
       .eq("course_id", targetCourseId)
+      .eq("status", "approved")
       .order("created_at", { ascending: false })
       .limit(20);
 
-    if (error || !data || data.length === 0) return [];
+    if (error || !reviews || reviews.length === 0) return [];
 
-    return (data as any[]).map((r) => ({
+    const userIds = Array.from(new Set(reviews.map((r) => r.user_id))).filter(Boolean);
+    let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase.rpc("get_approved_reviewer_profiles", {
+        p_user_ids: userIds,
+      });
+      if (profiles) {
+        (profiles as any[]).forEach((p) => {
+          profilesMap[p.id] = p;
+        });
+      }
+    }
+
+    return reviews.map((r) => ({
       id: r.id,
       rating: r.rating,
       comment: r.comment,
       created_at: r.created_at,
-      user_name: r.user?.full_name ?? null,
-      user_avatar: r.user?.avatar_url ?? null,
+      user_name: profilesMap[r.user_id]?.full_name ?? null,
+      user_avatar: profilesMap[r.user_id]?.avatar_url ?? null,
     }));
-  } catch {
+  } catch (err) {
+    console.error("[fetchCourseReviews] Error:", err);
     return [];
   }
 }
+
+export async function fetchMyCourseReview(
+  userId: string,
+  courseId: string,
+): Promise<{ id: string; rating: number; comment: string | null; status: "pending" | "approved" | "rejected" } | null> {
+  if (!userId) return null;
+  try {
+    const targetCourseId = await resolveCourseId(courseId);
+    const { data, error } = await supabase
+      .from("reviews")
+      .select("id, rating, comment, status")
+      .eq("user_id", userId)
+      .eq("course_id", targetCourseId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+    return data as any;
+  } catch {
+    return null;
+  }
+}
+
 export async function submitCourseReview(
   userId: string,
   courseId: string,
@@ -549,13 +584,16 @@ export async function submitCourseReview(
     const targetCourseId = await resolveCourseId(courseId);
 
     // 3. Perform insert into reviews table
-    const { error } = await supabase.from("reviews").insert({
-      user_id: userId,
-      course_id: targetCourseId,
-      rating,
-      comment: comment.trim() || null,
-      status: "approved",
-    });
+    const { error } = await supabase.from("reviews").upsert(
+      {
+        user_id: userId,
+        course_id: targetCourseId,
+        rating,
+        comment: comment.trim() || null,
+        status: "pending",
+      },
+      { onConflict: "user_id,course_id" },
+    );
 
     if (error) {
       if (error.code === "23505") {

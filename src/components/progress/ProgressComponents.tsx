@@ -32,6 +32,7 @@ export const DEMO_OVERVIEW: ProgressOverview = {
   total_enrolled: 4,
   total_completed: 1,
   total_hours: 8,
+  total_minutes: 480,
   current_streak: 7,
   longest_streak: 14,
   activity: (() => {
@@ -685,8 +686,11 @@ export function BadgesGrid({
       gradient: "from-[#6C63FF] to-[#8B83FF]",
       unlocked:
         (overview.total_minutes ?? 0) > 0 ||
-        overview.total_hours > 0 ||
-        overview.current_streak > 0,
+        (overview.total_hours ?? 0) > 0 ||
+        (overview.current_streak ?? 0) > 0 ||
+        (overview.total_enrolled ?? 0) > 0 ||
+        (overview.total_completed ?? 0) > 0 ||
+        completedCourses > 0,
     },
     {
       id: "streak-3",
@@ -695,7 +699,7 @@ export function BadgesGrid({
       emoji: "🔥",
       icon: Flame,
       gradient: "from-[#FF6B35] to-[#FF8C5A]",
-      unlocked: overview.longest_streak >= 3,
+      unlocked: (overview.longest_streak ?? 0) >= 3 || (overview.current_streak ?? 0) >= 3,
     },
     {
       id: "streak-7",
@@ -704,7 +708,7 @@ export function BadgesGrid({
       emoji: "⚡",
       icon: Zap,
       gradient: "from-[#8B5CF6] to-[#A78BFA]",
-      unlocked: overview.longest_streak >= 7,
+      unlocked: (overview.longest_streak ?? 0) >= 7 || (overview.current_streak ?? 0) >= 7,
     },
     {
       id: "streak-30",
@@ -713,7 +717,7 @@ export function BadgesGrid({
       emoji: "🏆",
       icon: Trophy,
       gradient: "from-[#F59E0B] to-[#FCD34D]",
-      unlocked: overview.longest_streak >= 30,
+      unlocked: (overview.longest_streak ?? 0) >= 30 || (overview.current_streak ?? 0) >= 30,
     },
     {
       id: "course-1",
@@ -722,7 +726,7 @@ export function BadgesGrid({
       emoji: "🎓",
       icon: CheckCircle2,
       gradient: "from-[#10B981] to-[#34D399]",
-      unlocked: completedCourses >= 1,
+      unlocked: completedCourses >= 1 || (overview.total_completed ?? 0) >= 1,
     },
     {
       id: "course-5",
@@ -731,7 +735,7 @@ export function BadgesGrid({
       emoji: "📚",
       icon: Star,
       gradient: "from-[#6C63FF] to-[#FF6B35]",
-      unlocked: completedCourses >= 5,
+      unlocked: completedCourses >= 5 || (overview.total_completed ?? 0) >= 5,
     },
     {
       id: "hours-10",
@@ -740,7 +744,7 @@ export function BadgesGrid({
       emoji: "⏱",
       icon: Clock,
       gradient: "from-[#FF6B35] to-[#8B5CF6]",
-      unlocked: overview.total_hours >= 10,
+      unlocked: (overview.total_hours ?? 0) >= 10 || (overview.total_minutes ?? 0) >= 600,
     },
     {
       id: "quiz-master",

@@ -92,7 +92,20 @@ export function Footer() {
   return (
     <footer className="relative isolate border-t border-border bg-card/60 backdrop-blur-md overflow-hidden">
       {/* Interactive Cursor Grid Background */}
-      <CursorGrid gridSize={44} />
+      <div className="absolute inset-0 z-0 opacity-80 pointer-events-auto">
+        <CursorGrid
+          cellSize={50}
+          color="#3B82F6"
+          radius={160}
+          falloff="smooth"
+          holdTime={400}
+          fadeDuration={800}
+          lineWidth={1.2}
+          maxOpacity={0.6}
+          gridOpacity={0.12}
+          clickPulse={true}
+        />
+      </div>
 
       <div className="relative z-10 mx-auto max-w-7xl px-5 py-14 lg:px-8">
         {/* Partners strip */}

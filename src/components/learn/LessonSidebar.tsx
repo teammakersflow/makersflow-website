@@ -6,6 +6,7 @@ import type { Module } from "@/lib/explore-data";
 import type { LessonProgressRow } from "@/lib/learn-data";
 import { cn } from "@/lib/utils";
 import LineSidebar from "@/components/LineSidebar";
+import AnimatedList from "@/components/AnimatedList";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -47,14 +48,25 @@ export function LessonSidebar({
   const pct = total ? Math.round((completed / total) * 100) : 0;
 
   const flatLessons = useMemo(() => {
-    return modules.flatMap((m) =>
-      m.lessons.map((l) => ({
-        id: l.id,
-        label: l.title,
-        subtitle: m.title,
-        isCompleted: !!progressMap[l.id]?.is_completed,
-        isCurrent: l.id === currentLessonId,
-      })),
+    let globalIndex = 0;
+    return modules.flatMap((m, mIdx) =>
+      m.lessons.map((l, lIdx) => {
+        globalIndex++;
+        const durationMins =
+          l.duration_minutes ??
+          ((l as any).duration_secs ? Math.round((l as any).duration_secs / 60) : null);
+        return {
+          id: l.id,
+          label: l.title,
+          subtitle: m.title,
+          moduleIndex: mIdx + 1,
+          lessonIndex: lIdx + 1,
+          globalIndex,
+          durationMinutes: durationMins,
+          isCompleted: !!progressMap[l.id]?.is_completed,
+          isCurrent: l.id === currentLessonId,
+        };
+      }),
     );
   }, [modules, currentLessonId, progressMap]);
 
@@ -168,73 +180,99 @@ export function LessonSidebar({
                   </button>
                   <AnimatePresence initial={false}>
                     {isOpen && (
-                      <motion.ul
+                      <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.22 }}
-                        className="overflow-hidden bg-card"
+                        className="overflow-hidden bg-card p-1.5"
                       >
-                        {m.lessons.map((l) => {
-                          const p = progressMap[l.id];
-                          const isCurrent = l.id === currentLessonId;
-                          const done = !!p?.is_completed;
-                          return (
-                            <li key={l.id} className="relative">
-                              {isCurrent && (
+                        <AnimatedList<{
+                          id: string;
+                          title: string;
+                          index: number;
+                          durationMinutes: number | null;
+                          isCompleted: boolean;
+                          isCurrent: boolean;
+                        }>
+                          items={m.lessons.map((l, lIdx) => {
+                            const p = progressMap[l.id];
+                            const isCurrent = l.id === currentLessonId;
+                            const done = !!p?.is_completed;
+                            const mins =
+                              l.duration_minutes ??
+                              ((l as any).duration_secs ? Math.round((l as any).duration_secs / 60) : null);
+                            return {
+                              id: l.id,
+                              title: l.title,
+                              index: lIdx + 1,
+                              durationMinutes: mins,
+                              isCompleted: done,
+                              isCurrent,
+                            };
+                          })}
+                          initialSelectedIndex={m.lessons.findIndex((l) => l.id === currentLessonId)}
+                          showGradients={false}
+                          displayScrollbar={false}
+                          onItemSelect={(item) => {
+                            navigate({
+                              to: "/learn/$courseId/$lessonId",
+                              params: { courseId, lessonId: item.id },
+                            });
+                          }}
+                          renderItem={(item, _index, isKeyboardSelected) => (
+                            <div
+                              className={cn(
+                                "group relative flex items-center justify-between gap-3 px-3 py-2 text-sm rounded-xl transition-all select-none cursor-pointer border",
+                                item.isCurrent
+                                  ? "border-primary/50 bg-primary/10 text-foreground font-medium shadow-sm"
+                                  : "border-transparent bg-transparent text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                                isKeyboardSelected && !item.isCurrent && "ring-2 ring-primary/40 bg-secondary/80",
+                              )}
+                            >
+                              {item.isCurrent && (
                                 <motion.span
                                   layoutId="lesson-current"
                                   className="absolute inset-y-1 left-0 w-1 rounded-r-full bg-gradient-to-b from-primary to-accent"
                                   transition={{ type: "spring", stiffness: 360, damping: 30 }}
                                 />
                               )}
-                              <Link
-                                to="/learn/$courseId/$lessonId"
-                                params={{ courseId, lessonId: l.id }}
-                                className={cn(
-                                  "flex items-center justify-between gap-3 px-4 py-2.5 text-sm transition-colors",
-                                  isCurrent
-                                    ? "bg-primary/5 text-foreground"
-                                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
-                                )}
-                              >
-                                <div className="flex min-w-0 items-center gap-2.5">
-                                  <span
-                                    className={cn(
-                                      "grid h-5 w-5 shrink-0 place-items-center rounded-full",
-                                      done
-                                        ? "bg-success text-success-foreground"
-                                        : isCurrent
-                                          ? "bg-primary text-primary-foreground"
-                                          : "bg-secondary text-muted-foreground",
-                                    )}
-                                  >
-                                    {done ? (
-                                      <CheckCircle2 className="h-3.5 w-3.5" />
-                                    ) : isCurrent ? (
-                                      <Play className="h-3 w-3 fill-current" />
-                                    ) : (
-                                      <Lock className="h-2.5 w-2.5 opacity-0" />
-                                    )}
-                                  </span>
-                                  <span
-                                    className={cn(
-                                      "truncate",
-                                      isCurrent && "font-semibold text-foreground",
-                                    )}
-                                  >
-                                    {l.title}
-                                  </span>
-                                </div>
-                                <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-                                  <Clock className="h-3 w-3" />
-                                  {l.duration_minutes ?? 0}m
+                              <div className="flex min-w-0 items-center gap-2.5">
+                                <span
+                                  className={cn(
+                                    "grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-semibold",
+                                    item.isCompleted
+                                      ? "bg-success text-success-foreground"
+                                      : item.isCurrent
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-secondary text-muted-foreground",
+                                  )}
+                                >
+                                  {item.isCompleted ? (
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                  ) : item.isCurrent ? (
+                                    <Play className="h-3 w-3 fill-current" />
+                                  ) : (
+                                    String(item.index).padStart(2, "0")
+                                  )}
                                 </span>
-                              </Link>
-                            </li>
-                          );
-                        })}
-                      </motion.ul>
+                                <span
+                                  className={cn(
+                                    "truncate",
+                                    item.isCurrent && "font-semibold text-foreground",
+                                  )}
+                                >
+                                  {item.title}
+                                </span>
+                              </div>
+                              <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                {item.durationMinutes ?? 0}m
+                              </span>
+                            </div>
+                          )}
+                        />
+                      </motion.div>
                     )}
                   </AnimatePresence>
                 </li>

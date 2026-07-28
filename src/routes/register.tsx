@@ -2,7 +2,8 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { FloatingField } from "@/components/auth/FloatingField";
 import { SubmitButton } from "@/components/auth/SubmitButton";
@@ -59,7 +60,45 @@ function mapSignUpError(error: { message?: string; status?: number }): string {
     : "Could not create account. Please try again.";
 }
 
-const grades = ["6", "7", "8", "9", "10", "11", "12"] as const;
+const grades = ["6", "7", "8", "9", "10", "11", "12", "12+"] as const;
+
+const PWD_RULES: { label: string; test: (p: string) => boolean }[] = [
+  { label: "At least 8 characters",              test: (p) => p.length >= 8 },
+  { label: "One lowercase letter",               test: (p) => /[a-z]/.test(p) },
+  { label: "One uppercase letter",               test: (p) => /[A-Z]/.test(p) },
+  { label: "One number",                         test: (p) => /[0-9]/.test(p) },
+  { label: "One special character (!@#$%^&*…)",  test: (p) => /[^A-Za-z0-9]/.test(p) },
+];
+
+function PasswordRequirements({ pwd }: { pwd: string }) {
+  return (
+    <ul className="mt-3 space-y-1.5 rounded-xl border border-border bg-secondary/30 px-4 py-3">
+      {PWD_RULES.map(({ label, test }) => {
+        const met = test(pwd);
+        return (
+          <li
+            key={label}
+            className={cn(
+              "flex items-center gap-2 text-[12px] font-medium transition-colors",
+              met
+                ? "text-emerald-500"
+                : pwd
+                  ? "text-red-400"
+                  : "text-muted-foreground",
+            )}
+          >
+            {met ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            ) : (
+              <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            )}
+            {label}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 const schema = z.object({
   full_name: z.string().trim().min(2, "Please enter your full name").max(80, "Name is too long"),
@@ -72,7 +111,11 @@ const schema = z.object({
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
-    .max(128, "Password is too long"),
+    .max(128, "Password is too long")
+    .refine((p) => /[a-z]/.test(p), "Password must contain at least one lowercase letter")
+    .refine((p) => /[A-Z]/.test(p), "Password must contain at least one uppercase letter")
+    .refine((p) => /[0-9]/.test(p), "Password must contain at least one number")
+    .refine((p) => /[^A-Za-z0-9]/.test(p), "Password must contain at least one special character"),
   grade: z.enum(grades, { message: "Select your class" }),
   school: z.string().trim().min(2, "Enter your school name").max(120),
 });
@@ -259,6 +302,7 @@ function RegisterPage() {
           onChange={update("password")}
           error={errors.password}
         />
+        <PasswordRequirements pwd={values.password} />
         <div className="grid grid-cols-2 gap-3">
           <FloatingField
             as="select"

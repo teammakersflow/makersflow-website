@@ -78,7 +78,7 @@ export function LessonTabBar({
   onChange: (t: TabKey) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto overflow-y-hidden no-scrollbar border-b border-border">
+    <div className="flex gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden border-b border-border">
       {TABS.map((t) => {
         const Icon = t.icon;
         const isActive = active === t.key;
@@ -96,7 +96,7 @@ export function LessonTabBar({
             {isActive && (
               <motion.span
                 layoutId="lesson-tab-underline"
-                className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-primary to-accent"
+                className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-primary to-primary-light"
                 transition={{ type: "spring", stiffness: 420, damping: 32 }}
               />
             )}

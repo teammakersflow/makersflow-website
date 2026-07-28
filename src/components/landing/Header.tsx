@@ -39,7 +39,7 @@ export function Header() {
 
       {/* Logo — fixed at same top-[14px] as navbar pill and auth buttons */}
       <div className="fixed top-[14px] left-5 lg:left-8 z-50">
-        <Logo />
+        <Logo size="md" />
       </div>
 
       {/* Auth buttons — fixed at same top-[14px] as the navbar pill */}

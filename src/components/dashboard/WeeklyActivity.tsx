@@ -116,15 +116,22 @@ export function WeeklyActivity({ data }: { data: WeeklyPoint[] }) {
             />
             <Tooltip
               cursor={{ fill: "var(--color-secondary)", opacity: 0.5, radius: 8 }}
-              contentStyle={{
-                background: "var(--color-card)",
-                border: "1px solid var(--color-border)",
-                borderRadius: 12,
-                fontSize: 12,
-                boxShadow: "0 8px 24px -8px rgba(0,0,0,0.15)",
+              wrapperStyle={{ outline: "none", zIndex: 50 }}
+              content={({ active, payload }) => {
+                if (!active || !payload || !payload.length) return null;
+                const item = payload[0].payload;
+                const count = Number(item.count ?? 0);
+                return (
+                  <div className="rounded-xl border border-border bg-card p-3 shadow-xl backdrop-blur-md">
+                    <p className="font-display text-xs font-bold text-foreground">
+                      {item.day}
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-primary">
+                      {count} {count === 1 ? "lesson" : "lessons"} watched
+                    </p>
+                  </div>
+                );
               }}
-              labelStyle={{ color: "var(--color-foreground)", fontWeight: 600 }}
-              formatter={(v: number) => [`${v} lesson${v === 1 ? "" : "s"}`, "Watched"]}
             />
             <Bar
               dataKey="count"

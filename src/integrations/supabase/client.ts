@@ -55,5 +55,14 @@ export const supabase: SupabaseClient<Database, "public", any> = createClient<
   },
 );
 
+export const isSupabaseConfigured = (): boolean => {
+  return (
+    Boolean(SUPABASE_URL) &&
+    SUPABASE_URL !== "https://placeholder.supabase.co" &&
+    Boolean(SUPABASE_PUBLISHABLE_KEY) &&
+    SUPABASE_PUBLISHABLE_KEY !== "placeholder-anon-key"
+  );
+};
+
 export type { SupabaseClient };
 export type { Database };

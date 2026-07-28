@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "./client";
+import { AuthError, type Session, type User } from "@supabase/supabase-js";
+import { supabase, isSupabaseConfigured } from "./client";
 
-/**
- * Auth helpers for MakersFlow web. Mirrors the shape used by the
- * mobile app so screens can share patterns later.
- */
+const CONFIG_ERROR = new AuthError(
+  "Authentication service is not configured. Please check your environment setup (.env).",
+  500,
+);
 
 export async function signInWithPassword(email: string, password: string) {
+  if (!isSupabaseConfigured()) {
+    return { data: { user: null, session: null }, error: CONFIG_ERROR };
+  }
   return supabase.auth.signInWithPassword({ email, password });
 }
 
@@ -17,6 +20,9 @@ export async function signUpWithPassword(
   metadata?: Record<string, unknown>,
   redirect?: string,
 ) {
+  if (!isSupabaseConfigured()) {
+    return { data: { user: null, session: null }, error: CONFIG_ERROR };
+  }
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const redirectTo = redirect ? `${origin}${redirect}` : `${origin}/`;
   return supabase.auth.signUp({
@@ -27,6 +33,9 @@ export async function signUpWithPassword(
 }
 
 export async function signInWithGoogle(redirect?: string) {
+  if (!isSupabaseConfigured()) {
+    return { data: { provider: "google" as const, url: null }, error: CONFIG_ERROR };
+  }
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const redirectTo = redirect ? `${origin}${redirect}` : `${origin}/`;
   return supabase.auth.signInWithOAuth({

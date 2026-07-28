@@ -175,7 +175,7 @@ function StorePage() {
               <select
                 value={priceFilter}
                 onChange={(e) => setPriceFilter(e.target.value as typeof priceFilter)}
-                className="rounded-xl border border-border bg-secondary px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                className="rounded-xl border border-border bg-secondary px-3 py-1.5 text-sm font-medium text-foreground outline-none cursor-pointer focus:border-primary hover:border-primary/50 transition-colors"
               >
                 <option value="all">All prices</option>
                 <option value="under1000">Under ₹1,000</option>
@@ -185,7 +185,7 @@ function StorePage() {
               <select
                 value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-                className="rounded-xl border border-border bg-secondary px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                className="rounded-xl border border-border bg-secondary px-3 py-1.5 text-sm font-medium text-foreground outline-none cursor-pointer focus:border-primary hover:border-primary/50 transition-colors"
               >
                 <option value="default">Sort by: Featured</option>
                 <option value="price-asc">Price: Low to High</option>

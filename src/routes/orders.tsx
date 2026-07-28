@@ -531,7 +531,7 @@ function OrdersPage() {
 
       setCourses(Array.from(courseMap.values()));
 
-      // Payments: derive from orders if payments table is empty, failing-closed to "pending" if status is missing
+      // Payments: derive from orders if payments table is empty, or merge matching order metadata (coupon_code & discount_amount)
       const paymentList = (p.data as Payment[]) ?? [];
       if (paymentList.length === 0 && orderList.length > 0) {
         const derivedPayments: Payment[] = orderList.map((ord: any) => ({
@@ -548,7 +548,17 @@ function OrdersPage() {
         }));
         setPayments(derivedPayments);
       } else {
-        setPayments(paymentList);
+        const mergedPayments: Payment[] = paymentList.map((pRow: any) => {
+          const matchingOrder = orderList.find(
+            (o: any) => o.id === pRow.order_id || o.razorpay_order_id === pRow.razorpay_order_id,
+          );
+          return {
+            ...pRow,
+            coupon_code: pRow.coupon_code || matchingOrder?.coupon_code || null,
+            discount_amount: pRow.discount_amount || matchingOrder?.discount_amount || 0,
+          };
+        });
+        setPayments(mergedPayments);
       }
 
       setRefunds((ref.data as Refund[]) ?? []);
@@ -595,7 +605,7 @@ function OrdersPage() {
           </header>
 
           {/* Tabs */}
-          <div className="flex gap-1 overflow-x-auto border-b border-border mb-6">
+          <div className="flex gap-1 overflow-x-auto overflow-y-hidden no-scrollbar border-b border-border mb-6">
             {TABS.map((t) => (
               <button
                 key={t.key}

@@ -6,7 +6,7 @@ import { AlertCircle, CheckCircle2, KeyRound } from "lucide-react";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { FloatingField } from "@/components/auth/FloatingField";
 import { SubmitButton } from "@/components/auth/SubmitButton";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
@@ -75,6 +75,10 @@ function ResetPasswordPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSupabaseConfigured()) {
+      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
+      return;
+    }
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
       const fe: Partial<Record<keyof FormValues, string>> = {};

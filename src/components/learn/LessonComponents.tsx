@@ -78,7 +78,7 @@ export function LessonTabBar({
   onChange: (t: TabKey) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto border-b border-border">
+    <div className="flex gap-1 overflow-x-auto overflow-y-hidden no-scrollbar border-b border-border">
       {TABS.map((t) => {
         const Icon = t.icon;
         const isActive = active === t.key;

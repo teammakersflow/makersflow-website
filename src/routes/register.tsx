@@ -10,7 +10,7 @@ import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
 import { signUpWithPassword, signInWithGoogle } from "@/integrations/supabase/auth";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/register")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
@@ -93,6 +93,10 @@ function RegisterPage() {
       valid = false;
     }
     if (!valid || !parsed.success) return;
+    if (!isSupabaseConfigured()) {
+      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
+      return;
+    }
     const formData = parsed.data;
     setLoading(true);
     const { data, error } = await signUpWithPassword(
@@ -150,6 +154,10 @@ function RegisterPage() {
   };
 
   const onGoogle = async () => {
+    if (!isSupabaseConfigured()) {
+      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
+      return;
+    }
     setGoogleLoading(true);
     const { error } = await signInWithGoogle(redirect);
     if (error) {

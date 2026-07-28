@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  AlertCircle,
   Bell,
   CheckCircle2,
   ExternalLink,
@@ -20,6 +21,7 @@ import {
   GraduationCap,
   School,
   Phone,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AvatarUpload } from "@/components/profile/AvatarUpload";
@@ -93,36 +95,42 @@ export function Field({
   );
 }
 
-// ─── Password strength ────────────────────────────────────────────────────────
-function PasswordStrength({ pwd }: { pwd: string }) {
-  if (!pwd) return null;
-  const checks = [pwd.length >= 8, /[A-Z]/.test(pwd), /[0-9]/.test(pwd), /[^A-Za-z0-9]/.test(pwd)];
-  const score = checks.filter(Boolean).length;
-  const labels = ["", "Weak", "Fair", "Good", "Strong"];
-  const colors = ["", "bg-red-500", "bg-amber-500", "bg-primary", "bg-emerald-500"];
-  const textColors = ["", "text-red-500", "text-amber-500", "text-primary", "text-emerald-600"];
+// ─── Password requirements ────────────────────────────────────────────────────
+const PWD_RULES: { label: string; test: (p: string) => boolean }[] = [
+  { label: "At least 8 characters",              test: (p) => p.length >= 8 },
+  { label: "One lowercase letter",               test: (p) => /[a-z]/.test(p) },
+  { label: "One uppercase letter",               test: (p) => /[A-Z]/.test(p) },
+  { label: "One number",                         test: (p) => /[0-9]/.test(p) },
+  { label: "One special character (!@#$%^&*…)",  test: (p) => /[^A-Za-z0-9]/.test(p) },
+];
+
+function PasswordRequirements({ pwd }: { pwd: string }) {
   return (
-    <div className="mt-2 space-y-1.5">
-      <div className="flex gap-1.5">
-        {[1, 2, 3, 4].map((i) => (
-          <motion.div
-            key={i}
+    <ul className="mt-3 space-y-1.5 rounded-xl border border-border bg-secondary/30 px-4 py-3">
+      {PWD_RULES.map(({ label, test }) => {
+        const met = test(pwd);
+        return (
+          <li
+            key={label}
             className={cn(
-              "h-1.5 flex-1 rounded-full transition-all",
-              i <= score ? colors[score] : "bg-secondary",
+              "flex items-center gap-2 text-[12px] font-medium transition-colors",
+              met
+                ? "text-emerald-500"
+                : pwd
+                  ? "text-red-400"
+                  : "text-muted-foreground",
             )}
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ delay: i * 0.06 }}
-          />
-        ))}
-      </div>
-      {score > 0 && (
-        <p className={cn("text-[11px] font-semibold", textColors[score])}>
-          {labels[score]} password
-        </p>
-      )}
-    </div>
+          >
+            {met ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            ) : (
+              <XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            )}
+            {label}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -472,14 +480,18 @@ export function SecurityTab({ isGoogle }: { isGoogle: boolean }) {
   const [pwd, setPwd] = useState("");
   const [confirm, setConfirm] = useState("");
   const [saving, setSaving] = useState(false);
+  const [submitErr, setSubmitErr] = useState<string | null>(null);
+
+  const allMet = PWD_RULES.every(({ test }) => test(pwd));
 
   const handleChange = async () => {
-    if (pwd.length < 8) {
-      toast.error("Password must be at least 8 characters");
+    setSubmitErr(null);
+    if (!allMet) {
+      setSubmitErr("Please meet all password requirements listed above.");
       return;
     }
     if (pwd !== confirm) {
-      toast.error("Passwords do not match");
+      setSubmitErr("Passwords do not match.");
       return;
     }
     setSaving(true);
@@ -489,7 +501,10 @@ export function SecurityTab({ isGoogle }: { isGoogle: boolean }) {
       toast.success("Password updated ✓");
       setPwd("");
       setConfirm("");
-    } else toast.error(res.error ?? "Could not update password");
+      setSubmitErr(null);
+    } else {
+      setSubmitErr(res.error ?? "Could not update password.");
+    }
   };
 
   return (
@@ -518,18 +533,24 @@ export function SecurityTab({ isGoogle }: { isGoogle: boolean }) {
               icon={Lock}
               type="password"
               value={pwd}
-              onChange={setPwd}
-              placeholder="At least 8 characters"
+              onChange={(v) => { setPwd(v); setSubmitErr(null); }}
+              placeholder="e.g. MyP@ss12"
             />
-            <PasswordStrength pwd={pwd} />
+            <PasswordRequirements pwd={pwd} />
             <Field
               label="Confirm password"
               icon={Lock}
               type="password"
               value={confirm}
-              onChange={setConfirm}
+              onChange={(v) => { setConfirm(v); setSubmitErr(null); }}
               hint={confirm && pwd !== confirm ? "⚠ Passwords don't match yet" : undefined}
             />
+            {submitErr && (
+              <p className="flex items-center gap-1.5 rounded-lg bg-destructive/10 px-3 py-2 text-[12px] font-medium text-destructive">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {submitErr}
+              </p>
+            )}
             <div className="flex justify-end pt-2">
               <SaveButton saving={saving} onClick={handleChange} label="Update password" />
             </div>

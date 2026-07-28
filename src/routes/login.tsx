@@ -7,7 +7,7 @@ import { SubmitButton } from "@/components/auth/SubmitButton";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
 import { signInWithPassword, signInWithGoogle } from "@/integrations/supabase/auth";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
@@ -55,6 +55,10 @@ function LoginPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSupabaseConfigured()) {
+      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
+      return;
+    }
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
       const fe: Record<string, string> = {};
@@ -76,6 +80,10 @@ function LoginPage() {
   };
 
   const onGoogle = async () => {
+    if (!isSupabaseConfigured()) {
+      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
+      return;
+    }
     setGoogleLoading(true);
     const { error } = await signInWithGoogle(redirect);
     if (error) {
@@ -87,6 +95,10 @@ function LoginPage() {
 
   const onForgot = async () => {
     setFormError(null);
+    if (!isSupabaseConfigured()) {
+      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
+      return;
+    }
     if (!values.email || !z.string().email().safeParse(values.email).success) {
       setErrors((er) => ({ ...er, email: "Enter your email to reset password" }));
       return;

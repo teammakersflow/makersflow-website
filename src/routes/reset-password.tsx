@@ -6,7 +6,32 @@ import { AlertCircle, CheckCircle2, KeyRound } from "lucide-react";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { FloatingField } from "@/components/auth/FloatingField";
 import { SubmitButton } from "@/components/auth/SubmitButton";
-import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
+
+/** Map a Supabase password-update error to something actionable. */
+function mapPasswordError(error: { message?: string; status?: number }): string {
+  const msg = (error?.message ?? "").toLowerCase();
+
+  if (msg.includes("should be different") || msg.includes("same as the old")) {
+    return "That is your current password. Please choose a different one.";
+  }
+  if (msg.includes("weak") || msg.includes("at least")) {
+    return "Password is too weak. Use at least 8 characters with a mix of letters and numbers.";
+  }
+  if (msg.includes("expired") || msg.includes("invalid") || msg.includes("token")) {
+    return "This reset link has expired. Please request a new one from the sign-in page.";
+  }
+  if (msg.includes("rate limit") || msg.includes("too many") || error?.status === 429) {
+    return "Too many attempts. Please wait a few minutes and try again.";
+  }
+  if (msg.includes("session") || msg.includes("not authenticated")) {
+    return "Your recovery session has ended. Please request a new reset link.";
+  }
+  return error?.message
+    ? `Could not update password: ${error.message}`
+    : "Could not update password. Please request a new reset link.";
+}
+
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
@@ -45,18 +70,31 @@ function ResetPasswordPage() {
 
   useEffect(() => {
     // Listen for recovery session established via magic link hash
+    // ── FIX ──────────────────────────────────────────────────────────────
+    // This accepted `event === "PASSWORD_RECOVERY" || session`. The `|| session`
+    // meant ANY signed-in visitor passed the check. If someone was already
+    // logged in and opened a stale or expired recovery link — or simply typed
+    // /reset-password — they were shown the form and the new password was
+    // applied to THEIR OWN account, which may not be the account the link was
+    // issued for. The "Invalid recovery link" state was therefore almost never
+    // reachable. Require a genuine recovery context.
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    const hasRecoveryToken =
+      hash.includes("type=recovery") || hash.includes("access_token");
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || session) {
+      if (event === "PASSWORD_RECOVERY" || (hasRecoveryToken && session)) {
         setIsRecoveryValid(true);
       }
       setSessionChecking(false);
     });
 
-    // Check existing session state immediately
+    // Check existing session state immediately — but only honour it when the
+    // URL actually carries a recovery token.
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+      if (session && hasRecoveryToken) {
         setIsRecoveryValid(true);
       }
       setSessionChecking(false);
@@ -75,10 +113,6 @@ function ResetPasswordPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSupabaseConfigured()) {
-      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
-      return;
-    }
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
       const fe: Partial<Record<keyof FormValues, string>> = {};
@@ -97,7 +131,11 @@ function ResetPasswordPage() {
 
     if (error) {
       console.error("[reset-password] Password update failed:", error);
-      setFormError("Could not update password. Please request a new reset link.");
+      // ── FIX ────────────────────────────────────────────────────────────
+      // One generic message hid every cause. The most common by far is
+      // "New password should be different from the old password", which read
+      // as a broken link and sent users round the reset loop again.
+      setFormError(mapPasswordError(error));
       return;
     }
 

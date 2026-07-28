@@ -28,6 +28,15 @@ export const Route = createFileRoute("/checkout")({
   component: CheckoutPage,
 });
 
+/** Response shape from the `get-shipping-rate` edge function (same as mobile). */
+type ShiprocketRate = {
+  success: boolean;
+  fee: number | null;
+  courier?: string | null;
+  etd?: string | null;
+  source: "shiprocket" | "fallback";
+};
+
 // States/UTs with higher delivery costs (remote areas of India)
 const REMOTE_STATES = new Set([
   "Arunachal Pradesh",
@@ -168,10 +177,89 @@ function CheckoutPage() {
 
   const isRemoteState = shipping.state ? REMOTE_STATES.has(shipping.state) : false;
 
+  // ── Live Shiprocket rate ────────────────────────────────────────────────
+  // The mobile app (app/store/checkout.tsx) calls the `get-shipping-rate` edge
+  // function to price each shipment from the real courier, and only falls back
+  // to the flat admin settings when that fails. The web charged the flat fee
+  // unconditionally, so the same basket could quote two different totals
+  // depending on which platform the customer used. This mirrors the app.
+  const [shiprocketRate, setShiprocketRate] = useState<ShiprocketRate | null>(null);
+  const [shippingLoading, setShippingLoading] = useState(false);
+
+  useEffect(() => {
+    const pincode = String(shipping.pincode ?? "").replace(/\D/g, "").trim();
+
+    if (pincode.length !== 6 || items.length === 0) {
+      setShiprocketRate(null);
+      setShippingLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setShippingLoading(true);
+
+    // Weight per shipment — not multiplied by quantity, matching the app.
+    const totalWeight = items.reduce(
+      (sum, i) => sum + Number((i as unknown as { weight_kg?: number }).weight_kg ?? 0.5),
+      0,
+    );
+
+    supabase.functions
+      .invoke("get-shipping-rate", {
+        body: {
+          deliveryPincode: pincode,
+          weightKg: Math.max(totalWeight, 0.1),
+          declaredValue: Math.max(subtotal, 1),
+        },
+      })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || !data || !data.success) {
+          console.warn("[Shiprocket] rate lookup failed, using flat fee:", error);
+          setShiprocketRate(null);
+        } else {
+          setShiprocketRate(data as ShiprocketRate);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn("[Shiprocket] rate lookup exception:", err);
+          setShiprocketRate(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setShippingLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [shipping.pincode, items, subtotal]);
+
+  const fallbackShippingFee = isRemoteState
+    ? shippingConfig.remoteFee
+    : shippingConfig.fee;
+
   const shippingFee = useMemo(() => {
-    if (items.length === 0 || subtotal >= shippingConfig.threshold) return 0;
-    return isRemoteState ? shippingConfig.remoteFee : shippingConfig.fee;
-  }, [subtotal, items.length, shippingConfig, isRemoteState]);
+    if (items.length === 0) return 0;
+    // Free-shipping threshold wins over any courier quote.
+    if (subtotal >= shippingConfig.threshold) return 0;
+    // While the quote is in flight, hold the last known live rate rather than
+    // flashing the flat fee and then changing the total under the user.
+    if (shippingLoading) {
+      return shiprocketRate && shiprocketRate.fee !== null ? shiprocketRate.fee : 0;
+    }
+    return shiprocketRate && shiprocketRate.fee !== null
+      ? shiprocketRate.fee
+      : fallbackShippingFee;
+  }, [
+    items.length,
+    subtotal,
+    shippingConfig.threshold,
+    shippingLoading,
+    shiprocketRate,
+    fallbackShippingFee,
+  ]);
   const discount = couponState.discount;
 
   // Per-item GST (mirrors CheckoutComponents.tsx logic)

@@ -6,10 +6,36 @@ import { FloatingField } from "@/components/auth/FloatingField";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
-import { signInWithPassword, signInWithGoogle } from "@/integrations/supabase/auth";
-import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
+import {
+  signInWithPassword,
+  signInWithGoogle,
+  resendConfirmationEmail,
+} from "@/integrations/supabase/auth";
+import { supabase } from "@/integrations/supabase/client";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
+
+/** Map a Supabase sign-in error to an actionable message. */
+function mapSignInError(error: { message?: string; status?: number }): string {
+  const msg = (error?.message ?? "").toLowerCase();
+
+  if (msg.includes("email not confirmed") || msg.includes("not confirmed")) {
+    return "Please confirm your email first \u2014 check your inbox (and spam) for the verification link. Use \u201cResend confirmation\u201d below if it never arrived.";
+  }
+  if (msg.includes("invalid login credentials")) {
+    return "Invalid email or password. Please check your credentials and try again.";
+  }
+  if (msg.includes("rate limit") || msg.includes("too many") || error?.status === 429) {
+    return "Too many attempts. Please wait a few minutes and try again.";
+  }
+  if (msg.includes("user not found")) {
+    return "No account found with that email. Please register first.";
+  }
+  return error?.message
+    ? `Sign-in failed: ${error.message}`
+    : "Sign-in failed. Please try again.";
+}
+
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
@@ -55,10 +81,6 @@ function LoginPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSupabaseConfigured()) {
-      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
-      return;
-    }
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
       const fe: Record<string, string> = {};
@@ -73,17 +95,17 @@ function LoginPage() {
     setLoading(false);
     if (error) {
       console.error("[login] Password sign-in failed:", error);
-      setFormError("Invalid email or password. Please check your credentials and try again.");
+      // ── FIX ──────────────────────────────────────────────────────────────
+      // "Invalid email or password" was shown for every failure, including
+      // "Email not confirmed" — which sent users in circles retyping a
+      // password that was already correct.
+      setFormError(mapSignInError(error));
       return;
     }
     navigate({ to: redirect || "/dashboard" });
   };
 
   const onGoogle = async () => {
-    if (!isSupabaseConfigured()) {
-      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
-      return;
-    }
     setGoogleLoading(true);
     const { error } = await signInWithGoogle(redirect);
     if (error) {
@@ -93,12 +115,26 @@ function LoginPage() {
     }
   };
 
-  const onForgot = async () => {
+  // ── FIX ────────────────────────────────────────────────────────────────────
+  // "Email not confirmed" was a dead end: the user could not request another
+  // verification link from anywhere in the UI.
+  const onResendConfirmation = async () => {
     setFormError(null);
-    if (!isSupabaseConfigured()) {
-      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
+    if (!values.email || !z.string().email().safeParse(values.email).success) {
+      setErrors((er) => ({ ...er, email: "Enter your email to resend confirmation" }));
       return;
     }
+    const { error } = await resendConfirmationEmail(values.email);
+    if (error) {
+      console.error("[login] Resend confirmation failed:", error);
+      setFormError(mapSignInError(error));
+    } else {
+      setResetSent(true);
+    }
+  };
+
+  const onForgot = async () => {
+    setFormError(null);
     if (!values.email || !z.string().email().safeParse(values.email).success) {
       setErrors((er) => ({ ...er, email: "Enter your email to reset password" }));
       return;
@@ -159,6 +195,13 @@ function LoginPage() {
             className="font-medium text-primary hover:underline"
           >
             Forgot password?
+          </button>
+          <button
+            type="button"
+            onClick={onResendConfirmation}
+            className="text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
+          >
+            Resend confirmation
           </button>
         </div>
 

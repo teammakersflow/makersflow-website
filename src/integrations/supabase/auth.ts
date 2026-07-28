@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
-import { AuthError, type Session, type User } from "@supabase/supabase-js";
-import { supabase, isSupabaseConfigured } from "./client";
+import type { Session, User } from "@supabase/supabase-js";
+import { supabase } from "./client";
 
-const CONFIG_ERROR = new AuthError(
-  "Authentication service is not configured. Please check your environment setup (.env).",
-  500,
-);
+/**
+ * Auth helpers for MakersFlow web. Mirrors the shape used by the
+ * mobile app so screens can share patterns later.
+ */
 
 export async function signInWithPassword(email: string, password: string) {
-  if (!isSupabaseConfigured()) {
-    return { data: { user: null, session: null }, error: CONFIG_ERROR };
-  }
   return supabase.auth.signInWithPassword({ email, password });
 }
 
@@ -20,32 +17,79 @@ export async function signUpWithPassword(
   metadata?: Record<string, unknown>,
   redirect?: string,
 ) {
-  if (!isSupabaseConfigured()) {
-    return { data: { user: null, session: null }, error: CONFIG_ERROR };
-  }
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const redirectTo = redirect ? `${origin}${redirect}` : `${origin}/`;
+
+  // ── FIX ────────────────────────────────────────────────────────────────
+  // The mobile app sends its display name under the metadata key `name`
+  // (services/authService.ts), while this web app sent `full_name`. Any DB
+  // trigger reading raw_user_meta_data can only match one of them, so users
+  // created on one platform arrived with a null name on the other.
+  // Send both keys so whichever the trigger reads, it finds a value.
+  const data = { ...(metadata ?? {}) } as Record<string, unknown>;
+  if (data.full_name && !data.name) data.name = data.full_name;
+  if (data.name && !data.full_name) data.full_name = data.name;
+
   return supabase.auth.signUp({
     email,
     password,
-    options: { data: metadata, emailRedirectTo: redirectTo },
+    options: { data, emailRedirectTo: redirectTo },
   });
 }
 
 export async function signInWithGoogle(redirect?: string) {
-  if (!isSupabaseConfigured()) {
-    return { data: { provider: "google" as const, url: null }, error: CONFIG_ERROR };
-  }
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const redirectTo = redirect ? `${origin}${redirect}` : `${origin}/`;
   return supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo },
+    options: {
+      redirectTo,
+      // ── FIX ──────────────────────────────────────────────────────────────
+      // Without prompt=select_account, Google silently reuses whichever
+      // account the browser signed in with last. Anyone with two Google
+      // accounts (personal + school, very common here) had no way to switch,
+      // and would land in the wrong MakersFlow profile with no obvious cause.
+      queryParams: { prompt: "select_account" },
+    },
   });
 }
 
-export async function signOut(scope: "global" | "local" | "others" = "global") {
-  return supabase.auth.signOut({ scope });
+/**
+ * Send a password-recovery email.
+ * `redirectTo` must be listed under Authentication -> URL Configuration ->
+ * Redirect URLs in the Supabase dashboard, or the link in the email 404s.
+ */
+export async function sendPasswordReset(email: string, redirectPath = "/reset-password") {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}${redirectPath}`,
+  });
+}
+
+/**
+ * Change the password of the currently signed-in user.
+ * Used by both the recovery screen and the in-app "change password" form.
+ */
+export async function updatePassword(newPassword: string) {
+  return supabase.auth.updateUser({ password: newPassword });
+}
+
+/**
+ * Re-send the signup confirmation email.
+ * Needed because "Email not confirmed" was previously a dead end — the user
+ * had no way to get another link.
+ */
+export async function resendConfirmationEmail(email: string) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return supabase.auth.resend({
+    type: "signup",
+    email,
+    options: { emailRedirectTo: `${origin}/` },
+  });
+}
+
+export async function signOut() {
+  return supabase.auth.signOut();
 }
 
 export async function getCurrentUser(): Promise<User | null> {

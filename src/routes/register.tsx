@@ -10,7 +10,7 @@ import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
 import { signUpWithPassword, signInWithGoogle } from "@/integrations/supabase/auth";
-import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/register")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
@@ -28,6 +28,36 @@ export const Route = createFileRoute("/register")({
   }),
   component: RegisterPage,
 });
+
+/**
+ * Turn a Supabase auth error into something a user can act on.
+ * The raw message is always kept as a suffix so support can diagnose.
+ */
+function mapSignUpError(error: { message?: string; status?: number }): string {
+  const msg = (error?.message ?? "").toLowerCase();
+
+  if (msg.includes("already registered") || msg.includes("already been registered")) {
+    return "That email is already registered. Please sign in instead.";
+  }
+  if (msg.includes("database error")) {
+    return "Server error while creating your profile. Please contact support \u2014 this is not a problem with your details.";
+  }
+  if (msg.includes("rate limit") || msg.includes("too many") || error?.status === 429) {
+    return "Too many signup attempts. Please wait a few minutes and try again.";
+  }
+  if (msg.includes("password")) {
+    return "Password does not meet the requirements. Use at least 8 characters.";
+  }
+  if (msg.includes("invalid") && msg.includes("email")) {
+    return "That email address was rejected. Please check it and try again.";
+  }
+  if (msg.includes("confirmation") || msg.includes("smtp") || msg.includes("sending")) {
+    return "Account created, but the confirmation email could not be sent. Please contact support.";
+  }
+  return error?.message
+    ? `Could not create account: ${error.message}`
+    : "Could not create account. Please try again.";
+}
 
 const grades = ["6", "7", "8", "9", "10", "11", "12"] as const;
 
@@ -93,10 +123,6 @@ function RegisterPage() {
       valid = false;
     }
     if (!valid || !parsed.success) return;
-    if (!isSupabaseConfigured()) {
-      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
-      return;
-    }
     const formData = parsed.data;
     setLoading(true);
     const { data, error } = await signUpWithPassword(
@@ -115,14 +141,12 @@ function RegisterPage() {
     if (error) {
       console.error("[register] Sign up failed:", error);
       setLoading(false);
-      setFormError(error.message || "Could not create account. Please try again.");
-      return;
-    }
-
-    // Check if Supabase returned a user with an empty identities array (indicates user already exists when email confirmation is enabled)
-    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-      setLoading(false);
-      setFormError("An account with this email address already exists. Please sign in instead.");
+      // ── FIX ──────────────────────────────────────────────────────────────
+      // Every failure used to show the same "already registered" text, which
+      // hid the real cause — weak password, rate limit, a crashing DB trigger,
+      // unconfigured SMTP. Map the common Supabase errors to something
+      // actionable and fall back to the actual message.
+      setFormError(mapSignUpError(error));
       return;
     }
 
@@ -154,10 +178,6 @@ function RegisterPage() {
   };
 
   const onGoogle = async () => {
-    if (!isSupabaseConfigured()) {
-      setFormError("Authentication service is not configured. Please check your environment setup (.env).");
-      return;
-    }
     setGoogleLoading(true);
     const { error } = await signInWithGoogle(redirect);
     if (error) {

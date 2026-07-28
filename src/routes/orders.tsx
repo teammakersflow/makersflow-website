@@ -31,6 +31,55 @@ import {
   type InvoiceData,
 } from "@/lib/invoice-utils";
 
+/**
+ * Order tracking stages — identical to TRACKING_STEPS in the mobile app
+ * (artifacts/mobile/app/store/orders.tsx). Keep the two in sync.
+ */
+const TRACKING_STEPS = [
+  { key: "pending", label: "Order Placed" },
+  { key: "paid", label: "Payment Confirmed" },
+  { key: "packed", label: "Packed" },
+  { key: "shipped", label: "Shipped" },
+  { key: "out_for_delivery", label: "Out for Delivery" },
+  { key: "delivered", label: "Delivered" },
+] as const;
+
+/** Mirror of normalizeStatus() in the mobile app. */
+function normalizeStatus(raw: string | undefined): string {
+  const s = (raw ?? "").toLowerCase().replace(/ /g, "_");
+  if (s === "delivered" || s === "completed") return "delivered";
+  if (s === "out_for_delivery") return "out_for_delivery";
+  if (s === "shipped") return "shipped";
+  if (s === "packed") return "packed";
+  if (s === "paid") return "paid";
+  if (s.includes("refund") || s === "cancelled" || s === "failed") return "cancelled";
+  return "pending";
+}
+
+/** Index of the furthest reached step, or 0 when unknown. */
+function currentStepIndex(status: string | undefined): number {
+  const normalized = normalizeStatus(status);
+  const idx = TRACKING_STEPS.findIndex((s) => s.key === normalized);
+  return idx === -1 ? 0 : idx;
+}
+
+/**
+ * Resolve an order's tracking/AWB code across every column the stack uses.
+ * Admin and the mobile app both write `tracking_number`; older rows may carry
+ * `awb_code` or a nested `shipping_details.awb_code`.
+ */
+function trackingCode(order: unknown): string | null {
+  const o = order as Record<string, any>;
+  return (
+    o?.tracking_number ||
+    o?.awb_code ||
+    o?.shipping_details?.awb_code ||
+    o?.shipping_details?.tracking_number ||
+    null
+  );
+}
+
+
 export const Route = createFileRoute("/orders")({
   head: () => ({ meta: [{ title: "My Orders — MakersFlow" }] }),
   component: OrdersPage,
@@ -255,7 +304,9 @@ function OrderCard({
           </div>
           <div>
             <p className="text-sm font-bold text-foreground">
-              Order #{order.id.slice(0, 8).toUpperCase()}
+              {/* FIX: the app prints the full id; truncating to 8 chars here
+                  meant support could not match a web order to an app order. */}
+              Order #{order.id.toUpperCase()}
             </p>
             <p className="text-xs text-muted-foreground">
               {new Date(order.created_at).toLocaleString("en-IN", {
@@ -284,7 +335,7 @@ function OrderCard({
             onClick={(e) => {
               e.stopPropagation();
               shareItem({
-                title: `Order #${order.id.slice(0, 8).toUpperCase()} — MakersFlow`,
+                title: `Order #${order.id.toUpperCase()} — MakersFlow`,
                 text: `Order total: ${formatPrice(order.total_amount)}`,
                 url: window.location.href,
               });
@@ -323,63 +374,58 @@ function OrderCard({
                 </span>
                 <span className="text-primary font-bold capitalize">{order.status}</span>
               </div>
-              <div className="grid grid-cols-4 gap-2 pt-1">
-                {[
-                  { step: 1, label: "Placed", active: true },
-                  {
-                    step: 2,
-                    label: "Shipped",
-                    active: ["shipped", "out_for_delivery", "delivered", "completed"].includes(order.status),
-                  },
-                  {
-                    step: 3,
-                    label: "Out for Delivery",
-                    active: ["out_for_delivery", "delivered", "completed"].includes(order.status),
-                  },
-                  {
-                    step: 4,
-                    label: "Delivered",
-                    active: ["delivered", "completed"].includes(order.status),
-                  },
-                ].map((s) => (
-                  <div key={s.step} className="flex flex-col items-center gap-1 text-center">
-                    <div
-                      className={cn(
-                        "grid h-7 w-7 place-items-center rounded-full text-xs font-bold transition-all",
-                        s.active
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "bg-secondary text-muted-foreground border border-border",
-                      )}
-                    >
-                      {s.active ? <CheckCircle2 className="h-4 w-4" /> : s.step}
+              {/* ── FIX ────────────────────────────────────────────────────
+                  The web showed four steps (Placed / Shipped / Out for Delivery
+                  / Delivered) while the mobile app showed six (Order Placed /
+                  Payment Confirmed / Packed / Shipped / Out for Delivery /
+                  Delivered). The same order therefore looked like it was at a
+                  different stage depending on the device. These are now the
+                  identical six steps, driven by the same normaliseStatus() map
+                  the app uses in app/store/orders.tsx. */}
+              <div className="grid grid-cols-3 gap-2 pt-1 sm:grid-cols-6">
+                {TRACKING_STEPS.map((step, idx) => {
+                  const activeIdx = currentStepIndex(order.status);
+                  const done = idx <= activeIdx;
+                  return (
+                    <div key={step.key} className="flex flex-col items-center gap-1 text-center">
+                      <div
+                        className={cn(
+                          "grid h-7 w-7 place-items-center rounded-full text-xs font-bold transition-all",
+                          done
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "bg-secondary text-muted-foreground border border-border",
+                        )}
+                      >
+                        {done ? <CheckCircle2 className="h-4 w-4" /> : idx + 1}
+                      </div>
+                      <span
+                        className={cn(
+                          "text-[11px] font-medium leading-tight",
+                          done ? "text-foreground font-semibold" : "text-muted-foreground",
+                        )}
+                      >
+                        {step.label}
+                      </span>
                     </div>
-                    <span
-                      className={cn(
-                        "text-[11px] font-medium leading-tight",
-                        s.active ? "text-foreground font-semibold" : "text-muted-foreground",
-                      )}
-                    >
-                      {s.label}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Shiprocket Live Tracking Metadata Display */}
-              {((order as any).awb_code || (order as any).shipping_details?.awb_code) && (
+              {trackingCode(order) && (
                 <div className="mt-3 rounded-lg border border-border/80 bg-background p-3 text-xs flex flex-wrap items-center justify-between gap-2">
                   <div className="space-y-0.5">
                     <p className="font-semibold text-foreground">
                       Courier: {(order as any).courier_name || (order as any).shipping_details?.courier || "Shiprocket Express"}
                     </p>
                     <p className="font-mono text-muted-foreground">
-                      AWB: {(order as any).awb_code || (order as any).shipping_details?.awb_code}
+                      AWB: {trackingCode(order)}
                     </p>
                   </div>
                   <a
                     href={
                       (order as any).tracking_url ||
-                      `https://shiprocket.co/tracking/${(order as any).awb_code || (order as any).shipping_details?.awb_code}`
+                      `https://shiprocket.co/tracking/${trackingCode(order)}`
                     }
                     target="_blank"
                     rel="noreferrer"
@@ -531,7 +577,7 @@ function OrdersPage() {
 
       setCourses(Array.from(courseMap.values()));
 
-      // Payments: derive from orders if payments table is empty, or merge matching order metadata (coupon_code & discount_amount)
+      // Payments: derive from orders if payments table is empty, failing-closed to "pending" if status is missing
       const paymentList = (p.data as Payment[]) ?? [];
       if (paymentList.length === 0 && orderList.length > 0) {
         const derivedPayments: Payment[] = orderList.map((ord: any) => ({
@@ -548,17 +594,7 @@ function OrdersPage() {
         }));
         setPayments(derivedPayments);
       } else {
-        const mergedPayments: Payment[] = paymentList.map((pRow: any) => {
-          const matchingOrder = orderList.find(
-            (o: any) => o.id === pRow.order_id || o.razorpay_order_id === pRow.razorpay_order_id,
-          );
-          return {
-            ...pRow,
-            coupon_code: pRow.coupon_code || matchingOrder?.coupon_code || null,
-            discount_amount: pRow.discount_amount || matchingOrder?.discount_amount || 0,
-          };
-        });
-        setPayments(mergedPayments);
+        setPayments(paymentList);
       }
 
       setRefunds((ref.data as Refund[]) ?? []);
@@ -605,7 +641,7 @@ function OrdersPage() {
           </header>
 
           {/* Tabs */}
-          <div className="flex gap-1 overflow-x-auto overflow-y-hidden no-scrollbar border-b border-border mb-6">
+          <div className="flex gap-1 overflow-x-auto border-b border-border mb-6">
             {TABS.map((t) => (
               <button
                 key={t.key}

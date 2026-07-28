@@ -491,10 +491,8 @@ export type ProgressOverview = {
   total_enrolled: number;
   total_completed: number;
   total_hours: number;
-  total_secs?: number;
-  raw_hours?: number;
-  time_unit?: "h" | "m";
-  display_time?: number;
+  /** Same figure in whole minutes \u2014 lets the UI show "7m" instead of rounding to 0h. */
+  total_minutes: number;
   current_streak: number;
   longest_streak: number;
   activity: StreakDay[]; // last 365 days
@@ -525,6 +523,7 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
   let totalEnrolled = 0;
   let totalCompleted = 0;
   let totalHours = 0;
+  let totalMinutes = 0;
   let currentStreak = 0;
   let longestStreak = 0;
 
@@ -622,25 +621,15 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
         byDay[key] = (byDay[key] ?? 0) + 1;
       }
     }
-    totalHours = secs < 3600 ? Math.round(secs / 60) : Math.round((secs / 3600) * 10) / 10;
-    const time_unit: "h" | "m" = secs < 3600 ? "m" : "h";
-    const raw_hours = Math.round((secs / 3600) * 10) / 10;
+    // ── FIX ────────────────────────────────────────────────────────────────
+    // Math.round(secs / 3600) turned 7 minutes of study into 0, so the Progress
+    // page rendered "\u2014" under a "Start your first lesson" subtitle for a user
+    // with a live 2-day streak. It also tripped isEmptyState and locked the
+    // first-lesson achievement. Keep one decimal so short sessions survive.
+    totalHours = Math.round((secs / 3600) * 10) / 10;
+    totalMinutes = Math.round(secs / 60);
     for (const a of activity) a.count = byDay[a.date] ?? 0;
     for (const w of weekly) w.count = byDay[w.date] ?? 0;
-
-    return {
-      total_enrolled: totalEnrolled,
-      total_completed: totalCompleted,
-      total_hours: totalHours,
-      total_secs: secs,
-      raw_hours,
-      time_unit,
-      display_time: totalHours,
-      current_streak: currentStreak,
-      longest_streak: longestStreak,
-      activity,
-      weekly,
-    };
   } catch (err) {
     console.warn(`[makersflow] fetchProgressOverview lesson_progress threw:`, err);
   }
@@ -674,10 +663,7 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
     total_enrolled: totalEnrolled,
     total_completed: totalCompleted,
     total_hours: totalHours,
-    total_secs: 0,
-    raw_hours: 0,
-    time_unit: "m",
-    display_time: 0,
+    total_minutes: totalMinutes,
     current_streak: currentStreak,
     longest_streak: longestStreak,
     activity,

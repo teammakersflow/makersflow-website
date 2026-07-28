@@ -66,6 +66,18 @@ export const DEMO_OVERVIEW: ProgressOverview = {
 
 // ─── Count-up hook ────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef } from "react";
+
+/**
+ * Render learning time so short sessions stay visible.
+ * Under one hour we show whole minutes ("7m"); above that, hours ("1.5h").
+ */
+export function formatLearnTime(hours: number, minutes?: number): string {
+  const mins = minutes ?? Math.round(hours * 60);
+  if (mins <= 0) return "0m";
+  if (mins < 60) return `${mins}m`;
+  return `${Math.round((mins / 60) * 10) / 10}h`;
+}
+
 function useCountUp(target: number, duration = 900) {
   const [val, setVal] = useState(0);
   const raf = useRef<number>(0);
@@ -98,6 +110,7 @@ const STAT_DEFS = [
     sub: "Courses in your library",
   },
   {
+    // Rendered via formatLearnTime() below so short sessions read "7m", not "0h".
     key: "total_hours" as const,
     label: "Hours learned",
     suffix: "h",
@@ -149,7 +162,7 @@ function StatCard({
   const emptySubtext =
     {
       current_streak: "Start your streak today",
-      total_hours: "Start your first lesson",
+      total_hours: "Total time invested",
       longest_streak: "Build your personal best",
       total_enrolled: "Browse catalog to enroll",
     }[def.key] ?? def.sub;
@@ -219,20 +232,11 @@ function StatCard({
 }
 
 export function StatsGrid({ overview }: { overview: ProgressOverview }) {
-  const isMins = overview.time_unit === "m";
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      {STAT_DEFS.map((def, i) => {
-        const isTime = def.key === "total_hours";
-        const modifiedDef = isTime
-          ? {
-              ...def,
-              label: isMins ? "Minutes learned" : "Hours learned",
-              suffix: overview.time_unit ?? "h",
-            }
-          : def;
-        return <StatCard key={def.key} def={modifiedDef} value={overview[def.key]} delay={i * 0.07} />;
-      })}
+      {STAT_DEFS.map((def, i) => (
+        <StatCard key={def.key} def={def} value={overview[def.key]} delay={i * 0.07} />
+      ))}
     </div>
   );
 }
@@ -348,7 +352,13 @@ export function StreakHeatmap({ overview }: { overview: ProgressOverview }) {
     }
   });
 
-  const isEmptyState = overview.current_streak === 0 && overview.total_hours === 0;
+  // ── FIX ────────────────────────────────────────────────────────────────────
+  // total_hours was a rounded integer, so anyone with under 30 minutes logged
+  // looked like they had never started. Check minutes and enrolments too.
+  const isEmptyState =
+    overview.current_streak === 0 &&
+    (overview.total_minutes ?? 0) === 0 &&
+    overview.total_enrolled === 0;
 
   return (
     <motion.section
@@ -665,7 +675,6 @@ export function BadgesGrid({
   overview: ProgressOverview;
   completedCourses: number;
 }) {
-  const actualHours = overview.raw_hours ?? (overview.total_secs ? overview.total_secs / 3600 : 0);
   const badges: BadgeDef[] = [
     {
       id: "first-steps",
@@ -674,7 +683,10 @@ export function BadgesGrid({
       emoji: "🚀",
       icon: Sparkles,
       gradient: "from-[#6C63FF] to-[#8B83FF]",
-      unlocked: (overview.total_secs ?? 0) > 0 || overview.current_streak > 0,
+      unlocked:
+        (overview.total_minutes ?? 0) > 0 ||
+        overview.total_hours > 0 ||
+        overview.current_streak > 0,
     },
     {
       id: "streak-3",
@@ -728,7 +740,7 @@ export function BadgesGrid({
       emoji: "⏱",
       icon: Clock,
       gradient: "from-[#FF6B35] to-[#8B5CF6]",
-      unlocked: actualHours >= 10,
+      unlocked: overview.total_hours >= 10,
     },
     {
       id: "quiz-master",

@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Header } from "@/components/landing/Header";
 import { Hero } from "@/components/landing/Hero";
+import { ChallengeSpotlight } from "@/components/landing/ChallengeSpotlight";
 import CurvedLoop from "@/components/CurvedLoop";
 import { StatsBar } from "@/components/landing/StatsBar";
 import { HowItWorks } from "@/components/landing/HowItWorks";
@@ -66,6 +67,7 @@ function LandingPage() {
       <div className="relative z-10">
         <Header />
         <Hero />
+        <ChallengeSpotlight />
         <section
           aria-label="Brand Philosophy Marquee"
           className="relative py-4 border-y border-border/40 bg-card/30 backdrop-blur-md"

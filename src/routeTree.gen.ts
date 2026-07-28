@@ -35,6 +35,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as StoreIndexRouteImport } from './routes/store.index'
 import { Route as StoreIdRouteImport } from './routes/store.$id'
 import { Route as CourseIdRouteImport } from './routes/course.$id'
+import { Route as ChallengesInnovationRouteImport } from './routes/challenges.innovation'
+import { Route as Challenges30DayRouteImport } from './routes/challenges.30-day'
 import { Route as CertificateIdRouteImport } from './routes/certificate.$id'
 import { Route as LearnCourseIdLessonIdRouteImport } from './routes/learn.$courseId.$lessonId'
 
@@ -168,6 +170,16 @@ const CourseIdRoute = CourseIdRouteImport.update({
   path: '/course/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChallengesInnovationRoute = ChallengesInnovationRouteImport.update({
+  id: '/challenges/innovation',
+  path: '/challenges/innovation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Challenges30DayRoute = Challenges30DayRouteImport.update({
+  id: '/challenges/30-day',
+  path: '/challenges/30-day',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CertificateIdRoute = CertificateIdRouteImport.update({
   id: '/certificate/$id',
   path: '/certificate/$id',
@@ -204,6 +216,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/certificate/$id': typeof CertificateIdRoute
+  '/challenges/30-day': typeof Challenges30DayRoute
+  '/challenges/innovation': typeof ChallengesInnovationRoute
   '/course/$id': typeof CourseIdRoute
   '/store/$id': typeof StoreIdRoute
   '/store/': typeof StoreIndexRoute
@@ -234,6 +248,8 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/certificate/$id': typeof CertificateIdRoute
+  '/challenges/30-day': typeof Challenges30DayRoute
+  '/challenges/innovation': typeof ChallengesInnovationRoute
   '/course/$id': typeof CourseIdRoute
   '/store/$id': typeof StoreIdRoute
   '/store': typeof StoreIndexRoute
@@ -265,6 +281,8 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/terms': typeof TermsRoute
   '/certificate/$id': typeof CertificateIdRoute
+  '/challenges/30-day': typeof Challenges30DayRoute
+  '/challenges/innovation': typeof ChallengesInnovationRoute
   '/course/$id': typeof CourseIdRoute
   '/store/$id': typeof StoreIdRoute
   '/store/': typeof StoreIndexRoute
@@ -297,6 +315,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/certificate/$id'
+    | '/challenges/30-day'
+    | '/challenges/innovation'
     | '/course/$id'
     | '/store/$id'
     | '/store/'
@@ -327,6 +347,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/certificate/$id'
+    | '/challenges/30-day'
+    | '/challenges/innovation'
     | '/course/$id'
     | '/store/$id'
     | '/store'
@@ -357,6 +379,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/terms'
     | '/certificate/$id'
+    | '/challenges/30-day'
+    | '/challenges/innovation'
     | '/course/$id'
     | '/store/$id'
     | '/store/'
@@ -388,6 +412,8 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TermsRoute: typeof TermsRoute
   CertificateIdRoute: typeof CertificateIdRoute
+  Challenges30DayRoute: typeof Challenges30DayRoute
+  ChallengesInnovationRoute: typeof ChallengesInnovationRoute
   CourseIdRoute: typeof CourseIdRoute
   StoreIdRoute: typeof StoreIdRoute
   StoreIndexRoute: typeof StoreIndexRoute
@@ -578,6 +604,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CourseIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/challenges/innovation': {
+      id: '/challenges/innovation'
+      path: '/challenges/innovation'
+      fullPath: '/challenges/innovation'
+      preLoaderRoute: typeof ChallengesInnovationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/challenges/30-day': {
+      id: '/challenges/30-day'
+      path: '/challenges/30-day'
+      fullPath: '/challenges/30-day'
+      preLoaderRoute: typeof Challenges30DayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/certificate/$id': {
       id: '/certificate/$id'
       path: '/certificate/$id'
@@ -620,6 +660,8 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TermsRoute: TermsRoute,
   CertificateIdRoute: CertificateIdRoute,
+  Challenges30DayRoute: Challenges30DayRoute,
+  ChallengesInnovationRoute: ChallengesInnovationRoute,
   CourseIdRoute: CourseIdRoute,
   StoreIdRoute: StoreIdRoute,
   StoreIndexRoute: StoreIndexRoute,

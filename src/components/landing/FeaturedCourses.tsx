@@ -67,7 +67,7 @@ export function FeaturedCourses() {
 
         <div
           ref={scrollerRef}
-          className="mt-10 flex snap-x snap-mandatory gap-6 overflow-x-auto pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="mt-10 flex snap-x snap-mandatory gap-6 overflow-x-auto pb-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         >
           {isLoading ? (
             Array.from({ length: 3 }).map((_, i) => <CourseSkeleton key={i} />)
@@ -185,12 +185,8 @@ function CourseTile({ c, index }: { c: CourseCard; index: number }) {
 
   const cardContent = (
     <div className="relative block h-full w-full transition-transform duration-300 group-hover:-translate-y-2">
-      {/* Thumbnail with gradient border glow on hover */}
+      {/* Thumbnail with react-bits border glow */}
       <div className="relative cursor-pointer" onClick={handleCardClick}>
-        <div
-          aria-hidden
-          className={`absolute -inset-0.5 rounded-[var(--radius-cards)] bg-gradient-to-br ${grad} opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-70`}
-        />
         <div
           className="relative aspect-[4/3] overflow-hidden rounded-[var(--radius-cards)]"
           style={{

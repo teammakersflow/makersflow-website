@@ -1,5 +1,6 @@
 .curved-loop-jacket {
-  min-height: 100vh;
+  min-height: auto;
+  padding: 1.5rem 0;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -73,7 +73,6 @@ export function HowItWorks() {
                 className="relative flex flex-col items-center text-center"
               >
                 <div className="relative">
-                  <div className="absolute inset-0 -z-10 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 blur-2xl" />
                   <StepIllustration index={i} />
                 </div>
                 <div className="mt-6 font-numeric text-xs font-bold uppercase tracking-[0.2em] text-accent">

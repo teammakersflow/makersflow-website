@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Award, CalendarDays, Rocket, Trophy } from "lucide-react";
+import BorderGlow from "@/components/BorderGlow";
 
 /**
  * The two challenge programmes, surfaced directly under the hero on the
@@ -67,47 +68,50 @@ export function ChallengeSpotlight() {
               viewport={{ once: true, margin: "-80px" }}
               transition={{ duration: 0.45, delay: index * 0.1 }}
             >
-              <Link
-                to={challenge.to}
-                className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-7 outline-none transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:shadow-[var(--shadow-glow-primary)] focus-visible:ring-2 focus-visible:ring-primary sm:p-9"
+              <BorderGlow
+                borderRadius={24}
+                glowColor="277 80 60"
+                colors={["#4F46E5", "#FF6B35", "#10B981"]}
+                backgroundColor="transparent"
+                glowIntensity={0.8}
               >
-                <div
-                  aria-hidden
-                  className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${challenge.gradient} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
-                />
+                <Link
+                  to={challenge.to}
+                  className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card p-7 outline-none transition-all duration-300 hover:-translate-y-1 focus-visible:ring-2 focus-visible:ring-primary sm:p-9"
+                >
+                  <div className="relative flex items-start justify-between gap-4">
+                    <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary">
+                      <challenge.icon className="h-6 w-6" />
+                    </span>
+                    <span className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {challenge.eyebrow}
+                    </span>
+                  </div>
 
-                <div className="relative flex items-start justify-between gap-4">
-                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-                    <challenge.icon className="h-6 w-6" />
+                  <h3 className="relative mt-6 font-display text-2xl font-bold text-foreground sm:text-3xl">
+                    {challenge.title}
+                  </h3>
+                  <p className="relative mt-1 font-semibold text-primary">{challenge.tagline}</p>
+                  <p className="relative mt-3 text-muted-foreground">{challenge.description}</p>
+
+                  <ul className="relative mt-6 flex flex-wrap gap-2">
+                    {challenge.highlights.map((h) => (
+                      <li
+                        key={h}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-foreground"
+                      >
+                        <Award className="h-3 w-3 text-accent" />
+                        {h}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <span className="relative mt-7 inline-flex items-center gap-2 font-semibold text-primary">
+                    {challenge.cta}
+                    <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </span>
-                  <span className="rounded-full border border-border px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {challenge.eyebrow}
-                  </span>
-                </div>
-
-                <h3 className="relative mt-6 font-display text-2xl font-bold text-foreground sm:text-3xl">
-                  {challenge.title}
-                </h3>
-                <p className="relative mt-1 font-semibold text-primary">{challenge.tagline}</p>
-                <p className="relative mt-3 text-muted-foreground">{challenge.description}</p>
-
-                <ul className="relative mt-6 flex flex-wrap gap-2">
-                  {challenge.highlights.map((h) => (
-                    <li
-                      key={h}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-foreground"
-                    >
-                      <Award className="h-3 w-3 text-accent" />
-                      {h}
-                    </li>
-                  ))}
-                </ul>
-
-                <span className="relative mt-7 inline-flex items-center gap-2 font-semibold text-primary">
-                  {challenge.cta}
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </span>
-              </Link>
+                </Link>
+              </BorderGlow>
             </motion.div>
           ))}
         </div>

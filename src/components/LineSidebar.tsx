@@ -123,18 +123,17 @@ export function LineSidebar({
   }, [runFrame]);
 
   const handlePointerMove = useCallback(
-    (e: React.PointerEvent<HTMLUListElement>) => {
+    (e: React.PointerEvent<HTMLUListElement> | PointerEvent) => {
       const list = listRef.current;
       if (!list) return;
-      const rect = list.getBoundingClientRect();
-      const pointerY = e.clientY - rect.top;
+      const pointerY = e.clientY;
       const ease = FALLOFF_CURVES[falloff] ?? FALLOFF_CURVES.linear;
       const itemEls = itemRefs.current;
       for (let i = 0; i < itemEls.length; i++) {
         const el = itemEls[i];
         if (!el) continue;
         const itemRect = el.getBoundingClientRect();
-        const center = itemRect.top - rect.top + itemRect.height / 2;
+        const center = itemRect.top + itemRect.height / 2;
         const distance = Math.abs(pointerY - center);
         targetsRef.current[i] = ease(Math.max(0, 1 - distance / proximityRadius));
       }

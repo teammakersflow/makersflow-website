@@ -56,7 +56,7 @@ function LandingPage() {
         <DotField
           dotRadius={2.0}
           dotSpacing={22}
-          glowRadius={280}
+          glowRadius={140}
           waveAmplitude={6}
           sparkle={true}
           gradientFrom="rgba(99, 102, 241, 0.65)"

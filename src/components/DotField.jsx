@@ -17,7 +17,7 @@ const DotField = memo(
     waveAmplitude = 0,
     gradientFrom = "rgba(168, 85, 247, 0.35)",
     gradientTo = "rgba(180, 151, 207, 0.25)",
-    glowColor = "#120F17",
+    glowColor = "rgba(99, 102, 241, 0.25)",
     ...rest
   }) => {
     const canvasRef = useRef(null);
@@ -73,8 +73,8 @@ const DotField = memo(
         sizeRef.current = {
           w,
           h,
-          offsetX: rect.left + window.scrollX,
-          offsetY: rect.top + window.scrollY,
+          offsetX: rect.left,
+          offsetY: rect.top,
         };
 
         buildDots(w, h);
@@ -102,10 +102,8 @@ const DotField = memo(
 
       function onMouseMove(e) {
         const s = sizeRef.current;
-        const clientX = e.clientX !== undefined ? e.clientX : e.pageX - (window.scrollX || 0);
-        const clientY = e.clientY !== undefined ? e.clientY : e.pageY - (window.scrollY || 0);
-        mouseRef.current.x = clientX - s.offsetX;
-        mouseRef.current.y = clientY - s.offsetY;
+        mouseRef.current.x = e.clientX - s.offsetX;
+        mouseRef.current.y = e.clientY - s.offsetY;
       }
 
       function updateMouseSpeed() {

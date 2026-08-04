@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useRef, useState } from "react";
 import { Cpu, Brain, Zap, Wifi, Code2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import BorderGlow from "@/components/BorderGlow";
 
 const CATS = [
   { name: "Robotics", icon: Cpu, from: "from-primary", to: "to-accent" },
@@ -73,47 +74,51 @@ function TiltCard({
       style={{ perspective: 1000 }}
     >
       <Link to="/explore" className="block">
-        <div
-          ref={ref}
-          onMouseMove={onMove}
-          onMouseLeave={onLeave}
-          style={{
-            transform: `rotateX(${t.rx}deg) rotateY(${t.ry}deg)`,
-            transformStyle: "preserve-3d",
-            transition: "transform 200ms ease-out",
-          }}
-          className="group relative aspect-[4/5] cursor-pointer overflow-hidden rounded-2xl border border-border bg-card p-5"
+        <BorderGlow
+          borderRadius={16}
+          glowColor="277 80 60"
+          colors={["#4F46E5", "#FF6B35", "#10B981"]}
+          backgroundColor="transparent"
+          glowIntensity={0.8}
         >
           <div
-            aria-hidden
-            className={`absolute inset-0 -z-10 bg-gradient-to-br ${from} ${to} opacity-0 transition-opacity duration-300 group-hover:opacity-100`}
-          />
-          <div
-            aria-hidden
-            className="absolute inset-0 -z-10 opacity-[0.12]"
+            ref={ref}
+            onMouseMove={onMove}
+            onMouseLeave={onLeave}
             style={{
-              backgroundImage:
-                "radial-gradient(circle, color-mix(in oklab, var(--foreground) 50%, transparent) 1px, transparent 1px)",
-              backgroundSize: "16px 16px",
+              transform: `rotateX(${t.rx}deg) rotateY(${t.ry}deg)`,
+              transformStyle: "preserve-3d",
+              transition: "transform 200ms ease-out",
             }}
-          />
-          <div className="flex h-full flex-col justify-between">
+            className="group relative aspect-[4/5] cursor-pointer overflow-hidden rounded-2xl border border-border bg-card p-5"
+          >
             <div
-              style={{ transform: "translateZ(28px)" }}
-              className={`grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br ${from} ${to} text-white shadow-lg`}
-            >
-              <Icon className="h-6 w-6" />
-            </div>
-            <div style={{ transform: "translateZ(20px)" }}>
-              <h3 className="font-display text-xl font-bold text-foreground transition-colors group-hover:text-white">
-                {name}
-              </h3>
-              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-white/80">
-                Explore courses →
-              </p>
+              aria-hidden
+              className="absolute inset-0 -z-10 opacity-[0.12]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle, color-mix(in oklab, var(--foreground) 50%, transparent) 1px, transparent 1px)",
+                backgroundSize: "16px 16px",
+              }}
+            />
+            <div className="flex h-full flex-col justify-between">
+              <div
+                style={{ transform: "translateZ(28px)" }}
+                className={`grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br ${from} ${to} text-white shadow-lg`}
+              >
+                <Icon className="h-6 w-6" />
+              </div>
+              <div style={{ transform: "translateZ(20px)" }}>
+                <h3 className="font-display text-xl font-bold text-foreground transition-colors group-hover:text-primary">
+                  {name}
+                </h3>
+                <p className="mt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-primary/80">
+                  Explore courses →
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        </BorderGlow>
       </Link>
     </motion.div>
   );

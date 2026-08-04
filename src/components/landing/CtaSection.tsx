@@ -3,11 +3,20 @@ import { useEffect, useMemo, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
+import BorderGlow from "@/components/BorderGlow";
 
 export function CtaSection() {
   return (
     <section className="px-5 py-20 sm:py-28 lg:px-8">
-      <div className="relative mx-auto max-w-7xl overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-primary-dark via-primary to-accent px-6 py-20 text-center shadow-[var(--shadow-glow-primary)] sm:px-10">
+      <BorderGlow
+        borderRadius={32}
+        glowColor="277 80 60"
+        colors={["#4F46E5", "#FF6B35", "#10B981"]}
+        backgroundColor="transparent"
+        glowIntensity={0.9}
+        className="mx-auto max-w-7xl"
+      >
+        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-primary-dark via-primary to-accent px-6 py-20 text-center sm:px-10">
         <Particles />
         <motion.h2
           initial={{ opacity: 0, y: 16 }}
@@ -16,7 +25,7 @@ export function CtaSection() {
           transition={{ duration: 0.6 }}
           className="relative z-10 mx-auto max-w-3xl font-display text-4xl font-bold tracking-tight text-white sm:text-6xl"
         >
-          Ready to start your journey?
+          Build your first robot or AI project today.
         </motion.h2>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -25,7 +34,7 @@ export function CtaSection() {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="relative z-10 mx-auto mt-5 max-w-xl text-lg text-white/85"
         >
-          Join 10,000+ students building the future. Free to start, no card required.
+          Join 10,000+ young innovators across India. Hands-on courses, zero prerequisites.
         </motion.p>
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -47,6 +56,7 @@ export function CtaSection() {
           </Button>
         </motion.div>
       </div>
+    </BorderGlow>
     </section>
   );
 }

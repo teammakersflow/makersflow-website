@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { CpuArchitecture } from "@/components/ui/cpu-architecture";
 import SpecularButton from "@/components/SpecularButton";
 import TextType from "@/components/TextType";
+import BorderGlow from "@/components/BorderGlow";
+import LightRays from "@/components/LightRays";
 
 const HEADLINE = ["Learn.", "Build.", "Innovate."];
 
@@ -39,40 +41,14 @@ export function Hero() {
       id="hero"
       className="relative isolate flex min-h-[100svh] items-center overflow-hidden pt-16 scroll-mt-36"
     >
-      {/* Animated gradient mesh background */}
+      {/* LightRays background for Hero */}
+      <div aria-hidden className="absolute inset-0 -z-20 pointer-events-none overflow-hidden">
+        <LightRays />
+      </div>
+
+      {/* Background grid */}
       <div aria-hidden className="absolute inset-0 -z-20">
-        <div className="absolute inset-0 bg-background" />
-        <motion.div
-          className="absolute -top-32 -left-32 h-[55rem] w-[55rem] rounded-full opacity-50 blur-3xl"
-          style={{
-            background:
-              "radial-gradient(circle at 30% 30%, color-mix(in oklab, var(--primary) 55%, transparent), transparent 60%)",
-          }}
-          initial={{ x: 0, y: 0 }}
-          animate={reduce ? { x: 0, y: 0 } : { x: [0, 60, 0], y: [0, 30, 0] }}
-          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className="absolute -bottom-40 -right-32 h-[50rem] w-[50rem] rounded-full opacity-45 blur-3xl"
-          style={{
-            background:
-              "radial-gradient(circle at 70% 70%, color-mix(in oklab, var(--accent) 60%, transparent), transparent 60%)",
-          }}
-          initial={{ x: 0, y: 0 }}
-          animate={reduce ? { x: 0, y: 0 } : { x: [0, -50, 0], y: [0, -30, 0] }}
-          transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className="absolute left-1/2 top-1/3 h-[35rem] w-[35rem] -translate-x-1/2 rounded-full opacity-30 blur-3xl"
-          style={{
-            background:
-              "radial-gradient(circle, color-mix(in oklab, var(--primary-light) 55%, transparent), transparent 65%)",
-          }}
-          initial={{ scale: 1 }}
-          animate={reduce ? { scale: 1 } : { scale: [1, 1.15, 1] }}
-          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-        />
-        {/* dotted grid */}
+        <div className="absolute inset-0 bg-background/40" />
         <div
           className="absolute inset-0 opacity-[0.18]"
           style={{
@@ -117,7 +93,7 @@ export function Hero() {
             ))}
           </h1>
 
-          <motion.p
+          <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.6 }}
@@ -140,7 +116,7 @@ export function Hero() {
               className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary-light"
             />
             <span>— anywhere, anytime.</span>
-          </motion.p>
+          </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -200,10 +176,19 @@ export function Hero() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="relative w-full max-w-md aspect-square rounded-[var(--radius-cards)] border border-border bg-card/40 p-6 shadow-[var(--shadow-elegant)] backdrop-blur-md flex flex-col justify-center items-center overflow-hidden"
+            className="w-full max-w-md"
           >
-            <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 pointer-events-none" />
-            <CpuArchitecture className="w-full h-full text-primary" text="CPU" />
+            <BorderGlow
+              borderRadius={28}
+              glowColor="277 80 60"
+              colors={["#4F46E5", "#FF6B35", "#10B981"]}
+              backgroundColor="transparent"
+              glowIntensity={0.9}
+            >
+              <div className="relative aspect-square rounded-[var(--radius-cards)] border border-border bg-card/40 p-6 shadow-[var(--shadow-elegant)] backdrop-blur-md flex flex-col justify-center items-center overflow-hidden">
+                <CpuArchitecture className="w-full h-full text-primary" text="CPU" />
+              </div>
+            </BorderGlow>
           </motion.div>
         </div>
       </div>

@@ -15,7 +15,6 @@ const HEADLINE = ["Learn.", "Build.", "Innovate."];
 export function Hero() {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
   const { user, loading } = useAuth();
 
   useEffect(() => {
@@ -25,14 +24,19 @@ export function Hero() {
       if (!rect) return;
       const x = (e.clientX - rect.left) / rect.width - 0.5;
       const y = (e.clientY - rect.top) / rect.height - 0.5;
-      setPos({ x, y });
+      if (ref.current) {
+        ref.current.style.setProperty("--mouse-x", `${x}`);
+        ref.current.style.setProperty("--mouse-y", `${y}`);
+      }
     };
     window.addEventListener("mousemove", onMove);
     return () => window.removeEventListener("mousemove", onMove);
   }, [reduce]);
 
   const parallax = (depth: number) => ({
-    transform: reduce ? "translate3d(0px, 0px, 0)" : `translate3d(${pos.x * depth}px, ${pos.y * depth}px, 0)`,
+    transform: reduce
+      ? "translate3d(0px, 0px, 0)"
+      : `translate3d(calc(var(--mouse-x, 0) * ${depth}px), calc(var(--mouse-y, 0) * ${depth}px), 0)`,
   });
 
   return (

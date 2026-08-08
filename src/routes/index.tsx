@@ -30,7 +30,19 @@ export const Route = createFileRoute("/")({
         content:
           "Project-based courses in Robotics, AI, Electronics, IoT and Programming. Be curious and never stop learning.",
       },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://makersflow.in/" },
+      { property: "og:image", content: "https://makersflow.in/makersflow-logo-dark.png" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "MakersFlow — Learn Robotics, AI & IoT, anywhere" },
+      {
+        name: "twitter:description",
+        content:
+          "India's most exciting way to learn Robotics, AI, Electronics, IoT and Programming. Project-based courses, expert mentors, certificates.",
+      },
+      { name: "twitter:image", content: "https://makersflow.in/makersflow-logo-dark.png" },
     ],
+    links: [{ rel: "canonical", href: "https://makersflow.in/" }],
   }),
   component: LandingPage,
 });

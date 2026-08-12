@@ -85,6 +85,12 @@ html {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  --color-surface: var(--surface);
+  --color-surface-foreground: var(--surface-foreground);
+  --color-build: var(--build);
+  --color-build-foreground: var(--build-foreground);
+  --color-signal: var(--signal);
+
   /* ── existing shadows (untouched) ──────────────────────────────── */
   --shadow-glow-primary: 0 10px 40px -10px color-mix(in oklab, var(--primary) 45%, transparent);
   --shadow-glow-accent: 0 10px 40px -10px color-mix(in oklab, var(--accent) 45%, transparent);
@@ -132,6 +138,12 @@ html {
   --border: oklch(0.92 0.012 265);
   --input: oklch(0.92 0.012 265);
   --ring: oklch(0.524 0.232 277);
+
+  --surface: oklch(0.24 0.022 255);
+  --surface-foreground: oklch(0.97 0.005 250);
+  --build: oklch(0.79 0.15 68);
+  --build-foreground: oklch(0.2 0.04 60);
+  --signal: oklch(0.7 0.17 300);
 
   --chart-1: oklch(0.524 0.232 277);
   --chart-2: oklch(0.703 0.183 42);
@@ -182,6 +194,12 @@ html {
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.62 0.22 278);
+
+  --surface: oklch(0.24 0.022 255);
+  --surface-foreground: oklch(0.97 0.005 250);
+  --build: oklch(0.79 0.15 68);
+  --build-foreground: oklch(0.2 0.04 60);
+  --signal: oklch(0.7 0.17 300);
 
   --chart-1: oklch(0.62 0.22 278);
   --chart-2: oklch(0.74 0.18 42);
@@ -315,5 +333,19 @@ html {
   }
   100% {
     offset-distance: 100%;
+  }
+}
+
+@utility glow-primary {
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 25%, transparent),
+    0 24px 60px -30px color-mix(in oklab, var(--color-primary) 55%, transparent);
+}
+
+@utility card-lift {
+  transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+  &:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in oklab, var(--color-primary) 45%, var(--color-border));
+    box-shadow: 0 20px 50px -30px color-mix(in oklab, var(--color-primary) 60%, transparent);
   }
 }

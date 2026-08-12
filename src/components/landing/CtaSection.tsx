@@ -1,130 +1,34 @@
-import { motion, useReducedMotion } from "framer-motion";
-import { useEffect, useMemo, useRef } from "react";
 import { Link } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import BorderGlow from "@/components/BorderGlow";
+import { Button } from "@/components/ui/button";
 
-export function CtaSection() {
+export function CTASection() {
   return (
-    <section className="px-5 py-20 sm:py-28 lg:px-8">
-      <BorderGlow
-        borderRadius={32}
-        glowColor="277 80 60"
-        colors={["#4F46E5", "#FF6B35", "#10B981"]}
-        backgroundColor="transparent"
-        glowIntensity={0.9}
-        className="mx-auto max-w-7xl"
-      >
-        <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-br from-primary-dark via-primary to-accent px-6 py-20 text-center sm:px-10">
-        <Particles />
-        <motion.h2
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.4 }}
-          transition={{ duration: 0.6 }}
-          className="relative z-10 mx-auto max-w-3xl font-display text-4xl font-bold tracking-tight text-white sm:text-6xl"
-        >
-          Build your first robot or AI project today.
-        </motion.h2>
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.4 }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="relative z-10 mx-auto mt-5 max-w-xl text-lg text-white/85"
-        >
-          Join 10,000+ young innovators across India. Hands-on courses, zero prerequisites.
-        </motion.p>
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.4 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="relative z-10 mt-9"
-        >
-          <Button
-            variant="accent"
-            size="xl"
-            className="gap-2 rounded-[var(--radius-buttons)]"
-            asChild
-          >
-            <Link to="/register">
-              Sign Up Free
-              <ArrowRight />
-            </Link>
-          </Button>
-        </motion.div>
+    <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-6 py-14 text-center sm:px-12">
+      <div
+        className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-56 w-2/3 rounded-full bg-primary/15 blur-3xl"
+        aria-hidden="true"
+      />
+      <h2 className="relative text-balance text-3xl font-bold sm:text-4xl">
+        Your Next Idea Could Be Your Best One Yet.
+      </h2>
+      <p className="relative mx-auto mt-4 max-w-xl text-pretty text-muted-foreground">
+        Learn something new. Build something real. Share what you create.
+      </p>
+      <div className="relative mt-8 flex flex-wrap justify-center gap-3">
+        <Button asChild size="lg" className="min-h-12 font-semibold">
+          <Link to="/explore">
+            Start Building
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
+        <Button asChild size="lg" variant="outline" className="min-h-12">
+          <Link to="/explore">Explore Courses</Link>
+        </Button>
       </div>
-    </BorderGlow>
-    </section>
+    </div>
   );
 }
 
-function Particles() {
-  const reduce = useReducedMotion();
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const seed = useMemo(
-    () =>
-      Array.from({ length: 48 }, () => ({
-        x: Math.random(),
-        y: Math.random(),
-        r: 0.6 + Math.random() * 1.8,
-        s: 0.15 + Math.random() * 0.35,
-      })),
-    [],
-  );
-
-  useEffect(() => {
-    if (reduce) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    let raf = 0;
-    const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
-      const rect = canvas.getBoundingClientRect();
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
-    };
-    resize();
-    const obs = new ResizeObserver(() => {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      resize();
-    });
-    obs.observe(canvas);
-
-    let last = performance.now();
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      ctx.clearRect(0, 0, w, h);
-      for (const p of seed) {
-        p.y -= (p.s * dt) / 4;
-        if (p.y < -0.05) p.y = 1.05;
-        ctx.beginPath();
-        ctx.arc(p.x * w, p.y * h, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${0.25 + p.r * 0.12})`;
-        ctx.fill();
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-      obs.disconnect();
-    };
-  }, [reduce, seed]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full"
-    />
-  );
-}
+// Alias re-export for backward compatibility with existing imports
+export { CTASection as CtaSection };

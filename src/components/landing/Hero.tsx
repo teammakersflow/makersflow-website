@@ -1,416 +1,82 @@
-import { motion, useReducedMotion } from "framer-motion";
-import { BookOpen, Sparkles, ChevronDown } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useAuth } from "@/integrations/supabase/auth";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CpuArchitecture } from "@/components/ui/cpu-architecture";
-import SpecularButton from "@/components/SpecularButton";
 import TextType from "@/components/TextType";
-import BorderGlow from "@/components/BorderGlow";
-import LightRays from "@/components/LightRays";
 
-const HEADLINE = ["Learn.", "Build.", "Innovate."];
+const strip = ["Robotics", "AI", "IoT", "Electronics", "Coding", "3D Design"];
 
 export function Hero() {
-  const reduce = useReducedMotion();
-  const ref = useRef<HTMLDivElement | null>(null);
-  const { user, loading } = useAuth();
-
-  useEffect(() => {
-    if (reduce) return;
-    const onMove = (e: MouseEvent) => {
-      const rect = ref.current?.getBoundingClientRect();
-      if (!rect) return;
-      const x = (e.clientX - rect.left) / rect.width - 0.5;
-      const y = (e.clientY - rect.top) / rect.height - 0.5;
-      if (ref.current) {
-        ref.current.style.setProperty("--mouse-x", `${x}`);
-        ref.current.style.setProperty("--mouse-y", `${y}`);
-      }
-    };
-    window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
-  }, [reduce]);
-
-  const parallax = (depth: number) => ({
-    transform: reduce
-      ? "translate3d(0px, 0px, 0)"
-      : `translate3d(calc(var(--mouse-x, 0) * ${depth}px), calc(var(--mouse-y, 0) * ${depth}px), 0)`,
-  });
-
   return (
-    <section
-      ref={ref}
-      id="hero"
-      className="relative isolate flex min-h-[100svh] items-center overflow-hidden pt-16 scroll-mt-36"
-    >
-      {/* LightRays background for Hero */}
-      <div aria-hidden className="absolute inset-0 -z-20 pointer-events-none overflow-hidden">
-        <LightRays />
-      </div>
+    <section className="relative overflow-hidden">
+      <div
+        className="pointer-events-none absolute -top-40 left-1/2 size-[38rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"
+        aria-hidden="true"
+      />
 
-      {/* Background grid */}
-      <div aria-hidden className="absolute inset-0 -z-20">
-        <div className="absolute inset-0 bg-background/40" />
-        <div
-          className="absolute inset-0 opacity-[0.18]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, color-mix(in oklab, var(--foreground) 35%, transparent) 1px, transparent 1px)",
-            backgroundSize: "28px 28px",
-            maskImage: "radial-gradient(ellipse at center, black 35%, transparent 75%)",
-          }}
-        />
-      </div>
-
-      {/* Floating decorative elements */}
-      <FloatingDecor parallax={parallax} reduce={!!reduce} />
-
-      <div className="relative mx-auto w-full max-w-7xl px-5 lg:px-8 grid grid-cols-1 lg:grid-cols-12 items-center gap-12">
-        <div className="lg:col-span-7 flex flex-col items-start text-left">
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="mb-6 inline-flex items-center gap-2 rounded-[var(--radius-pill)] border border-border/70 bg-card/70 px-4 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-md"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-accent" />
-            India's 1st Futuristic Lab on Wheels
-          </motion.div>
-
-          <h1 className="font-display text-balance text-5xl font-bold leading-[0.95] tracking-tight text-foreground sm:text-7xl lg:text-[5.5rem]">
-            {HEADLINE.map((word, i) => (
-              <motion.span
-                key={word}
-                initial={{ opacity: 0, y: 30, filter: "blur(8px)" }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                transition={{
-                  duration: 0.8,
-                  delay: 0.2 + i * 0.12,
-                  ease: [0.22, 1, 0.36, 1],
-                }}
-                className="mr-3 inline-block"
-              >
-                {i === 2 ? <span className="text-accent">{word}</span> : word}
-              </motion.span>
-            ))}
-          </h1>
-
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.6 }}
-            className="mt-7 max-w-2xl text-pretty text-lg text-muted-foreground sm:text-xl flex flex-wrap items-center gap-1.5"
-          >
-            <span>India's most exciting way to master</span>{" "}
+      <div className="relative mx-auto grid max-w-7xl gap-12 px-4 pb-16 pt-16 sm:px-6 sm:pt-20 lg:grid-cols-2 lg:items-center lg:gap-16 lg:px-8 lg:pb-24">
+        <div className="min-w-0">
+          <p className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+            Hands-on maker ecosystem
+          </p>
+          <h1 className="mt-5 text-balance font-display text-4xl font-bold leading-[1.05] sm:text-5xl lg:text-6xl">
+            Don't Just Learn Technology.{" "}
             <TextType
-              text={[
-                "Robotics & Automation",
-                "Artificial Intelligence & ML",
-                "IoT & Embedded Systems",
-                "3D Printing & Hardware",
-              ]}
-              typingSpeed={55}
-              deletingSpeed={30}
-              pauseDuration={2200}
-              loop={true}
-              showCursor={true}
-              cursorCharacter="|"
-              className="font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-primary-light"
+              text={["Build It.", "Master AI.", "Innovate.", "Create."]}
+              as="span"
+              className="text-primary inline-block"
+              typingSpeed={70}
+              deletingSpeed={40}
+              pauseDuration={2500}
             />
-            <span>— anywhere, anytime.</span>
-          </motion.div>
+          </h1>
+          <p className="mt-5 max-w-xl text-pretty text-base text-muted-foreground sm:text-lg">
+            Learn robotics, AI, electronics, IoT, coding and emerging technologies through practical
+            courses, real-world projects and the hardware you need to build them.
+          </p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.75 }}
-            className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
-          >
-            {loading ? (
-              <div className="h-14 w-full rounded-[var(--radius-buttons)] bg-secondary/50 animate-pulse sm:w-48" />
-            ) : (
-              <Link to={user ? "/dashboard" : "/register"} className="w-full sm:w-auto">
-                <SpecularButton
-                  size="lg"
-                  radius={24}
-                  tint="#4F46E5"
-                  lineColor="#ffffff"
-                  baseColor="#3730A3"
-                  textColor="#ffffff"
-                  className="w-full sm:w-auto font-semibold"
-                >
-                  {user ? "Go to Dashboard" : "Start Learning Free"}
-                </SpecularButton>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Button asChild size="lg" className="min-h-12 font-semibold">
+              <Link to="/explore">
+                Start Learning
+                <ArrowRight aria-hidden="true" />
               </Link>
-            )}
-            <Button
-              variant="ghost"
-              size="xl"
-              className="w-full gap-2.5 rounded-[var(--radius-buttons)] sm:w-auto"
-              asChild
-            >
-              <a href="#featured">
-                <span className="grid h-7 w-7 place-items-center rounded-[var(--radius-pill)] bg-accent/15 text-accent">
-                  <BookOpen className="h-3.5 w-3.5" />
-                </span>
-                Explore Courses
-              </a>
             </Button>
-          </motion.div>
+            <Button asChild size="lg" variant="outline" className="min-h-12">
+              <Link to="/explore" search={{ category: "Robotics" }}>Explore Projects</Link>
+            </Button>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.1, duration: 0.6 }}
-            className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground"
-          >
-            <span className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-              10,000+ students learning right now
-            </span>
-            <span className="hidden h-1 w-1 rounded-full bg-border sm:block" />
-            <span>No credit card required</span>
-          </motion.div>
+          <ul className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+            {strip.map((item, index) => (
+              <li key={item} className="flex items-center gap-3">
+                {index > 0 ? (
+                  <span className="text-border" aria-hidden="true">
+                    •
+                  </span>
+                ) : null}
+                {item}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <div className="lg:col-span-5 w-full flex justify-center items-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="w-full max-w-md"
-          >
-            <BorderGlow
-              borderRadius={28}
-              glowColor="277 80 60"
-              colors={["#4F46E5", "#FF6B35", "#10B981"]}
-              backgroundColor="transparent"
-              glowIntensity={0.9}
-            >
-              <div className="relative aspect-square rounded-[var(--radius-cards)] border border-border bg-card/40 p-6 shadow-[var(--shadow-elegant)] backdrop-blur-md flex flex-col justify-center items-center overflow-hidden">
-                <CpuArchitecture className="w-full h-full text-primary" text="CPU" />
-              </div>
-            </BorderGlow>
-          </motion.div>
+        <div className="group relative min-w-0">
+          <div
+            className="pointer-events-none absolute -inset-4 rounded-[2rem] bg-gradient-to-tr from-primary/15 via-transparent to-build/15 blur-2xl"
+            aria-hidden="true"
+          />
+          <div className="relative overflow-hidden rounded-3xl border border-border bg-card">
+            <img
+              src="/course-thumbnails/arduino-uno-q-spotted-in-the-wild-v0-badkp3lmibwf1.webp"
+              alt="Maker workspace with a wheeled robot, ESP32 on a breadboard, PCB, 3D printed parts and a laptop showing code"
+              width={1408}
+              height={1104}
+              fetchPriority="high"
+              className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            />
+          </div>
         </div>
       </div>
-
-      <motion.a
-        href="#stats"
-        aria-label="Scroll down"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1, y: [0, 8, 0] }}
-        transition={{
-          opacity: { delay: 1.4, duration: 0.6 },
-          y: reduce ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" },
-        }}
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-[var(--radius-pill)] border border-border/70 bg-card/60 p-2 text-muted-foreground backdrop-blur-md transition hover:text-foreground"
-      >
-        <ChevronDown className="h-5 w-5" />
-      </motion.a>
     </section>
-  );
-}
-
-function FloatingDecor({
-  parallax,
-  reduce,
-}: {
-  parallax: (d: number) => React.CSSProperties;
-  reduce: boolean;
-}) {
-  return (
-    <>
-      {/* Robot arm — top right */}
-      <motion.div
-        aria-hidden
-        style={parallax(-22)}
-        initial={{ y: 0 }}
-        animate={reduce ? { y: 0 } : { y: [0, -10, 0] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        className="pointer-events-none absolute right-[6%] top-[18%] hidden lg:block"
-      >
-        <RoboticArmSVG />
-      </motion.div>
-
-      {/* Neural network — bottom left */}
-      <motion.div
-        aria-hidden
-        style={parallax(18)}
-        initial={{ y: 0 }}
-        animate={reduce ? { y: 0 } : { y: [0, 12, 0] }}
-        transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-        className="pointer-events-none absolute bottom-[30%] left-[2%] hidden lg:block opacity-60"
-      >
-        <NeuralNetSVG />
-      </motion.div>
-
-      {/* Circuit chip — bottom right */}
-      <motion.div
-        aria-hidden
-        style={parallax(-14)}
-        initial={{ rotate: 0 }}
-        animate={reduce ? { rotate: 0 } : { rotate: [0, 4, 0, -4, 0] }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-        className="pointer-events-none absolute bottom-[14%] right-[8%] hidden md:block"
-      >
-        <CircuitChipSVG />
-      </motion.div>
-    </>
-  );
-}
-
-function RoboticArmSVG() {
-  return (
-    <svg width="170" height="170" viewBox="0 0 170 170" fill="none">
-      <defs>
-        <linearGradient id="ra" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="var(--primary)" />
-          <stop offset="100%" stopColor="var(--accent)" />
-        </linearGradient>
-      </defs>
-      <rect x="60" y="135" width="50" height="14" rx="3" fill="url(#ra)" opacity="0.85" />
-      <rect x="78" y="80" width="14" height="58" rx="5" fill="url(#ra)" />
-      <circle cx="85" cy="80" r="9" fill="var(--background)" stroke="url(#ra)" strokeWidth="3" />
-      <rect
-        x="80"
-        y="35"
-        width="50"
-        height="12"
-        rx="5"
-        fill="url(#ra)"
-        transform="rotate(-32 105 41)"
-      />
-      <circle cx="130" cy="22" r="10" fill="var(--background)" stroke="url(#ra)" strokeWidth="3" />
-      <circle cx="130" cy="22" r="4" fill="var(--accent)" />
-    </svg>
-  );
-}
-
-function NeuralNetSVG() {
-  const nodes = [
-    [10, 20],
-    [10, 60],
-    [10, 100],
-    [70, 10],
-    [70, 50],
-    [70, 90],
-    [70, 130],
-    [130, 30],
-    [130, 80],
-  ];
-  return (
-    <svg width="160" height="160" viewBox="0 0 160 160" fill="none">
-      <defs>
-        <linearGradient id="nn" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.7" />
-          <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.7" />
-        </linearGradient>
-      </defs>
-      {nodes
-        .slice(0, 3)
-        .map((a, i) =>
-          nodes
-            .slice(3, 7)
-            .map((b, j) => (
-              <line
-                key={`l1-${i}-${j}`}
-                x1={a[0]}
-                y1={a[1] + 20}
-                x2={b[0]}
-                y2={b[1] + 20}
-                stroke="url(#nn)"
-                strokeWidth="1"
-              />
-            )),
-        )}
-      {nodes
-        .slice(3, 7)
-        .map((a, i) =>
-          nodes
-            .slice(7)
-            .map((b, j) => (
-              <line
-                key={`l2-${i}-${j}`}
-                x1={a[0]}
-                y1={a[1] + 20}
-                x2={b[0]}
-                y2={b[1] + 20}
-                stroke="url(#nn)"
-                strokeWidth="1"
-              />
-            )),
-        )}
-      {nodes.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y + 20} r="5" fill="var(--primary)" />
-      ))}
-    </svg>
-  );
-}
-
-function CircuitChipSVG() {
-  return (
-    <svg width="130" height="130" viewBox="0 0 130 130" fill="none">
-      <rect
-        x="25"
-        y="25"
-        width="80"
-        height="80"
-        rx="12"
-        fill="var(--card)"
-        stroke="var(--primary)"
-        strokeWidth="2"
-      />
-      <rect x="45" y="45" width="40" height="40" rx="6" fill="var(--primary)" opacity="0.15" />
-      <text
-        x="65"
-        y="72"
-        textAnchor="middle"
-        fontFamily="Outfit"
-        fontWeight="700"
-        fontSize="14"
-        fill="var(--primary)"
-      >
-        AI
-      </text>
-      {[0, 1, 2, 3].map((i) => (
-        <g key={i}>
-          <line
-            x1={40 + i * 17}
-            y1="25"
-            x2={40 + i * 17}
-            y2="10"
-            stroke="var(--accent)"
-            strokeWidth="2"
-          />
-          <line
-            x1={40 + i * 17}
-            y1="105"
-            x2={40 + i * 17}
-            y2="120"
-            stroke="var(--accent)"
-            strokeWidth="2"
-          />
-          <line
-            x1="25"
-            y1={40 + i * 17}
-            x2="10"
-            y2={40 + i * 17}
-            stroke="var(--accent)"
-            strokeWidth="2"
-          />
-          <line
-            x1="105"
-            y1={40 + i * 17}
-            x2="120"
-            y2={40 + i * 17}
-            stroke="var(--accent)"
-            strokeWidth="2"
-          />
-        </g>
-      ))}
-    </svg>
   );
 }

@@ -8,6 +8,7 @@ import { CartIcon } from "@/components/store/CartIcon";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ProductCard } from "@/components/store/ProductCard";
 import { fetchProducts, getProductCategories } from "@/lib/store-data";
+import { PredictiveText } from "@/components/ui/predictive-text";
 
 export const Route = createFileRoute("/store/")({
   head: () => ({
@@ -118,22 +119,16 @@ function StorePage() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="relative hidden sm:block">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
+                <div className="w-48 sm:w-72 md:w-96 lg:w-[420px]">
+                  <PredictiveText
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search products…"
-                    className="w-56 rounded-xl border border-border bg-secondary pl-9 pr-8 py-2 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition placeholder:text-muted-foreground"
+                    onChange={setSearch}
+                    placeholder="Search store products…"
+                    dictionary={[
+                      "Arduino", "Raspberry Pi", "ESP32", "Robotics", "AI Kit", "Drone",
+                      "Sensor", "Python", "Electronics", "Biped", "Quadrupeds", "Motor", "Camera"
+                    ]}
                   />
-                  {search && (
-                    <button
-                      onClick={() => setSearch("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
                 </div>
                 <CartIcon />
               </div>
@@ -142,16 +137,6 @@ function StorePage() {
         </div>
 
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 space-y-6">
-          {/* Mobile search */}
-          <div className="relative sm:hidden">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products…"
-              className="w-full rounded-xl border border-border bg-secondary pl-9 pr-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition"
-            />
-          </div>
 
           {/* Filters */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

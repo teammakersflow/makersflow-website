@@ -9,6 +9,7 @@ import { CourseProgressCard } from "@/components/learn/CourseProgressCard";
 import { MyLearningStats } from "@/components/learn/MyLearningStats";
 import { MyLearningEmptyState } from "@/components/learn/MyLearningEmptyState";
 import { MyLearningSkeleton } from "@/components/learn/MyLearningSkeleton";
+import { PredictiveText } from "@/components/ui/predictive-text";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/my-learning")({
@@ -118,25 +119,18 @@ function MyLearningPage() {
                 transition={{ delay: 0.1 }}
                 className="space-y-4"
               >
-                {/* Full-width Search Input */}
-                <div className="relative flex h-12 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-                  <Search className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-                  <input
+                {/* Predictive Search Input */}
+                <div className="w-full">
+                  <PredictiveText
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search by course title, category, or topic…"
-                    className="w-full bg-transparent text-sm sm:text-base font-medium text-foreground outline-none placeholder:text-muted-foreground"
-                    aria-label="Search enrolled courses"
+                    onChange={setSearch}
+                    placeholder="Search enrolled courses by title, category, or topic..."
+                    dictionary={[
+                      "Robotics", "AI", "ESP32", "Python", "Arduino", "IoT",
+                      "ROS2", "Vision", "Electronics", "Biped", "Machine Learning"
+                    ]}
+                    className="!p-0 !mb-0"
                   />
-                  {search && (
-                    <button
-                      onClick={() => setSearch("")}
-                      className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors shrink-0"
-                      aria-label="Clear search"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </button>
-                  )}
                 </div>
 
                 {/* Filter Tabs & Result Stats Bar */}

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, MoreVertical, Mail, Trash2, X, AlertTriangle } from "lucide-react";
+import { Loader2, MoreVertical, Mail, Trash2, X, AlertTriangle, Bookmark, Settings } from "lucide-react";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import {
   AccountTab,
@@ -37,65 +37,45 @@ const TABS: { key: TabKey; label: string }[] = [
 ];
 
 import { DeleteAccountModal } from "@/components/profile/DeleteAccountModal";
+import { InlineDisclosureMenu } from "@/components/ui/inline-disclosure-menu";
 
-// ─── 3-dots menu ──────────────────────────────────────────────────────────────
+// ─── Inline Disclosure Profile Menu ──────────────────────────────────────────
 function ProfileMenu() {
-  const [open, setOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const handleSupport = () => {
-    setOpen(false);
     window.location.href =
       "mailto:team.makersflow@gmail.com?subject=Support%20Request&body=Hi%20MakersFlow%20Team%2C%0A%0AI%20need%20help%20with%3A%0A";
   };
 
+  const menuItems = [
+    {
+      icon: <Mail className="h-5 w-5 text-primary" />,
+      label: "Support",
+      onClick: handleSupport,
+    },
+    {
+      icon: <Bookmark className="h-5 w-5 text-amber-500" />,
+      label: "Saved Items",
+      onClick: () => navigate({ to: "/favorites" }),
+    },
+    {
+      icon: <Settings className="h-5 w-5 text-blue-500" />,
+      label: "Account Settings",
+      onClick: () => navigate({ to: "/settings" }),
+    },
+  ];
+
   return (
     <>
-      <div className="relative" ref={menuRef}>
-        <button
-          onClick={() => setOpen((o) => !o)}
-          className="grid h-9 w-9 place-items-center rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-          aria-label="More options"
-        >
-          <MoreVertical className="h-4 w-4" />
-        </button>
-
-        <AnimatePresence>
-          {open && (
-            <>
-              {/* backdrop */}
-              <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.92, y: -6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.92, y: -6 }}
-                transition={{ duration: 0.15 }}
-                className="absolute right-0 top-11 z-30 min-w-[180px] overflow-hidden rounded-xl border border-border bg-card shadow-lg"
-              >
-                <button
-                  onClick={handleSupport}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-secondary transition-colors"
-                >
-                  <Mail className="h-4 w-4 text-primary" />
-                  Support
-                </button>
-                <div className="h-px bg-border mx-3" />
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    setShowDeleteModal(true);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Account Deletion
-                </button>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </div>
+      <InlineDisclosureMenu
+        align="right"
+        title="Profile Actions"
+        menuItems={menuItems}
+        showDelete={true}
+        onDelete={() => setShowDeleteModal(true)}
+      />
 
       <DeleteAccountModal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} />
     </>

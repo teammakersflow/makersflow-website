@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
+import { PredictiveText } from "@/components/ui/predictive-text";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPrice } from "@/lib/store-data";
@@ -234,7 +235,7 @@ function FavoritesPage() {
             </Link>
           </header>
 
-          {/* Filter Tabs & Search */}
+          {/* Filter Tabs & Predictive Search */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
               {[
@@ -271,14 +272,15 @@ function FavoritesPage() {
               })}
             </div>
 
-            <div className="relative flex h-11 w-full sm:w-80 lg:w-96 items-center gap-2.5 rounded-xl border border-border bg-card px-3.5 shadow-sm transition focus-within:border-primary focus-within:shadow-[var(--shadow-glow-primary)]">
-              <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-              <input
-                type="text"
+            <div className="w-full sm:w-80 md:w-96 lg:w-[420px]">
+              <PredictiveText
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={setSearch}
                 placeholder="Search saved items by title or category…"
-                className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground"
+                dictionary={[
+                  "Arduino", "Raspberry Pi", "ESP32", "Robotics", "AI", "Drone",
+                  "Sensor", "Python", "Electronics", "Biped", "Quadrupeds", "Vision"
+                ]}
               />
             </div>
           </div>

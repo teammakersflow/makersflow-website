@@ -8,11 +8,10 @@ import { Logo } from "@/components/brand/Logo";
 
 const navLinks = [
   { label: "Home", to: "/" },
-  { label: "Learn", to: "/explore" },
-  { label: "Projects", to: "/explore" },
-  { label: "Kits & Store", to: "/store" },
-  { label: "Challenges", to: "/challenges/30-day" },
+  { label: "Explore", to: "/explore" },
+  { label: "Store", to: "/store" },
   { label: "Community", to: "/community" },
+  { label: "Contact", to: "/contact" },
 ] as const;
 
 export function Header() {
@@ -23,9 +22,7 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-border/70 bg-background/85 backdrop-blur-xl">
       <div className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-8">
-          <Link to="/" className="flex shrink-0 items-center gap-2" aria-label="MakersFlow home">
-            <Logo size="md" />
-          </Link>
+          <Logo size="md" />
 
           <nav aria-label="Main" className="hidden min-w-0 lg:block">
             <ul className="flex items-center gap-1">
@@ -45,7 +42,7 @@ export function Header() {
           </nav>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-3">
           <Button
             asChild
             variant="ghost"

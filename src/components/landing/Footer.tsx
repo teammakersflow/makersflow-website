@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Logo } from "@/components/brand/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const columns = [
   {
@@ -48,6 +49,9 @@ export function Footer() {
           <div className="min-w-0">
             <Logo size="md" />
             <p className="mt-3 text-sm text-muted-foreground">Learn. Build. Create.</p>
+            <div className="mt-5">
+              <ThemeToggle />
+            </div>
           </div>
 
           {columns.map((column) => (
@@ -71,9 +75,9 @@ export function Footer() {
           ))}
         </div>
 
-        <p className="mt-12 border-t border-border pt-6 text-sm text-muted-foreground">
-          © {new Date().getFullYear()} MakersFlow. Don't just learn technology — build it.
-        </p>
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border pt-6 sm:flex-row text-sm text-muted-foreground">
+          <p>© {new Date().getFullYear()} MakersFlow. Don't just learn technology — build it.</p>
+        </div>
       </div>
     </footer>
   );

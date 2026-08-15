@@ -12,7 +12,7 @@ import { ProjectCard } from "@/components/landing/ProjectCard";
 import { ChallengeCard, type Challenge } from "@/components/landing/ChallengeCard";
 import { AIAssistantPreview } from "@/components/landing/AIAssistantPreview";
 import { StatsSection } from "@/components/landing/StatsSection";
-import { CTASection } from "@/components/landing/CTASection";
+import { CTASection } from "@/components/landing/CtaSection";
 import { TestimonialGrid } from "@/components/landing/TestimonialCard";
 import { Icon } from "@/components/landing/icon";
 import { Footer } from "@/components/landing/Footer";

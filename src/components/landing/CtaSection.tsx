@@ -22,9 +22,9 @@ export function CTASection() {
         <SpecularButton
           size="lg"
           radius={14}
-          baseColor="#4F46E5"
+          baseColor="var(--primary)"
           lineColor="#60A5FA"
-          textColor="#ffffff"
+          textColor="var(--primary-foreground, #ffffff)"
           onClick={() => navigate({ to: "/explore" })}
           className="font-semibold"
         >

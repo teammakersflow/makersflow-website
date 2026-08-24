@@ -149,7 +149,7 @@ function InfoCard({ children, className, storageKey, dismissType = "once" }: Inf
                 transition: { duration: 0.2 },
               }}
               transition={{ duration: 0.3, delay: 0 }}
-              className={cn("group rounded-lg border bg-white p-3", className)}
+              className={cn("group rounded-lg border border-border bg-card text-card-foreground p-3", className)}
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
             >
@@ -333,7 +333,7 @@ const InfoCardMedia = ({
                   <video
                     src={src}
                     className={cn(
-                      "w-full rounded-md border border-gray-200 object-cover shadow-lg",
+                      "w-full rounded-md border border-border object-cover shadow-lg",
                       itemClassName,
                     )}
                     onLoadedData={() => handleMediaLoad(src)}
@@ -347,7 +347,7 @@ const InfoCardMedia = ({
                     src={src}
                     alt={alt}
                     className={cn(
-                      "w-full rounded-md border border-gray-200 object-cover shadow-lg",
+                      "w-full rounded-md border border-border object-cover shadow-lg",
                       itemClassName,
                     )}
                     onLoad={() => handleMediaLoad(src)}

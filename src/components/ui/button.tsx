@@ -20,7 +20,7 @@ const buttonVariants = cva(
         accent:
           "bg-accent text-accent-foreground shadow-[var(--shadow-glow-accent)] hover:-translate-y-0.5 hover:bg-accent/95",
         glass:
-          "border border-white/25 bg-white/10 text-white backdrop-blur-md hover:bg-white/20 hover:border-white/40",
+          "border border-border/40 bg-card/60 text-foreground backdrop-blur-md hover:bg-card/80 hover:border-border",
       },
       size: {
         default: "h-10 px-5 py-2",

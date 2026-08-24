@@ -338,7 +338,7 @@ function LessonPlayerPage() {
           <Link
             to="/course/$id"
             params={{ id: courseId }}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-primary/90"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Course

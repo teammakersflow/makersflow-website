@@ -9,6 +9,8 @@ import { TechnologyCard, type Technology } from "@/components/landing/Technology
 import { LearningPathCard, type LearningPath } from "@/components/landing/LearningPathCard";
 import { CourseCard } from "@/components/landing/CourseCard";
 import { ProjectCard } from "@/components/landing/ProjectCard";
+import { StepsProjectsSection } from "@/components/landing/StepsProjectsSection";
+import { StoreDemo } from "@/components/landing/StoreDemo";
 import { ChallengeCard, type Challenge } from "@/components/landing/ChallengeCard";
 import { AIAssistantPreview } from "@/components/landing/AIAssistantPreview";
 import { StatsSection } from "@/components/landing/StatsSection";
@@ -305,8 +307,8 @@ function LandingPage() {
       <Hero />
 
       {/* Hardware Ecosystem Logo Loop Ticker */}
-      <section aria-label="Hardware Ecosystem Marquee" className="py-6 border-y border-border/40 bg-card/30">
-        <LogoLoop logos={hardwareLogos} speed={30} gap={48} />
+      <section aria-label="Hardware Ecosystem Marquee" className="py-6 border-y border-border/40 bg-card/30 overflow-hidden">
+        <LogoLoop logos={hardwareLogos} direction="right" speed={50} gap={56} fadeOut pauseOnHover scaleOnHover />
       </section>
 
       {/* Four Pillars */}
@@ -373,26 +375,10 @@ function LandingPage() {
       </Section>
 
       {/* Projects */}
-      <Section>
-        <SectionHeading
-          eyebrow="Projects"
-          title="Learn by Building."
-          subtitle="The fastest way to understand technology is to build something with it."
-        />
-        <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {projectCourses.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
-        <div className="mt-10">
-          <Button asChild size="lg" variant="outline" className="min-h-12">
-            <Link to="/explore" search={{ category: "Robotics" }}>
-              Explore All Projects
-              <ArrowRight aria-hidden="true" />
-            </Link>
-          </Button>
-        </div>
-      </Section>
+      <StepsProjectsSection projectCourses={projectCourses} />
+
+      {/* Store Demo Showcase */}
+      <StoreDemo />
 
       {/* Store Categories */}
       <Section className="border-y border-border bg-card/30">

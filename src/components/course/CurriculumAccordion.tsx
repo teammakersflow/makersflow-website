@@ -82,14 +82,14 @@ export function CurriculumAccordion({ modules, meta = {} }: CurriculumAccordionP
             className={cn(
               "overflow-hidden rounded-2xl border bg-card transition-colors duration-200",
               isOpen
-                ? "border-[#4F46E5] shadow-[0_0_0_1px_#4F46E5]/20 dark:shadow-[0_0_0_1px_#4F46E5]/30"
+                ? "border-primary ring-1 ring-primary/20"
                 : "border-border",
             )}
           >
             {/* ── Header ────────────────────────────────────────────────── */}
             <button
               onClick={() => toggle(mod.id)}
-              className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5] focus-visible:ring-offset-1"
+              className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               aria-expanded={isOpen}
             >
               <div className="flex min-w-0 items-start gap-3">
@@ -98,7 +98,7 @@ export function CurriculumAccordion({ modules, meta = {} }: CurriculumAccordionP
                   className={cn(
                     "mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg font-display text-sm font-bold transition-colors",
                     isOpen
-                      ? "bg-[#4F46E5]/15 text-[#4F46E5] dark:bg-[#4F46E5]/20"
+                      ? "bg-primary/15 text-primary"
                       : allDone
                         ? "bg-emerald-500/10 text-emerald-500 dark:bg-emerald-500/15"
                         : "bg-secondary text-muted-foreground",
@@ -131,7 +131,7 @@ export function CurriculumAccordion({ modules, meta = {} }: CurriculumAccordionP
                         <span aria-hidden className="text-border">
                           ·
                         </span>
-                        <span className="font-medium text-[#4F46E5]">
+                        <span className="font-medium text-primary">
                           {done}/{total} done
                         </span>
                       </>

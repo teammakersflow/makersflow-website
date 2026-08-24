@@ -311,7 +311,7 @@ export function OverviewTab({
           {/* Folder wrapper — tooltip shown on hover when empty */}
           <FolderWithTooltip isEmpty={resourceTitles.length === 0}>
             <Folder
-              color="#4F46E5"
+              color="var(--primary)"
               size={1}
               items={resourceTitles.slice(0, 3)}
             />

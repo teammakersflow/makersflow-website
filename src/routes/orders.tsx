@@ -144,18 +144,18 @@ type Invoice = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  paid: "bg-emerald-100 text-emerald-800",
-  pending: "bg-amber-100 text-amber-800",
-  failed: "bg-red-100 text-red-800",
-  shipped: "bg-blue-100 text-blue-800",
-  delivered: "bg-purple-100 text-purple-800",
-  cancelled: "bg-gray-100 text-gray-700",
-  active: "bg-emerald-100 text-emerald-800",
-  revoked: "bg-red-100 text-red-800",
-  refunded: "bg-gray-100 text-gray-700",
-  captured: "bg-emerald-100 text-emerald-800",
-  processing: "bg-blue-100 text-blue-800",
-  completed: "bg-emerald-100 text-emerald-800",
+  paid: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+  pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+  failed: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
+  shipped: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20",
+  delivered: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20",
+  cancelled: "bg-secondary text-secondary-foreground border border-border",
+  active: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+  revoked: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
+  refunded: "bg-secondary text-secondary-foreground border border-border",
+  captured: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+  processing: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20",
+  completed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
 };
 
 // ── Order card ─────────────────────────────────────────────────────────────

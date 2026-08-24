@@ -81,9 +81,9 @@ const MenuItem: React.FC<MenuItemProps> = ({
 }) => (
   <button
     onClick={onClick}
-    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[#363538] transition-colors hover:bg-[#F6F5FA] sm:gap-4 dark:text-zinc-200 dark:hover:bg-zinc-800 ${className}`}
+    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-foreground transition-colors hover:bg-secondary/80 sm:gap-4 ${className}`}
   >
-    <span className="text-gray-500 dark:text-zinc-400">{icon}</span>
+    <span className="text-muted-foreground">{icon}</span>
     <span className="text-base font-medium tracking-tight sm:text-[18px]">
       {label}
     </span>
@@ -149,10 +149,10 @@ export function InlineDisclosureMenu({
               initial="hidden"
               animate="visible"
               exit="hidden"
-              className={`absolute z-50 w-[260px] overflow-hidden rounded-2xl border-2 border-[#EEEEF2] bg-white shadow-xl sm:w-[304px] dark:border-zinc-800 dark:bg-zinc-900 ${popupPositionClass}`}
+              className={`absolute z-50 w-[260px] overflow-hidden rounded-2xl border-2 border-border bg-popover text-popover-foreground shadow-xl sm:w-[304px] ${popupPositionClass}`}
             >
-              <div className="border-b-2 border-[#EEEEF2] bg-[#FAFAFC] px-4 py-2.5 sm:px-6 dark:border-zinc-800 dark:bg-zinc-800/50">
-                <span className="text-sm font-medium text-[#828287] sm:text-[16px] dark:text-zinc-400">
+              <div className="border-b-2 border-border bg-muted/40 px-4 py-2.5 sm:px-6">
+                <span className="text-sm font-medium text-muted-foreground sm:text-[16px]">
                   {title}
                 </span>
               </div>
@@ -165,7 +165,7 @@ export function InlineDisclosureMenu({
                 </div>
 
                 {showDelete && (
-                  <div className="relative h-[56px] overflow-hidden border-t-2 border-[#EEEEF2] dark:border-zinc-800">
+                  <div className="relative h-[56px] overflow-hidden border-t-2 border-border">
                     <AnimatePresence
                       custom={confirm}
                       mode="popLayout"
@@ -186,11 +186,11 @@ export function InlineDisclosureMenu({
                               <HugeiconsIcon
                                 icon={Delete02Icon}
                                 size={24}
-                                color="#e94447"
+                                color="currentColor"
                               />
                             }
                             label="Delete"
-                            className="cursor-pointer text-[#e94447]"
+                            className="cursor-pointer text-destructive hover:bg-destructive/10"
                             onClick={() => setConfirm(true)}
                           />
                         </motion.div>
@@ -206,14 +206,14 @@ export function InlineDisclosureMenu({
                         >
                           <button
                             onClick={onDelete}
-                            className="h-10 flex-1 cursor-pointer rounded-xl bg-[#F24140] font-semibold text-white"
+                            className="h-10 flex-1 cursor-pointer rounded-xl bg-destructive font-semibold text-destructive-foreground hover:bg-destructive/90 transition-colors"
                           >
                             Yes, Delete
                           </button>
 
                           <button
                             onClick={() => setConfirm(false)}
-                            className="h-10 flex-1 cursor-pointer rounded-xl border border-gray-200 text-gray-600 dark:border-zinc-700 dark:text-zinc-300"
+                            className="h-10 flex-1 cursor-pointer rounded-xl border border-border text-muted-foreground hover:text-foreground transition-colors"
                           >
                             Cancel
                           </button>

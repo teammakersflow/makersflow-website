@@ -26,7 +26,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as EmptyStatesDemoRouteImport } from './routes/empty-states-demo'
-import { Route as DashboardDemoRouteImport } from './routes/dashboard-demo'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CommunityRouteImport } from './routes/community'
@@ -125,11 +124,6 @@ const EmptyStatesDemoRoute = EmptyStatesDemoRouteImport.update({
   path: '/empty-states-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardDemoRoute = DashboardDemoRouteImport.update({
-  id: '/dashboard-demo',
-  path: '/dashboard-demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -197,7 +191,6 @@ export interface FileRoutesByFullPath {
   '/community': typeof CommunityRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
-  '/dashboard-demo': typeof DashboardDemoRoute
   '/empty-states-demo': typeof EmptyStatesDemoRoute
   '/explore': typeof ExploreRoute
   '/favorites': typeof FavoritesRoute
@@ -229,7 +222,6 @@ export interface FileRoutesByTo {
   '/community': typeof CommunityRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
-  '/dashboard-demo': typeof DashboardDemoRoute
   '/empty-states-demo': typeof EmptyStatesDemoRoute
   '/explore': typeof ExploreRoute
   '/favorites': typeof FavoritesRoute
@@ -262,7 +254,6 @@ export interface FileRoutesById {
   '/community': typeof CommunityRoute
   '/contact': typeof ContactRoute
   '/dashboard': typeof DashboardRoute
-  '/dashboard-demo': typeof DashboardDemoRoute
   '/empty-states-demo': typeof EmptyStatesDemoRoute
   '/explore': typeof ExploreRoute
   '/favorites': typeof FavoritesRoute
@@ -296,7 +287,6 @@ export interface FileRouteTypes {
     | '/community'
     | '/contact'
     | '/dashboard'
-    | '/dashboard-demo'
     | '/empty-states-demo'
     | '/explore'
     | '/favorites'
@@ -328,7 +318,6 @@ export interface FileRouteTypes {
     | '/community'
     | '/contact'
     | '/dashboard'
-    | '/dashboard-demo'
     | '/empty-states-demo'
     | '/explore'
     | '/favorites'
@@ -360,7 +349,6 @@ export interface FileRouteTypes {
     | '/community'
     | '/contact'
     | '/dashboard'
-    | '/dashboard-demo'
     | '/empty-states-demo'
     | '/explore'
     | '/favorites'
@@ -393,7 +381,6 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRoute
   ContactRoute: typeof ContactRoute
   DashboardRoute: typeof DashboardRoute
-  DashboardDemoRoute: typeof DashboardDemoRoute
   EmptyStatesDemoRoute: typeof EmptyStatesDemoRoute
   ExploreRoute: typeof ExploreRoute
   FavoritesRoute: typeof FavoritesRoute
@@ -541,13 +528,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmptyStatesDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard-demo': {
-      id: '/dashboard-demo'
-      path: '/dashboard-demo'
-      fullPath: '/dashboard-demo'
-      preLoaderRoute: typeof DashboardDemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -641,7 +621,6 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRoute,
   ContactRoute: ContactRoute,
   DashboardRoute: DashboardRoute,
-  DashboardDemoRoute: DashboardDemoRoute,
   EmptyStatesDemoRoute: EmptyStatesDemoRoute,
   ExploreRoute: ExploreRoute,
   FavoritesRoute: FavoritesRoute,

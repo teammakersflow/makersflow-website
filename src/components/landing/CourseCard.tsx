@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Clock, Heart, Layers, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import BorderGlow from "@/components/BorderGlow";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/integrations/supabase/auth";
 import { type CourseCard as SupabaseCourse } from "@/lib/landing-data";
 import { enrollInCourse, isEnrolled } from "@/lib/explore-data";
 import { isCourseFavorite, toggleCourseFavorite } from "@/lib/saved-items-data";
@@ -12,21 +12,21 @@ import { toast } from "sonner";
 
 export function CourseCard({ course }: { course: SupabaseCourse }) {
   const navigate = useNavigate();
-  const [userId, setUserId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [enrolled, setEnrolled] = useState(false);
   const [isFav, setIsFav] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      const uid = data.session?.user?.id ?? null;
-      setUserId(uid);
-      if (uid) {
-        isEnrolled(uid, course.id).then(setEnrolled);
-        isCourseFavorite(uid, course.id).then(setIsFav);
-      }
-    });
-  }, [course.id]);
+    if (userId) {
+      isEnrolled(userId, course.id).then(setEnrolled);
+      isCourseFavorite(userId, course.id).then(setIsFav);
+    } else {
+      setEnrolled(false);
+      setIsFav(false);
+    }
+  }, [course.id, userId]);
 
   const handleToggleFav = async (e: React.MouseEvent) => {
     e.preventDefault();

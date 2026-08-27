@@ -1,12 +1,51 @@
-export function GoogleButton({
-  onClick,
-  disabled,
-  label = "Continue with Google",
-}: {
-  onClick: () => void;
+import React from "react";
+import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
+
+export interface GoogleButtonProps {
+  onSuccess?: (idToken: string) => void;
+  onError?: (error?: string) => void;
   disabled?: boolean;
   label?: string;
-}) {
+  onClick?: () => void;
+}
+
+export function GoogleButton({
+  onSuccess,
+  onError,
+  disabled,
+  label = "Continue with Google",
+  onClick,
+}: GoogleButtonProps) {
+  const handleSuccess = (credentialResponse: CredentialResponse) => {
+    if (credentialResponse.credential) {
+      onSuccess?.(credentialResponse.credential);
+    } else {
+      onError?.("No Google credential returned.");
+    }
+  };
+
+  const handleFailure = () => {
+    onError?.("Google Sign-In failed. Please try again.");
+  };
+
+  if (onSuccess) {
+    return (
+      <div className="flex w-full items-center justify-center min-h-[48px]">
+        <div className="w-full flex justify-center [&>div]:w-full [&_iframe]:!w-full [&_iframe]:!max-w-full">
+          <GoogleLogin
+            onSuccess={handleSuccess}
+            onError={handleFailure}
+            theme="outline"
+            size="large"
+            shape="rectangular"
+            width="100%"
+            text="continue_with"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"

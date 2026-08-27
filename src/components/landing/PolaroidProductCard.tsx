@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useCart } from "@/lib/cart";
 import { formatPrice, type Product } from "@/lib/store-data";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/integrations/supabase/auth";
 import { isInWishlist, toggleWishlist } from "@/lib/saved-items-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,10 +22,11 @@ const CATEGORY_EMOJI: Record<string, string> = {
 };
 
 export function PolaroidProductCard({ p, index }: { p: Product; index: number }) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [isFlipped, setIsFlipped] = useState(false);
   const [added, setAdded] = useState(false);
   const [wishlisted, setWishlisted] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
 
   const { addItem } = useCart();
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -65,14 +66,12 @@ export function PolaroidProductCard({ p, index }: { p: Product; index: number })
   }, [isFlipped, mx, my]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      const uid = data.session?.user?.id ?? null;
-      setUserId(uid);
-      if (uid && !p.is_course) {
-        isInWishlist(uid, p.id).then(setWishlisted);
-      }
-    });
-  }, [p.id, p.is_course]);
+    if (userId && !p.is_course) {
+      isInWishlist(userId, p.id).then(setWishlisted);
+    } else {
+      setWishlisted(false);
+    }
+  }, [p.id, p.is_course, userId]);
 
   const handleToggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();

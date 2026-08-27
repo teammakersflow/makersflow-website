@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useCart, flyToCart } from "@/lib/cart";
 import { formatPrice, type Product } from "@/lib/store-data";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/integrations/supabase/auth";
 import { enrollInCourse, isEnrolled } from "@/lib/explore-data";
 import { isInWishlist, toggleWishlist } from "@/lib/saved-items-data";
 import { Heart } from "lucide-react";
@@ -54,10 +54,11 @@ function BadgePill({ badge }: { badge: string }) {
 export function ProductCard({ p, index }: { p: Product; index: number }) {
   const { addItem, cartIconRef, triggerBump } = useCart();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const thumbRef = useRef<HTMLDivElement | null>(null);
   const [added, setAdded] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const [enrolled, setEnrolled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [wishlisted, setWishlisted] = useState(false);
@@ -65,17 +66,17 @@ export function ProductCard({ p, index }: { p: Product; index: number }) {
   const emoji = (p.category && CATEGORY_EMOJI[p.category]) || "📦";
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      const uid = data.session?.user?.id ?? null;
-      setUserId(uid);
-      if (uid && p.is_course && p.course_id) {
-        isEnrolled(uid, p.course_id).then(setEnrolled);
-      }
-      if (uid && !p.is_course) {
-        isInWishlist(uid, p.id).then(setWishlisted);
-      }
-    });
-  }, [p.id, p.is_course, p.course_id]);
+    if (userId && p.is_course && p.course_id) {
+      isEnrolled(userId, p.course_id).then(setEnrolled);
+    } else {
+      setEnrolled(false);
+    }
+    if (userId && !p.is_course) {
+      isInWishlist(userId, p.id).then(setWishlisted);
+    } else {
+      setWishlisted(false);
+    }
+  }, [p.id, p.is_course, p.course_id, userId]);
 
   const handleToggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();

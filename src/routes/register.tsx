@@ -10,7 +10,8 @@ import { SubmitButton } from "@/components/auth/SubmitButton";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
-import { signUpWithPassword, signInWithGoogle } from "@/integrations/supabase/auth";
+import { useAuthContext } from "@/context/AuthContext";
+import { signUpWithPassword } from "@/integrations/supabase/auth";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/register")({
@@ -63,11 +64,11 @@ function mapSignUpError(error: { message?: string; status?: number }): string {
 const grades = ["6", "7", "8", "9", "10", "11", "12", "12+"] as const;
 
 const PWD_RULES: { label: string; test: (p: string) => boolean }[] = [
-  { label: "At least 8 characters",              test: (p) => p.length >= 8 },
-  { label: "One lowercase letter",               test: (p) => /[a-z]/.test(p) },
-  { label: "One uppercase letter",               test: (p) => /[A-Z]/.test(p) },
-  { label: "One number",                         test: (p) => /[0-9]/.test(p) },
-  { label: "One special character (!@#$%^&*…)",  test: (p) => /[^A-Za-z0-9]/.test(p) },
+  { label: "At least 8 characters", test: (p) => p.length >= 8 },
+  { label: "One lowercase letter", test: (p) => /[a-z]/.test(p) },
+  { label: "One uppercase letter", test: (p) => /[A-Z]/.test(p) },
+  { label: "One number", test: (p) => /[0-9]/.test(p) },
+  { label: "One special character (!@#$%^&*…)", test: (p) => /[^A-Za-z0-9]/.test(p) },
 ];
 
 function PasswordRequirements({ pwd }: { pwd: string }) {
@@ -80,11 +81,7 @@ function PasswordRequirements({ pwd }: { pwd: string }) {
             key={label}
             className={cn(
               "flex items-center gap-2 text-[12px] font-medium transition-colors",
-              met
-                ? "text-emerald-500"
-                : pwd
-                  ? "text-red-400"
-                  : "text-muted-foreground",
+              met ? "text-emerald-500" : pwd ? "text-red-400" : "text-muted-foreground",
             )}
           >
             {met ? (
@@ -125,6 +122,7 @@ type FormValues = z.infer<typeof schema>;
 function RegisterPage() {
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
+  const { loginWithGoogle } = useAuthContext();
   const [values, setValues] = useState<FormValues>({
     full_name: "",
     email: "",
@@ -168,37 +166,30 @@ function RegisterPage() {
     if (!valid || !parsed.success) return;
     const formData = parsed.data;
     setLoading(true);
-    const { data, error } = await signUpWithPassword(
+    const res = (await signUpWithPassword(
       formData.email,
       formData.password,
       {
         full_name: formData.full_name,
+        name: formData.full_name,
         phone: formData.phone || null,
         grade: formData.grade,
         school: formData.school,
         role: "student",
       },
       redirect,
-    );
+    )) as { error: any; data: any };
 
-    if (error) {
-      console.error("[register] Sign up failed:", error);
+    if (res.error) {
+      console.error("[register] Sign up failed:", res.error);
       setLoading(false);
-      // ── FIX ──────────────────────────────────────────────────────────────
-      // Every failure used to show the same "already registered" text, which
-      // hid the real cause — weak password, rate limit, a crashing DB trigger,
-      // unconfigured SMTP. Map the common Supabase errors to something
-      // actionable and fall back to the actual message.
-      setFormError(mapSignUpError(error));
+      setFormError(mapSignUpError(res.error));
       return;
     }
 
-    // Best-effort profile upsert (mirrors mobile app shape). RLS-safe:
-    // only runs when session is created (auto-confirm on) — otherwise
-    // a DB trigger should populate profiles on signup.
-    if (data.user && data.session) {
+    if (res.data?.user && res.data?.session) {
       const profilePayload = {
-        id: data.user.id,
+        id: res.data.user.id,
         full_name: formData.full_name,
         email: formData.email,
         phone: formData.phone || null,
@@ -213,21 +204,27 @@ function RegisterPage() {
 
     setLoading(false);
 
-    if (data.session) {
+    if (res.data?.session) {
       navigate({ to: redirect || "/dashboard" });
     } else {
       setSuccess(true);
     }
   };
 
-  const onGoogle = async () => {
+  const onGoogleSuccess = async (idToken: string) => {
     setGoogleLoading(true);
-    const { error } = await signInWithGoogle(redirect);
-    if (error) {
-      console.error("[register] Google sign-in failed:", error);
-      setFormError("Google sign-in failed. Please try again.");
-      setGoogleLoading(false);
+    setFormError(null);
+    const res = await loginWithGoogle(idToken);
+    setGoogleLoading(false);
+    if (!res.success) {
+      setFormError(res.error || "Google Sign-In failed. Please try again.");
+      return;
     }
+    navigate({ to: redirect || "/dashboard" });
+  };
+
+  const onGoogleError = (err?: string) => {
+    setFormError(err || "Google sign-in was cancelled or failed. Please try again.");
   };
 
   return (
@@ -411,7 +408,12 @@ function RegisterPage() {
           </div>
         </div>
 
-        <GoogleButton onClick={onGoogle} disabled={googleLoading} label="Sign up with Google" />
+        <GoogleButton
+          onSuccess={onGoogleSuccess}
+          onError={onGoogleError}
+          disabled={googleLoading}
+          label="Sign up with Google"
+        />
       </form>
 
       <AuthLegalModal

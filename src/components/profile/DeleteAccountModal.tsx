@@ -3,7 +3,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { tokenStorage } from "@/lib/auth/tokenStorage";
+import { signOut } from "@/integrations/supabase/auth";
 
 export function DeleteAccountModal({
   open,
@@ -21,9 +22,7 @@ export function DeleteAccountModal({
     setDeleting(true);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const token = tokenStorage.getAccessToken();
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const anonKey =
@@ -33,7 +32,7 @@ export function DeleteAccountModal({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.access_token}`,
+          Authorization: `Bearer ${token}`,
           apikey: anonKey,
         },
       });
@@ -43,7 +42,7 @@ export function DeleteAccountModal({
         throw new Error(err.error ?? "Deletion failed");
       }
 
-      await supabase.auth.signOut();
+      await signOut();
       toast.success("Account deleted successfully");
       onClose();
       navigate({ to: "/" });

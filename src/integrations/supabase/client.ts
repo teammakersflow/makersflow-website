@@ -47,10 +47,9 @@ export const supabase: SupabaseClient<Database, "public", any> = createClient<
   SUPABASE_PUBLISHABLE_KEY ?? "placeholder-anon-key",
   {
     auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storageKey: "makersflow.auth",
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
     },
   },
 );

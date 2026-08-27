@@ -6,23 +6,19 @@ import { FloatingField } from "@/components/auth/FloatingField";
 import { SubmitButton } from "@/components/auth/SubmitButton";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
-import {
-  signInWithPassword,
-  signInWithGoogle,
-  resendConfirmationEmail,
-} from "@/integrations/supabase/auth";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuthContext } from "@/context/AuthContext";
+import { signInWithPassword, resendConfirmationEmail } from "@/integrations/supabase/auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
-/** Map a Supabase sign-in error to an actionable message. */
+/** Map a sign-in error to an actionable message. */
 function mapSignInError(error: { message?: string; status?: number }): string {
   const msg = (error?.message ?? "").toLowerCase();
 
   if (msg.includes("email not confirmed") || msg.includes("not confirmed")) {
     return "Please confirm your email first \u2014 check your inbox (and spam) for the verification link. Use \u201cResend confirmation\u201d below if it never arrived.";
   }
-  if (msg.includes("invalid login credentials")) {
+  if (msg.includes("invalid login credentials") || msg.includes("invalid email or password")) {
     return "Invalid email or password. Please check your credentials and try again.";
   }
   if (msg.includes("rate limit") || msg.includes("too many") || error?.status === 429) {
@@ -32,10 +28,9 @@ function mapSignInError(error: { message?: string; status?: number }): string {
     return "No account found with that email. Please register first.";
   }
   return error?.message
-    ? `Sign-in failed: ${error.message}`
-    : "Sign-in failed. Please try again.";
+    ? `Sign-in notice: ${error.message}`
+    : "Sign-in failed. Please sign in with Google.";
 }
-
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
@@ -62,6 +57,7 @@ const schema = z.object({
 function LoginPage() {
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
+  const { loginWithGoogle } = useAuthContext();
   const [values, setValues] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -95,29 +91,28 @@ function LoginPage() {
     setLoading(false);
     if (error) {
       console.error("[login] Password sign-in failed:", error);
-      // ── FIX ──────────────────────────────────────────────────────────────
-      // "Invalid email or password" was shown for every failure, including
-      // "Email not confirmed" — which sent users in circles retyping a
-      // password that was already correct.
       setFormError(mapSignInError(error));
       return;
     }
     navigate({ to: redirect || "/dashboard" });
   };
 
-  const onGoogle = async () => {
+  const onGoogleSuccess = async (idToken: string) => {
     setGoogleLoading(true);
-    const { error } = await signInWithGoogle(redirect);
-    if (error) {
-      console.error("[login] Google sign-in failed:", error);
-      setFormError("Google sign-in failed. Please try again.");
-      setGoogleLoading(false);
+    setFormError(null);
+    const res = await loginWithGoogle(idToken);
+    setGoogleLoading(false);
+    if (!res.success) {
+      setFormError(res.error || "Google Sign-In failed. Please try again.");
+      return;
     }
+    navigate({ to: redirect || "/dashboard" });
   };
 
-  // ── FIX ────────────────────────────────────────────────────────────────────
-  // "Email not confirmed" was a dead end: the user could not request another
-  // verification link from anywhere in the UI.
+  const onGoogleError = (err?: string) => {
+    setFormError(err || "Google sign-in was cancelled or failed. Please try again.");
+  };
+
   const onResendConfirmation = async () => {
     setFormError(null);
     if (!values.email || !z.string().email().safeParse(values.email).success) {
@@ -126,7 +121,6 @@ function LoginPage() {
     }
     const { error } = await resendConfirmationEmail(values.email);
     if (error) {
-      console.error("[login] Resend confirmation failed:", error);
       setFormError(mapSignInError(error));
     } else {
       setResetSent(true);
@@ -135,19 +129,7 @@ function LoginPage() {
 
   const onForgot = async () => {
     setFormError(null);
-    if (!values.email || !z.string().email().safeParse(values.email).success) {
-      setErrors((er) => ({ ...er, email: "Enter your email to reset password" }));
-      return;
-    }
-    const redirectTo =
-      typeof window !== "undefined" ? `${window.location.origin}/reset-password` : undefined;
-    const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-      redirectTo,
-    });
-    if (error) {
-      console.error("[login] Password reset failed:", error);
-      setFormError("Could not send password reset email. Please try again.");
-    } else setResetSent(true);
+    setFormError("Password recovery is managed via Google Account security for Google sign-in.");
   };
 
   return (
@@ -167,6 +149,23 @@ function LoginPage() {
       }
     >
       <form onSubmit={onSubmit} noValidate className="space-y-4">
+        <GoogleButton
+          onSuccess={onGoogleSuccess}
+          onError={onGoogleError}
+          disabled={googleLoading}
+        />
+
+        <div className="relative py-2">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-background px-3 text-xs uppercase tracking-wider text-muted-foreground">
+              or sign in with email
+            </span>
+          </div>
+        </div>
+
         <FloatingField
           id="email"
           label="Email address"
@@ -233,19 +232,6 @@ function LoginPage() {
         <SubmitButton loading={loading} loadingText="Signing in...">
           Sign in
         </SubmitButton>
-
-        <div className="relative py-2">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border" />
-          </div>
-          <div className="relative flex justify-center">
-            <span className="bg-background px-3 text-xs uppercase tracking-wider text-muted-foreground">
-              or
-            </span>
-          </div>
-        </div>
-
-        <GoogleButton onClick={onGoogle} disabled={googleLoading} />
 
         <div className="pt-2 text-center text-xs text-muted-foreground">
           By signing in, you agree to our{" "}

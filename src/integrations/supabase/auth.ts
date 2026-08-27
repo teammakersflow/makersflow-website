@@ -1,149 +1,104 @@
-import { useEffect, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "./client";
-
 /**
- * Auth helpers for MakersFlow web. Mirrors the shape used by the
- * mobile app so screens can share patterns later.
+ * Auth integration bridge for MakersFlow Web.
+ * Connects legacy auth callers directly to the canonical customAuthService & AuthContext.
  */
 
-export async function signInWithPassword(email: string, password: string) {
-  return supabase.auth.signInWithPassword({ email, password });
+import { useAuthContext } from "@/context/AuthContext";
+import { customAuthService, AuthUser } from "@/lib/auth/customAuthService";
+
+export { useAuthContext };
+
+/**
+ * Returns current user & auth loading status.
+ * Backwards compatible hook for existing Web components.
+ */
+export function useAuth() {
+  try {
+    const ctx = useAuthContext();
+    return {
+      user: ctx.user,
+      session: ctx.user ? { user: ctx.user } : null,
+      loading: ctx.loading,
+      isAuthenticated: ctx.isAuthenticated,
+    };
+  } catch {
+    // Fallback if rendered outside of AuthProvider
+    const cached = customAuthService.getCachedUser();
+    return {
+      user: cached,
+      session: cached ? { user: cached } : null,
+      loading: false,
+      isAuthenticated: Boolean(cached),
+    };
+  }
+}
+
+/**
+ * Signs in user with Google ID Token via NestJS Backend
+ */
+export async function signInWithGoogle(idToken: string) {
+  return customAuthService.loginWithGoogle(idToken);
+}
+
+/**
+ * Logs out the current user from the NestJS Backend and clears local storage
+ */
+export async function signOut(_scope?: string) {
+  await customAuthService.logout();
+  return { error: null };
+}
+
+/**
+ * Retrieves the current authenticated user from backend
+ */
+export async function getCurrentUser(): Promise<AuthUser | null> {
+  try {
+    const res = await customAuthService.getCurrentUser();
+    return res.data ? customAuthService.getCachedUser() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Stubs for password authentication (Backend currently uses Google OAuth)
+ */
+export async function signInWithPassword(_email: string, _password: string) {
+  return {
+    data: null,
+    error: { message: "Password authentication is disabled. Please sign in with Google." },
+  };
 }
 
 export async function signUpWithPassword(
-  email: string,
-  password: string,
-  metadata?: Record<string, unknown>,
-  redirect?: string,
+  _email: string,
+  _password: string,
+  _metadata?: Record<string, unknown>,
+  _redirect?: string,
 ) {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const redirectTo = redirect ? `${origin}${redirect}` : `${origin}/`;
-
-  // ── FIX ────────────────────────────────────────────────────────────────
-  // The mobile app sends its display name under the metadata key `name`
-  // (services/authService.ts), while this web app sent `full_name`. Any DB
-  // trigger reading raw_user_meta_data can only match one of them, so users
-  // created on one platform arrived with a null name on the other.
-  // Send both keys so whichever the trigger reads, it finds a value.
-  const data = { ...(metadata ?? {}) } as Record<string, unknown>;
-  if (data.full_name && !data.name) data.name = data.full_name;
-  if (data.name && !data.full_name) data.full_name = data.name;
-
-  return supabase.auth.signUp({
-    email,
-    password,
-    options: { data, emailRedirectTo: redirectTo },
-  });
+  return {
+    data: null,
+    error: { message: "Registration is managed via Google Sign-In. Please use Google." },
+  };
 }
 
-export async function signInWithGoogle(redirect?: string) {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const redirectTo = redirect ? `${origin}${redirect}` : `${origin}/`;
-  return supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo,
-      // ── FIX ──────────────────────────────────────────────────────────────
-      // Without prompt=select_account, Google silently reuses whichever
-      // account the browser signed in with last. Anyone with two Google
-      // accounts (personal + school, very common here) had no way to switch,
-      // and would land in the wrong MakersFlow profile with no obvious cause.
-      queryParams: { prompt: "select_account" },
-    },
-  });
+export async function sendPasswordReset(_email: string, _redirectPath = "/reset-password") {
+  return {
+    data: null,
+    error: { message: "Password reset is not applicable for Google authenticated accounts." },
+  };
 }
 
-/**
- * Send a password-recovery email.
- * `redirectTo` must be listed under Authentication -> URL Configuration ->
- * Redirect URLs in the Supabase dashboard, or the link in the email 404s.
- */
-export async function sendPasswordReset(email: string, redirectPath = "/reset-password") {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  return supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}${redirectPath}`,
-  });
+export async function updatePassword(_newPassword: string) {
+  return {
+    data: null,
+    error: { message: "Password management is managed via Google Account security." },
+  };
 }
 
-/**
- * Change the password of the currently signed-in user.
- * Used by both the recovery screen and the in-app "change password" form.
- */
-export async function updatePassword(newPassword: string) {
-  return supabase.auth.updateUser({ password: newPassword });
-}
-
-/**
- * Re-send the signup confirmation email.
- * Needed because "Email not confirmed" was previously a dead end — the user
- * had no way to get another link.
- */
-export async function resendConfirmationEmail(email: string) {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  return supabase.auth.resend({
-    type: "signup",
-    email,
-    options: { emailRedirectTo: `${origin}/` },
-  });
-}
-
-export async function signOut(scope?: "global" | "local" | "others") {
-  const res = await supabase.auth.signOut(scope ? { scope } : undefined);
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.removeItem("makersflow.auth");
-      sessionStorage.removeItem("makersflow.auth");
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const key = localStorage.key(i);
-        if (key && (key.startsWith("sb-") || key.includes("supabase.auth"))) {
-          localStorage.removeItem(key);
-        }
-      }
-    } catch (e) {
-      console.warn("Could not clear auth storage:", e);
-    }
-  }
-  return res;
-}
-
-export async function getCurrentUser(): Promise<User | null> {
-  const { data } = await supabase.auth.getUser();
-  return data.user ?? null;
-}
-
-/**
- * Subscribes to Supabase auth state. Returns { session, user, loading }.
- * Listener is registered first to avoid missing the initial event.
- */
-export function useAuth() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let initialised = false;
-
-    // Register the listener first so we never miss an event.
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      // Only clear loading once — whichever of the two paths fires first wins.
-      if (!initialised) {
-        initialised = true;
-        setLoading(false);
-      }
-    });
-
-    // Fallback: if the listener hasn't fired yet, resolve from the cached session.
-    supabase.auth.getSession().then(({ data }) => {
-      if (!initialised) {
-        initialised = true;
-        setSession(data.session);
-        setLoading(false);
-      }
-    });
-
-    return () => sub.subscription.unsubscribe();
-  }, []);
-
-  return { session, user: session?.user ?? null, loading };
+export async function resendConfirmationEmail(_email: string) {
+  return {
+    data: null,
+    error: { message: "Email verification is handled automatically by Google." },
+  };
 }

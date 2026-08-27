@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { tokenStorage } from "@/lib/auth/tokenStorage";
 
 /** localStorage key tracking when the current browser last viewed /notifications. */
 export const NOTIFICATIONS_LAST_SEEN_KEY = "notifications_last_seen";
@@ -6,16 +7,14 @@ export const NOTIFICATIONS_LAST_SEEN_KEY = "notifications_last_seen";
 /**
  * Returns true if the authenticated user has unread notifications in the `notifications` table.
  */
-export async function hasUnreadNotifications(): Promise<boolean> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return false;
+export async function hasUnreadNotifications(explicitUserId?: string): Promise<boolean> {
+  const userId = explicitUserId || tokenStorage.getUser()?.id;
+  if (!userId) return false;
 
   const { count, error } = await supabase
     .from("notifications")
     .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .eq("is_read", false);
 
   if (error) return false;

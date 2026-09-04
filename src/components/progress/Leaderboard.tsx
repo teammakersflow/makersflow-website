@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Trophy, Flame, Medal, Award, User, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
+import type { BackendUser } from "@/lib/auth/customAuthService";
 import { cn } from "@/lib/utils";
 
 export type LeaderboardEntry = {
@@ -27,12 +29,26 @@ export function Leaderboard({ currentUserId }: { currentUserId?: string }) {
 
       const userIds = streakData.map((s) => s.user_id).filter(Boolean);
 
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url")
-        .in("id", userIds);
+      const userProfilePromises = userIds.map(async (id) => {
+        try {
+          const res = await apiClient.get<BackendUser>(`/users/${id}`);
+          if (res.data) {
+            return {
+              id: res.data.id,
+              full_name: (res.data.full_name ?? res.data.name ?? null) as string | null,
+              avatar_url: (res.data.avatar_url ?? res.data.profileImage ?? null) as string | null,
+            };
+          }
+        } catch {
+          // best effort lookup
+        }
+        return null;
+      });
 
-      const profileMap = new Map((profilesData ?? []).map((p) => [p.id, p]));
+      const profilesResults = await Promise.all(userProfilePromises);
+      const profileMap = new Map(
+        profilesResults.filter(Boolean).map((p) => [p!.id, p!]),
+      );
 
       // Filter out orphaned streak rows that have no matching profile and are not the current user
       const validStreakRows = streakData.filter(

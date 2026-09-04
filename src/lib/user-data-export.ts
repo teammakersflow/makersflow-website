@@ -1,28 +1,55 @@
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "./auth/apiClient";
+import type { BackendUser } from "./auth/customAuthService";
+import { tokenStorage } from "./auth/tokenStorage";
+import { enrollmentService } from "./enrollmentService";
+import { progressService } from "./progressService";
+import { orderService } from "./orderService";
 
 export async function exportUserData(userId: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const [
-      { data: profile },
-      { data: enrollments },
-      { data: progress },
-      { data: quizAttempts },
-      { data: orders },
-      { data: favorites },
-      { data: watchLater },
-      { data: wishlist },
-      { data: reviews },
-    ] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", userId).single(),
-      supabase.from("enrollments").select("*, courses(title, category)").eq("user_id", userId),
-      supabase.from("lesson_progress").select("*").eq("user_id", userId),
+    // 1. Fetch user profile from NestJS backend (or local cache)
+    let profileData: BackendUser | null = null;
+    const cached = tokenStorage.getUser();
+    if (cached && cached.id === userId) {
+      profileData = cached as BackendUser;
+    } else {
+      try {
+        const res = await apiClient.get<BackendUser>(`/users/${userId}`);
+        profileData = res.data ?? null;
+      } catch {
+        profileData = null;
+      }
+    }
+
+    const [myEnrollments, myOrders, ...otherResults] = await Promise.all([
+      enrollmentService.getMyEnrollments(),
+      orderService.getMyOrders(),
       supabase.from("quiz_attempts").select("*").eq("user_id", userId),
-      supabase.from("orders").select("*").eq("user_id", userId),
       supabase.from("course_favorites").select("*").eq("user_id", userId),
       supabase.from("watch_later").select("*").eq("user_id", userId),
       supabase.from("wishlist").select("*").eq("user_id", userId),
       supabase.from("reviews").select("*").eq("user_id", userId),
     ]);
+
+    const [
+      { data: quizAttempts },
+      { data: favorites },
+      { data: watchLater },
+      { data: wishlist },
+      { data: reviews },
+    ] = otherResults as any[];
+
+    // Fetch progress for each enrolled course
+    const courseProgressPromises = (myEnrollments as any[]).map((e) =>
+      progressService.getCourseProgress(e.course_id),
+    );
+    const courseProgressResults = await Promise.all(courseProgressPromises);
+    const allProgressRecords = courseProgressResults.flatMap(
+      (cp) => cp?.lessonsProgress ?? [],
+    );
+
+    const profile = profileData;
 
     const exportData = {
       export_metadata: {
@@ -33,14 +60,14 @@ export async function exportUserData(userId: string): Promise<{ ok: boolean; err
       },
       profile: profile ?? null,
       learning_activity: {
-        enrolled_courses: enrollments ?? [],
-        lesson_progress: progress ?? [],
+        enrolled_courses: myEnrollments ?? [],
+        lesson_progress: allProgressRecords,
         quiz_attempts: quizAttempts ?? [],
         favorites: favorites ?? [],
         watch_later: watchLater ?? [],
       },
       commerce_and_reviews: {
-        orders: orders ?? [],
+        orders: myOrders ?? [],
         wishlist: wishlist ?? [],
         reviews: reviews ?? [],
       },

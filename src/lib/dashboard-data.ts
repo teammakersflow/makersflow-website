@@ -1,4 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "./auth/apiClient";
+import { courseService } from "./courseService";
+import { enrollmentService } from "./enrollmentService";
+import { progressService } from "./progressService";
+import type { BackendUser } from "./auth/customAuthService";
+import { tokenStorage } from "./auth/tokenStorage";
 import { fetchCourseProgressMap } from "./learn-data";
 // FALLBACK: CourseCard[] — demo courses used in two places:
 //   1. fetchContinueLesson: looks up title/thumbnail for demo progress stored in localStorage
@@ -6,7 +12,7 @@ import { fetchCourseProgressMap } from "./learn-data";
 // DEMO_MODULES: Module[] — used in fetchContinueLesson to find the next incomplete lesson
 //   by iterating module/lesson structure for demo-* course IDs.
 // Both exports exist in ./explore-data — import is valid.
-import { FALLBACK, DEMO_MODULES } from "./explore-data";
+import { DEMO_MODULES } from "./explore-data";
 import type { CourseCard } from "./landing-data";
 
 export type Profile = {
@@ -68,12 +74,37 @@ const safe = async <T>(fn: () => Promise<T>, fallback: T, label: string): Promis
 export async function fetchProfile(userId: string): Promise<Profile | null> {
   return safe(
     async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, full_name, email, phone, avatar_url, grade, school, role")
-        .eq("id", userId)
-        .maybeSingle();
-      return (data as Profile | null) ?? null;
+      // 1. If requesting current user's profile and cached, use fast cache
+      const cached = tokenStorage.getUser();
+      if (cached && cached.id === userId) {
+        return {
+          id: cached.id,
+          full_name: (cached.full_name ?? cached.name ?? null) as string | null,
+          email: cached.email ?? null,
+          phone: (cached.phone ?? null) as string | null,
+          avatar_url: (cached.avatar_url ?? cached.profileImage ?? null) as string | null,
+          grade: (cached.grade ?? null) as string | null,
+          school: (cached.school ?? null) as string | null,
+          role: cached.role ?? null,
+        };
+      }
+
+      // 2. Fetch user profile from NestJS backend: GET /users/:id
+      const res = await apiClient.get<BackendUser>(`/users/${userId}`);
+      if (res.data) {
+        const u = res.data;
+        return {
+          id: u.id,
+          full_name: (u.full_name ?? u.name ?? null) as string | null,
+          email: u.email ?? null,
+          phone: (u.phone ?? null) as string | null,
+          avatar_url: (u.avatar_url ?? u.profileImage ?? null) as string | null,
+          grade: (u.grade ?? null) as string | null,
+          school: (u.school ?? null) as string | null,
+          role: u.role ?? null,
+        };
+      }
+      return null;
     },
     null,
     "fetchProfile",
@@ -101,24 +132,17 @@ export async function fetchStreak(userId: string): Promise<StreakInfo> {
 export async function fetchStats(userId: string): Promise<DashboardStats> {
   return safe(
     async () => {
-      const [{ data: enr }, { data: pur }, { data: timeData }] = await Promise.all([
-        supabase
-          .from("enrollments")
-          .select("id, course_id, completed_at")
-          .eq("user_id", userId),
+      const [enrList, { data: pur }] = await Promise.all([
+        enrollmentService.getMyEnrollments(),
         supabase
           .from("course_purchases")
           .select("id, course_id, status")
           .eq("user_id", userId)
           .eq("status", "active"),
-        supabase
-          .from("lesson_progress")
-          .select("lesson_id, time_spent_secs, watch_percentage, is_completed")
-          .eq("user_id", userId),
       ]);
 
       const enrRows =
-        (enr as Array<{
+        (enrList as Array<{
           id: string;
           course_id: string | number;
           completed_at?: string | null;
@@ -136,13 +160,18 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
         }
       }
 
+      // Fetch progress for each unique course via progressService
+      const courseProgressPromises = Array.from(courseMap.keys()).map((cId) =>
+        progressService.getCourseProgress(cId),
+      );
+      const courseProgressResults = await Promise.all(courseProgressPromises);
+      const courseProgressMap = new Map<string, any>();
+      courseProgressResults.forEach((cp) => {
+        if (cp?.courseId) courseProgressMap.set(cp.courseId, cp);
+      });
+
       // ── Accurate Learned Time Calculation ──────────────────────────
-      const lpRows = (timeData as Array<{
-        lesson_id: number | string;
-        time_spent_secs?: number | null;
-        watch_percentage?: number | null;
-        is_completed?: boolean | null;
-      }>) ?? [];
+      const lpRows = courseProgressResults.flatMap((cp) => cp?.lessonsProgress ?? []);
 
       // Extract demo progress rows from localStorage
       const demoLpRows: Array<{
@@ -175,29 +204,15 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
       }
 
       const dbLessonIds = lpRows
-        .map((r) => Number(r.lesson_id))
-        .filter((id) => !isNaN(id) && id > 0);
+        .map((r) => String(r.lesson_id))
+        .filter((id) => id && id !== "0");
 
-      const lessonDurationsMap = new Map<string | number, number>();
-      if (dbLessonIds.length > 0) {
-        const { data: lessonMeta } = await supabase
-          .from("lessons")
-          .select("id, duration_secs")
-          .in("id", dbLessonIds);
-
-        (lessonMeta ?? []).forEach((l: any) => {
-          if (l?.id) {
-            const secsVal = Number(l.duration_secs) || 0;
-            lessonDurationsMap.set(l.id, secsVal);
-            lessonDurationsMap.set(String(l.id), secsVal);
-          }
-        });
-      }
+      const lessonDurationsMap = await courseService.getLessonDurationsMap(dbLessonIds);
 
       let totalSecs = 0;
       for (const r of lpRows) {
         const spent = Number(r.time_spent_secs) || 0;
-        const dbDur = lessonDurationsMap.get(r.lesson_id) ?? lessonDurationsMap.get(Number(r.lesson_id)) ?? 0;
+        const dbDur = lessonDurationsMap.get(String(r.lesson_id)) ?? 0;
         const durSecs = dbDur > 0 ? dbDur : (spent > 0 ? spent : 180);
         const pct = Number(r.watch_percentage) || 0;
 
@@ -239,38 +254,12 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
       for (const r of enrRows) {
         if (!r?.course_id) continue;
         const courseIdStr = String(r.course_id);
-        // Get lesson IDs for this course
-        const { data: modulesData } = await supabase
-          .from("modules")
-          .select("id")
-          .eq("course_id", courseIdStr);
-        const moduleIds = (modulesData ?? []).map((m: any) => m.id).filter(Boolean);
-        let percentage = 0;
-        if (moduleIds.length > 0) {
-          const { data: lessonsData } = await supabase
-            .from("lessons")
-            .select("id")
-            .in("module_id", moduleIds);
-          const validIds = (lessonsData ?? [])
-            .map((l: any) => l.id)
-            .filter((id: any) => id !== null && id !== undefined);
-          if (validIds.length > 0) {
-            const { data: progressData } = await supabase
-              .from("lesson_progress")
-              .select("lesson_id, is_completed, watch_percentage")
-              .eq("user_id", userId)
-              .in("lesson_id", validIds);
-            const pRows = progressData ?? [];
-            const completedCount = pRows.filter((p: any) => p?.is_completed).length;
-            percentage = validIds.length
-              ? Math.round((completedCount / validIds.length) * 100)
-              : 0;
-          }
-        }
+        const cp = courseProgressMap.get(courseIdStr);
+        const percentage = cp?.completionPercentage ?? 0;
         rows.push({
           progress: percentage,
           completed_at: r.completed_at ?? null,
-          status: r.completed_at ? "completed" : "active",
+          status: r.completed_at || percentage >= 100 ? "completed" : "active",
         });
       }
 
@@ -299,60 +288,88 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
 export async function fetchContinueLesson(userId: string): Promise<ContinueLesson | null> {
   return safe(
     async () => {
-      const { data: lpData } = await supabase
-        .from("lesson_progress")
-        .select("lesson_id, course_id, watch_percentage, last_watched_at")
-        .eq("user_id", userId)
-        .eq("is_completed", false)
-        .order("last_watched_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // 1. First check if user has enrolled courses via enrollmentService
+      const enrollments = await enrollmentService.getMyEnrollments();
+      if (!enrollments || enrollments.length === 0) return null;
 
-      if (!lpData) return null;
+      // 2. Fetch course progress for enrolled courses
+      const progressPromises = enrollments.map((e) =>
+        progressService.getCourseProgress(e.course_id),
+      );
+      const progressResults = await Promise.all(progressPromises);
 
-      const d = lpData as any;
-      const courseIdStr = String(d.course_id);
-      const rawLessonId = d.lesson_id;
+      // Find the most recently accessed/watched incomplete lesson across all courses
+      let latestIncompleteLesson: {
+        courseId: string;
+        lessonId: string;
+        watchPercentage: number;
+        lastWatchedAt: string | null;
+      } | null = null;
 
-      if (!rawLessonId) return null;
+      let latestTimestamp = 0;
 
-      // Fetch course and lesson info with separate queries
-      const [{ data: courseData }, { data: lessonData }] = await Promise.all([
-        supabase
-          .from("courses")
-          .select("title, thumbnail_url")
-          .eq("id", courseIdStr)
-          .maybeSingle(),
-        supabase.from("lessons").select("title").eq("id", rawLessonId).maybeSingle(),
+      for (const cp of progressResults) {
+        if (!cp) continue;
+        for (const lp of cp.lessonsProgress) {
+          if (!lp.is_completed) {
+            const time = lp.last_watched_at ? new Date(lp.last_watched_at).getTime() : 0;
+            if (time > latestTimestamp) {
+              latestTimestamp = time;
+              latestIncompleteLesson = {
+                courseId: cp.courseId,
+                lessonId: lp.lesson_id,
+                watchPercentage: lp.watch_percentage,
+                lastWatchedAt: lp.last_watched_at,
+              };
+            }
+          }
+        }
+      }
+
+      // If no watched incomplete lesson was found, pick the first incomplete lesson from the first enrolled course
+      if (!latestIncompleteLesson && progressResults.length > 0) {
+        for (const cp of progressResults) {
+          if (!cp) continue;
+          if (cp.completionPercentage < 100) {
+            const completedSet = new Set(cp.completedLessonIds);
+            const curriculum = await courseService.getCourseCurriculum(cp.courseId);
+            const allLessons = curriculum.flatMap((m) => m.lessons);
+            const nextLesson = allLessons.find((l) => !completedSet.has(String(l.id)));
+            if (nextLesson) {
+              latestIncompleteLesson = {
+                courseId: cp.courseId,
+                lessonId: String(nextLesson.id),
+                watchPercentage: 0,
+                lastWatchedAt: null,
+              };
+              break;
+            }
+          }
+        }
+      }
+
+      if (!latestIncompleteLesson) return null;
+
+      const courseIdStr = latestIncompleteLesson.courseId;
+      const lessonIdStr = latestIncompleteLesson.lessonId;
+
+      // Fetch course and lesson info via courseService
+      const [courseData, lessonData, cp] = await Promise.all([
+        courseService.getCourseById(courseIdStr),
+        courseService.getLessonById(lessonIdStr),
+        progressService.getCourseProgress(courseIdStr),
       ]);
 
-      // Compute progress inline using fetchCourseProgressMap
-      const progressMap = await fetchCourseProgressMap(userId, courseIdStr);
-      const completedCount = Object.values(progressMap ?? {}).filter((r: any) => r?.is_completed).length;
-      // Get total from modules/lessons
-      const { data: mods } = await supabase
-        .from("modules")
-        .select("id")
-        .eq("course_id", courseIdStr);
-      const modIds = (mods ?? []).map((m: any) => m.id).filter(Boolean);
-      let percentage = 0;
-      if (modIds.length > 0) {
-        const { data: lsns } = await supabase
-          .from("lessons")
-          .select("id")
-          .in("module_id", modIds);
-        const total = (lsns ?? []).length;
-        percentage = total ? Math.round((completedCount / total) * 100) : 0;
-      }
+      const percentage = cp?.completionPercentage ?? 0;
 
       return {
         course_id: courseIdStr,
-        course_title: (courseData as any)?.title ?? "Untitled Course",
-        course_thumbnail: (courseData as any)?.thumbnail_url ?? null,
-        lesson_id: String(rawLessonId),
-        lesson_title: (lessonData as any)?.title ?? "Untitled Lesson",
+        course_title: courseData?.title ?? "Untitled Course",
+        course_thumbnail: courseData?.thumbnail_url ?? null,
+        lesson_id: String(lessonIdStr),
+        lesson_title: lessonData?.title ?? "Untitled Lesson",
         progress: percentage,
-        last_watched_at: d.last_watched_at,
+        last_watched_at: latestIncompleteLesson.lastWatchedAt,
       };
     },
     null,
@@ -363,19 +380,28 @@ export async function fetchContinueLesson(userId: string): Promise<ContinueLesso
 export async function fetchRecommended(): Promise<CourseCard[]> {
   return safe(
     async () => {
-      const { data } = await supabase
-        .from("courses")
-        .select("id, title, category, level, price, is_free, thumbnail_url")
-        .order("created_at", { ascending: false })
-        .limit(8);
-      if (data && (data as any[]).length > 0)
-        return (data as any[]).map((c) => ({
-          ...c,
-          original_price: null,
-          rating: null,
-          total_reviews: null,
-        })) as CourseCard[];
-      return [];
+      const courses = await courseService.getCourses();
+      const published = courses.filter((c) => c.is_published !== false);
+      published.sort((a, b) => {
+        const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      return published.slice(0, 8).map((c) => ({
+        id: String(c.id),
+        title: c.title,
+        category: c.category,
+        level: c.level,
+        price: c.price,
+        original_price: null,
+        gst_rate: c.gst_rate ?? 18,
+        is_free: c.is_free,
+        thumbnail_url: c.thumbnail_url,
+        rating: null,
+        total_reviews: null,
+        instructor_name: null,
+      }));
     },
     [],
     "fetchRecommended",
@@ -402,12 +428,15 @@ export async function fetchWeeklyActivity(userId: string): Promise<WeeklyPoint[]
       const since = new Date(today);
       since.setDate(today.getDate() - 6);
       since.setHours(0, 0, 0, 0);
-      const { data } = await supabase
-        .from("lesson_progress")
-        .select("last_watched_at")
-        .eq("user_id", userId)
-        .gte("last_watched_at", since.toISOString());
-      const rows = (data as Array<{ last_watched_at: string | null }>) ?? [];
+
+      const enrollments = await enrollmentService.getMyEnrollments();
+      const courseProgressPromises = enrollments.map((e) =>
+        progressService.getCourseProgress(e.course_id),
+      );
+      const courseProgressResults = await Promise.all(courseProgressPromises);
+      const rows = courseProgressResults
+        .flatMap((cp) => cp?.lessonsProgress ?? [])
+        .filter((p) => p.last_watched_at && new Date(p.last_watched_at) >= since);
 
       for (const r of rows) {
         if (!r?.last_watched_at) continue;

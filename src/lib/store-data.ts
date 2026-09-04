@@ -1,4 +1,5 @@
-import { supabase } from "@/integrations/supabase/client";
+import { productService } from "./productService";
+import { reviewService } from "./reviewService";
 
 export type Product = {
   id: string;
@@ -18,6 +19,9 @@ export type Product = {
   in_stock: boolean;
   is_course: boolean;
   course_id: string | null;
+  hsn_code?: string;
+  stock_quantity?: number;
+  weight_kg?: number | null;
 };
 
 const FALLBACK: Product[] = [
@@ -142,104 +146,24 @@ function normalize(row: Record<string, unknown>): Product {
 }
 
 export async function fetchProducts(): Promise<Product[]> {
-  try {
-    const { data, error } = await supabase
-      .from("products")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error || !data || data.length === 0) return FALLBACK;
-    const normalized = (data as Record<string, unknown>[]).map(normalize);
-    // Deduplicate by ID to guarantee zero duplicates in UI
-    const uniqueMap = new Map<string, Product>();
-    normalized.forEach((p) => uniqueMap.set(p.id, p));
-    return Array.from(uniqueMap.values());
-  } catch (err) {
-    console.warn(`[makersflow] fetchProducts products threw, using fallback:`, err);
-    return FALLBACK;
-  }
+  return productService.getProducts();
 }
 
 export async function fetchProduct(id: string): Promise<Product | null> {
-  try {
-    const { data } = await supabase.from("products").select("*").eq("id", id).maybeSingle();
-    if (data) return normalize(data as Record<string, unknown>);
-  } catch (err) {
-    console.warn(`[makersflow] fetchProduct products threw, using fallback:`, err);
-  }
-  return FALLBACK.find((p) => p.id === id) ?? null;
+  return productService.getProductById(id);
 }
 
 export async function fetchProductReviews(productId: string): Promise<any[]> {
-  try {
-    const { data: reviews, error } = await supabase
-      .from("reviews")
-      .select("id, rating, comment, created_at, user_id")
-      .eq("product_id", productId)
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (error || !reviews || reviews.length === 0) return [];
-
-    const userIds = Array.from(new Set(reviews.map((r) => r.user_id))).filter(Boolean);
-    let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase.rpc("get_approved_reviewer_profiles", {
-        p_user_ids: userIds,
-      });
-      if (profiles) {
-        (profiles as any[]).forEach((p) => {
-          profilesMap[p.id] = p;
-        });
-      }
-    }
-
-    return reviews.map((r) => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment,
-      created_at: r.created_at,
-      user_name: profilesMap[r.user_id]?.full_name ?? null,
-      user_avatar: profilesMap[r.user_id]?.avatar_url ?? null,
-    }));
-  } catch {
-    return [];
-  }
+  return reviewService.fetchProductReviews(productId);
 }
 
 export async function submitProductReview(
-  userId: string,
+  _userId: string,
   productId: string,
   rating: number,
   comment: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!userId) return { ok: false, error: "Please sign in to submit a product review" };
-  if (!rating || rating < 1 || rating > 5) return { ok: false, error: "Please select a star rating (1-5)" };
-
-  try {
-    const { error } = await supabase.from("reviews").upsert(
-      {
-        user_id: userId,
-        product_id: productId,
-        rating,
-        comment: comment.trim() || null,
-        status: "pending",
-      },
-      { onConflict: "user_id,product_id" },
-    );
-
-    if (error) {
-      if (error.code === "23505") {
-        return { ok: false, error: "You have already submitted a review for this product." };
-      }
-      throw error;
-    }
-
-    return { ok: true };
-  } catch (err: any) {
-    console.error("[submitProductReview] Insert failed:", err);
-    return { ok: false, error: err?.message || "Could not submit review." };
-  }
+  return reviewService.submitProductReview(productId, rating, comment);
 }
 
 export function getProductCategories(items: Product[]): string[] {

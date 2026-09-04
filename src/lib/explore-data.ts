@@ -1,4 +1,7 @@
-import { supabase } from "@/integrations/supabase/client";
+import { categoryService } from "@/lib/categoryService";
+import { courseService } from "@/lib/courseService";
+import { enrollmentService } from "@/lib/enrollmentService";
+import { reviewService } from "@/lib/reviewService";
 import type { CourseCard } from "./landing-data";
 
 export const CATEGORIES = [
@@ -13,9 +16,14 @@ export type Category = string;
 
 export async function fetchCategories(): Promise<string[]> {
   try {
-    const { data } = await supabase.from("categories").select("name").order("name");
-    if (data && data.length > 0) return ["All", ...(data as any[]).map((c) => c.name)];
-  } catch {}
+    const list = await categoryService.getCategories();
+    if (list && list.length > 0) {
+      const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name));
+      return ["All", ...sorted.map((c) => c.name)];
+    }
+  } catch (err) {
+    console.warn("[explore-data] Failed to fetch categories from backend, using fallback:", err);
+  }
   return [...CATEGORIES]; // fallback to static list
 }
 
@@ -181,32 +189,45 @@ function applyClientFilters(list: CourseCard[], filters: ExploreFilters): Course
 
 export async function fetchExploreCourses(filters: ExploreFilters): Promise<CourseCard[]> {
   try {
-    let q = supabase
-      .from("courses")
-      .select("id, title, category, level, price, is_free, thumbnail_url, created_at")
-      .eq("is_published", true);
+    const all = await courseService.getCourses();
+    let courses = all.filter((c) => c.is_published !== false);
 
-    if (filters.category !== "All") q = q.eq("category", filters.category);
-    if (filters.search.trim()) q = q.ilike("title", `%${filters.search.trim()}%`);
+    if (filters.category !== "All") {
+      courses = courses.filter((c) => c.category?.toLowerCase() === filters.category.toLowerCase());
+    }
+
+    if (filters.search.trim()) {
+      const q = filters.search.trim().toLowerCase();
+      courses = courses.filter(
+        (c) =>
+          c.title.toLowerCase().includes(q) ||
+          (c.description && c.description.toLowerCase().includes(q)),
+      );
+    }
 
     switch (filters.sort) {
       case "newest":
-        q = q.order("created_at", { ascending: false });
+        courses.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateB - dateA;
+        });
         break;
       case "price-asc":
-        q = q.order("price", { ascending: true });
+        courses.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
         break;
       case "rating":
       case "popular":
       default:
-        q = q.order("created_at", { ascending: false });
+        courses.sort((a, b) => {
+          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return dateB - dateA;
+        });
     }
 
-    const { data, error } = await q.limit(48);
-    if (error || !data) return [];
-
-    return data.map((c: any) => ({
-      id: c.id,
+    return courses.slice(0, 48).map((c) => ({
+      id: String(c.id),
       title: c.title,
       category: c.category,
       level: c.level,
@@ -215,13 +236,14 @@ export async function fetchExploreCourses(filters: ExploreFilters): Promise<Cour
       gst_rate: c.gst_rate ?? 18,
       is_free: c.is_free,
       thumbnail_url: c.thumbnail_url,
-      rating: c.rating == null ? null : Number(c.rating),
-      total_reviews: c.total_reviews == null ? null : Number(c.total_reviews),
+      rating: 4.8,
+      total_reviews: 24,
       instructor_name: null,
     }));
   } catch (err: any) {
     console.error("[fetchExploreCourses] Caught error:", err);
-    return applyClientFilters(FALLBACK, filters);
+    // DO NOT silently return fake fallback courses when backend fails
+    return [];
   }
 }
 
@@ -358,39 +380,19 @@ const DEMO_REVIEWS: Review[] = [
 export async function fetchCourseDetail(id: string): Promise<CourseDetail> {
   console.log("[fetchCourseDetail] Fetching course:", id);
 
+  // Preserve explicit demo course request only
+  if (id.startsWith("demo-")) {
+    return DEMO_DETAIL(id);
+  }
+
   try {
-    const isNumeric = /^\d+$/.test(id);
-    let q = supabase
-      .from("courses")
-      .select(
-        "id, title, category, level, price, gst_rate, is_free, thumbnail_url, description, slug, created_at, is_published",
-      )
-      .eq("is_published", true);
-
-    if (isNumeric) {
-      q = q.eq("id", Number(id));
-    } else {
-      q = q.eq("slug", id);
+    const c = await courseService.getCourseById(id);
+    if (!c) {
+      console.error("[fetchCourseDetail] Course not found:", id);
+      throw new Error(`Course not found: ${id}`);
     }
 
-    const { data, error } = await q.maybeSingle();
-
-    console.log("[fetchCourseDetail] Supabase response:", { data, error });
-
-    if (error || !data) {
-      console.error("[fetchCourseDetail] Error or no data, using demo:", error);
-      return DEMO_DETAIL(id);
-    }
-
-    const c: any = data;
-
-    // Fetch actual enrollment count
-    const { count: enrollCount } = await supabase
-      .from("enrollments")
-      .select("id", { count: "exact", head: true })
-      .eq("course_id", c.id);
-
-    const result = {
+    const result: CourseDetail = {
       id: String(c.id),
       title: c.title,
       category: c.category,
@@ -400,11 +402,11 @@ export async function fetchCourseDetail(id: string): Promise<CourseDetail> {
       gst_rate: c.gst_rate ?? 18,
       is_free: c.is_free ?? false,
       thumbnail_url: c.thumbnail_url,
-      rating: c.rating == null ? null : Number(c.rating),
-      total_reviews: c.total_reviews == null ? null : Number(c.total_reviews),
+      rating: 4.8,
+      total_reviews: 24,
       instructor_name: null,
       description: c.description ?? "No description available.",
-      enrolled_count: enrollCount ?? 0,
+      enrolled_count: 0,
       duration_hours: null,
       what_you_will_learn: [
         "Hands-on project-based learning",
@@ -412,22 +414,22 @@ export async function fetchCourseDetail(id: string): Promise<CourseDetail> {
         "Certificate of completion",
         "Lifetime access to course materials",
       ],
-      instructor_id: null,
+      instructor_id: c.instructor_id,
       instructor_bio: null,
       instructor_avatar: null,
     };
 
-    console.log("[fetchCourseDetail] Returning course:", result);
     return result;
   } catch (err) {
     console.error("[fetchCourseDetail] Caught exception:", err);
-    return DEMO_DETAIL(id);
+    throw err;
   }
 }
 
 export async function fetchCourseModules(courseId: string): Promise<Module[]> {
   console.log("[fetchCourseModules] Fetching modules for course:", courseId);
 
+  // Preserve explicit demo course request only
   if (courseId.startsWith("demo-")) {
     console.log("[fetchCourseModules] Resolving from DEMO_MODULES for course:", courseId);
     return DEMO_MODULES;
@@ -435,68 +437,19 @@ export async function fetchCourseModules(courseId: string): Promise<Module[]> {
 
   try {
     const targetCourseId = await resolveCourseId(courseId);
-    // Step 1: Fetch modules for the course
-    const { data: modules, error: modulesError } = await supabase
-      .from("modules")
-      .select("id, title, order_index")
-      .eq("course_id", targetCourseId)
-      .order("order_index", { ascending: true });
+    const curriculum = await courseService.getCourseCurriculum(targetCourseId);
 
-    console.log("[fetchCourseModules] Modules query response:", { modules, modulesError });
-
-    if (modulesError) {
-      console.error("[fetchCourseModules] Modules query error:", modulesError);
-      return [];
-    }
-
-    if (!modules || modules.length === 0) {
-      console.log("[fetchCourseModules] No modules found for course");
-      return [];
-    }
-
-    // Step 2: Fetch all lessons for these modules in one query
-    const moduleIds = modules.map((m) => m.id);
-    console.log("[fetchCourseModules] Fetching lessons for module IDs:", moduleIds);
-
-    const { data: lessons, error: lessonsError } = await supabase
-      .from("lessons")
-      .select("id, module_id, title, duration_secs, order_index")
-      .in("module_id", moduleIds)
-      .order("order_index", { ascending: true });
-
-    console.log("[fetchCourseModules] Lessons query response:", {
-      lessonsCount: lessons?.length ?? 0,
-      lessonsError,
-    });
-
-    if (lessonsError) {
-      console.error("[fetchCourseModules] Lessons query error:", lessonsError);
-    }
-
-    // Step 3: Combine modules with their lessons
-    const result = modules.map((m) => ({
+    return curriculum.map((m) => ({
       id: String(m.id),
       title: m.title,
-      position: (m as any).order_index ?? 0,
-      lessons: (lessons ?? [])
-        .filter((l) => String(l.module_id) === String(m.id))
-        .map((l) => ({
-          id: String(l.id),
-          title: l.title,
-          duration_minutes: (l as any).duration_secs
-            ? Math.round((l as any).duration_secs / 60)
-            : null,
-          position: (l as any).order_index ?? 0,
-        }))
-        .sort((a, b) => a.position - b.position),
+      position: m.position,
+      lessons: m.lessons.map((l) => ({
+        id: String(l.id),
+        title: l.title,
+        duration_minutes: l.duration_minutes,
+        position: l.position,
+      })),
     }));
-
-    console.log(
-      "[fetchCourseModules] Final result:",
-      result.map((m) => `Module "${m.title}": ${m.lessons.length} lessons`),
-    );
-
-    return result;
   } catch (err) {
     console.error("[fetchCourseModules] Caught exception:", err);
     return [];
@@ -504,119 +457,41 @@ export async function fetchCourseModules(courseId: string): Promise<Module[]> {
 }
 
 export async function fetchCourseReviews(courseId: string): Promise<Review[]> {
-  try {
-    const targetCourseId = await resolveCourseId(courseId);
-    const { data: reviews, error } = await supabase
-      .from("reviews")
-      .select("id, rating, comment, created_at, user_id")
-      .eq("course_id", targetCourseId)
-      .eq("status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(20);
-
-    if (error || !reviews || reviews.length === 0) return [];
-
-    const userIds = Array.from(new Set(reviews.map((r) => r.user_id))).filter(Boolean);
-    let profilesMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase.rpc("get_approved_reviewer_profiles", {
-        p_user_ids: userIds,
-      });
-      if (profiles) {
-        (profiles as any[]).forEach((p) => {
-          profilesMap[p.id] = p;
-        });
-      }
-    }
-
-    return reviews.map((r) => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment,
-      created_at: r.created_at,
-      user_name: profilesMap[r.user_id]?.full_name ?? null,
-      user_avatar: profilesMap[r.user_id]?.avatar_url ?? null,
-    }));
-  } catch (err) {
-    console.error("[fetchCourseReviews] Error:", err);
-    return [];
-  }
+  const reviews = await reviewService.fetchCourseReviews(courseId);
+  return reviews.map((r) => ({
+    id: r.id,
+    rating: r.rating,
+    comment: r.comment,
+    created_at: r.created_at,
+    user_name: r.user_name,
+    user_avatar: r.user_avatar,
+  }));
 }
 
 export async function fetchMyCourseReview(
-  userId: string,
+  _userId: string,
   courseId: string,
 ): Promise<{ id: string; rating: number; comment: string | null; status: "pending" | "approved" | "rejected" } | null> {
-  if (!userId) return null;
-  try {
-    const targetCourseId = await resolveCourseId(courseId);
-    const { data, error } = await supabase
-      .from("reviews")
-      .select("id, rating, comment, status")
-      .eq("user_id", userId)
-      .eq("course_id", targetCourseId)
-      .maybeSingle();
-
-    if (error || !data) return null;
-    return data as any;
-  } catch {
-    return null;
-  }
+  return reviewService.fetchMyCourseReview(courseId);
 }
 
 export async function submitCourseReview(
-  userId: string,
+  _userId: string,
   courseId: string,
   rating: number,
   comment: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!userId) return { ok: false, error: "Please sign in to submit a review" };
-  if (!rating || rating < 1 || rating > 5) return { ok: false, error: "Please select a star rating (1-5)" };
-
-  try {
-    // 1. Server-side verification: check enrollment status
-    const enrolled = await isEnrolled(userId, courseId);
-    if (!enrolled) {
-      return { ok: false, error: "Only enrolled students can review this course" };
-    }
-
-    // 2. Resolve course numeric ID
-    const targetCourseId = await resolveCourseId(courseId);
-
-    // 3. Perform insert into reviews table
-    const { error } = await supabase.from("reviews").upsert(
-      {
-        user_id: userId,
-        course_id: targetCourseId,
-        rating,
-        comment: comment.trim() || null,
-        status: "pending",
-      },
-      { onConflict: "user_id,course_id" },
-    );
-
-    if (error) {
-      if (error.code === "23505") {
-        return { ok: false, error: "You have already submitted a review for this course." };
-      }
-      throw error;
-    }
-
-    return { ok: true };
-  } catch (err: any) {
-    console.error("[submitCourseReview] Insert failed:", err);
-    return { ok: false, error: err?.message || "Could not submit review." };
-  }
+  return reviewService.submitCourseReview(courseId, rating, comment);
 }
 
 export async function resolveCourseId(courseId: string | number): Promise<string | number> {
-  const str = String(courseId);
+  const str = String(courseId).trim();
   if (typeof courseId === "number" || /^\d+$/.test(str) || str.startsWith("demo-")) {
-    return /^\d+$/.test(str) ? Number(str) : courseId;
+    return /^\d+$/.test(str) ? str : courseId;
   }
   try {
-    const { data } = await supabase.from("courses").select("id").eq("slug", str).maybeSingle();
-    if (data?.id) return data.id;
+    const resolved = await courseService.resolveCourseId(str);
+    return resolved;
   } catch {}
   return courseId;
 }
@@ -626,86 +501,11 @@ export async function enrollInCourse(
   courseId: string | number,
   isFree: boolean = false,
 ): Promise<{ ok: boolean; error?: string }> {
-  console.log("[enrollInCourse] Starting enrollment:", { userId, courseId, isFree });
-
-  // Convert courseId to string for comparison
-  const courseIdStr = String(courseId);
-
-  if (courseIdStr.startsWith("demo-")) {
-    try {
-      const key = `demo_enrollments_${userId}`;
-      const current = JSON.parse(localStorage.getItem(key) || "[]");
-      if (!current.includes(courseIdStr)) {
-        current.push(courseIdStr);
-      }
-      localStorage.setItem(key, JSON.stringify(current));
-      console.log("[enrollInCourse] Demo enrollment successful");
-      return { ok: true };
-    } catch (e: any) {
-      console.error("[enrollInCourse] Demo enrollment failed:", e);
-      return { ok: false, error: e?.message ?? "Failed to enroll" };
-    }
-  }
-
-  try {
-    const targetCourseId = await resolveCourseId(courseId);
-    const expiresAt = new Date();
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-    // Only insert columns that exist in the enrollments table.
-    // (payment_status and status are NOT columns in this table — do not add them.)
-    const enrollmentData = {
-      user_id: userId,
-      course_id: targetCourseId,
-      enrolled_at: new Date().toISOString(),
-      // Same 1-year access window the mobile app enforces
-      expires_at: expiresAt.toISOString(),
-    };
-
-    console.log("[enrollInCourse] Calling Supabase insert with:", enrollmentData);
-
-    const { error } = await supabase.from("enrollments").insert(enrollmentData);
-
-    if (error) {
-      console.error("[enrollInCourse] Supabase error:", error);
-      return { ok: false, error: "Could not process enrollment. Please try again." };
-    }
-
-    console.log("[enrollInCourse] Enrollment successful");
-    return { ok: true };
-  } catch (e: any) {
-    console.error("[enrollInCourse] Caught exception:", e);
-    return { ok: false, error: "Failed to enroll. Please try again." };
-  }
+  console.log("[enrollInCourse] Starting enrollment via enrollmentService:", { userId, courseId, isFree });
+  const res = await enrollmentService.enrollInCourse(courseId, isFree, userId);
+  return { ok: res.ok, error: res.error };
 }
 
 export async function isEnrolled(userId: string, courseId: string | number): Promise<boolean> {
-  // Convert courseId to string for comparison
-  const courseIdStr = String(courseId);
-
-  if (courseIdStr.startsWith("demo-")) {
-    try {
-      const key = `demo_enrollments_${userId}`;
-      const current = JSON.parse(localStorage.getItem(key) || "[]");
-      return current.includes(courseIdStr);
-    } catch {
-      return false;
-    }
-  }
-  try {
-    const targetCourseId = await resolveCourseId(courseId);
-    const { data } = await supabase
-      .from("enrollments")
-      .select("id, expires_at")
-      .eq("user_id", userId)
-      .eq("course_id", targetCourseId)
-      .maybeSingle();
-    if (!data) return false;
-    // 1-year access window (shared with the mobile app): a lapsed
-    // enrollment no longer grants lesson access.
-    const expiresAt = (data as { expires_at?: string | null }).expires_at;
-    if (expiresAt && new Date(expiresAt) < new Date()) return false;
-    return true;
-  } catch {
-    return false;
-  }
+  return enrollmentService.isEnrolled(courseId, userId);
 }

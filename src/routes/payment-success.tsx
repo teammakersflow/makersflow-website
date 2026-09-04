@@ -4,10 +4,13 @@ import { motion } from "framer-motion";
 import { CheckCircle2, Download, ShoppingBag, GraduationCap, ReceiptText, Share2 } from "lucide-react";
 import { shareItem } from "@/lib/share-utils";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
-import { supabase } from "@/integrations/supabase/client";
+import { orderService, type BackendOrder } from "@/lib/orderService";
+import { courseService } from "@/lib/courseService";
+import { productService } from "@/lib/productService";
 import { formatPrice } from "@/lib/store-data";
 import {
   fetchSellerSettings,
+  generateInvoiceNumber,
   buildInvoiceHtml,
   type InvoiceLineItem,
   type InvoiceAddress,
@@ -29,31 +32,38 @@ function PaymentSuccessPage() {
   const { order_id, total } = useSearch({ from: "/payment-success" });
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [hasCourses, setHasCourses] = useState(false);
-  const [orderDetails, setOrderDetails] = useState<any>(null);
+  const [orderDetails, setOrderDetails] = useState<BackendOrder | null>(null);
 
   useEffect(() => {
     if (!order_id) return;
-    // Check for invoice
-    supabase
-      .from("invoices")
-      .select("id, invoice_number, total_amount")
-      .eq("order_id", order_id)
-      .maybeSingle()
-      .then(({ data }) => setInvoice(data as Invoice | null));
-    // Check if order has courses & fetch details
-    supabase
-      .from("orders")
-      .select("*")
-      .eq("id", order_id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setOrderDetails(data);
-          const items = (data.items as Array<{ is_course?: boolean }>) ?? [];
-          setHasCourses(items.some((i) => i.is_course));
+
+    orderService
+      .getOrderById(order_id)
+      .then((order) => {
+        if (order) {
+          setOrderDetails(order);
+          let items: any[] = [];
+          try {
+            items = typeof order.items === "string" ? JSON.parse(order.items) : order.items;
+          } catch {
+            items = Array.isArray(order.items) ? order.items : [];
+          }
+          if (Array.isArray(items)) {
+            setHasCourses(items.some((i: any) => i.is_course));
+          }
+          generateInvoiceNumber().then((seq) => {
+            setInvoice({
+              id: order.id,
+              invoice_number: seq,
+              total_amount: Number(order.total_amount) || total,
+            });
+          });
         }
+      })
+      .catch((err) => {
+        console.error("[PaymentSuccess] Error fetching order:", err);
       });
-  }, [order_id]);
+  }, [order_id, total]);
 
   const downloadInvoice = async () => {
     if (!invoice) return;
@@ -66,11 +76,11 @@ function PaymentSuccessPage() {
 
     const hsnMap = new Map<string, string>();
     if (courseIds.length > 0) {
-      const { data: cRows } = await supabase.from("courses").select("id, hsn_code").in("id", courseIds);
+      const cRows = await courseService.getCoursesByIds(courseIds);
       cRows?.forEach((r: any) => { if (r.hsn_code) hsnMap.set(String(r.id), r.hsn_code); });
     }
     if (productIds.length > 0) {
-      const { data: pRows } = await supabase.from("products").select("id, hsn_code").in("id", productIds);
+      const pRows = await productService.getProductsByIds(productIds);
       pRows?.forEach((r: any) => { if (r.hsn_code) hsnMap.set(String(r.id), r.hsn_code); });
     }
 

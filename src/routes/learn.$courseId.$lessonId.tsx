@@ -12,6 +12,8 @@ import { LessonHeaderNav } from "@/components/learn/LessonHeaderNav";
 import { LessonUpNextCard } from "@/components/learn/LessonUpNextCard";
 import { LessonLockedView } from "@/components/learn/LessonLockedView";
 import { supabase } from "@/integrations/supabase/client";
+import { courseService } from "@/lib/courseService";
+import { enrollmentService } from "@/lib/enrollmentService";
 import {
   LessonTabBar,
   LessonTabPanel,
@@ -80,15 +82,16 @@ function LessonPlayerPage() {
     async function checkAccess() {
       const targetCourseId = await resolveCourseId(courseId);
       // Fetch course metadata — FAIL-CLOSED: if query errors or returns null, deny access
-      const { data: course, error: courseErr } = await supabase
-        .from("courses")
-        .select("is_free, price")
-        .eq("id", targetCourseId)
-        .maybeSingle();
+      let course = null;
+      try {
+        course = await courseService.getCourseById(targetCourseId);
+      } catch {
+        course = null;
+      }
 
       if (cancelled) return;
 
-      if (courseErr || !course) {
+      if (!course) {
         // Fail-closed: Never default to granting access on error or missing course record
         setAccessGranted(false);
         return;
@@ -99,14 +102,10 @@ function LessonPlayerPage() {
         return;
       }
 
-      // Check enrollments table OR course_purchases for paid courses
-      const [{ count: enrollCount, error: enrErr }, { count: purchaseCount, error: purErr }] =
+      // Check enrollment via enrollmentService OR course_purchases for paid courses
+      const [enrolled, { count: purchaseCount, error: purErr }] =
         await Promise.all([
-          supabase
-            .from("enrollments")
-            .select("id", { count: "exact", head: true })
-            .eq("user_id", user!.id)
-            .eq("course_id", targetCourseId),
+          enrollmentService.isEnrolled(targetCourseId, user!.id),
           supabase
             .from("course_purchases")
             .select("id", { count: "exact", head: true })
@@ -117,7 +116,7 @@ function LessonPlayerPage() {
 
       if (cancelled) return;
 
-      if ((!enrErr && (enrollCount ?? 0) > 0) || (!purErr && (purchaseCount ?? 0) > 0)) {
+      if (enrolled || (!purErr && (purchaseCount ?? 0) > 0)) {
         setAccessGranted(true);
       } else {
         setAccessGranted(false);

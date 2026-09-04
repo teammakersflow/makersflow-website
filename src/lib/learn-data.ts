@@ -1,4 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { courseService } from "@/lib/courseService";
+import { enrollmentService } from "./enrollmentService";
+import { progressService } from "./progressService";
 import { FALLBACK, DEMO_MODULES, resolveCourseId, type Module } from "./explore-data";
 import {
   mapDbLessonToDetail,
@@ -83,16 +86,7 @@ export async function fetchLesson(courseId: string, lessonId: string): Promise<L
     };
   }
 
-  const { data, error } = await supabase
-    .from("lessons")
-    .select("id, module_id, title, content, video_url, order_index, duration_secs, notes")
-    .eq("id", Number(lessonId))
-    .single();
-
-  if (error) {
-    console.error(`[makersflow] fetchLesson error:`, error);
-    throw error;
-  }
+  const data = await courseService.getLessonById(lessonId);
 
   if (!data) {
     throw new Error(`Lesson ${lessonId} not found`);
@@ -148,22 +142,24 @@ export async function fetchCourseProgressMap(
     }
   }
   try {
-    const targetCourseId = await resolveCourseId(courseId);
-    const { data } = await supabase
-      .from("lesson_progress")
-      .select(
-        "lesson_id, course_id, current_time_secs, watch_percentage, time_spent_secs, is_completed, last_watched_at",
-      )
-      .eq("user_id", userId)
-      .eq("course_id", targetCourseId);
+    const cp = await progressService.getCourseProgress(courseId);
+    if (!cp) return {};
+
     const map: Record<string, LessonProgressRow> = {};
-    for (const row of (data ?? []) as RawDbLessonProgress[]) {
-      const mapped = mapDbLessonProgress(row);
-      map[mapped.lesson_id] = mapped;
+    for (const p of cp.lessonsProgress) {
+      map[p.lesson_id] = {
+        lesson_id: p.lesson_id,
+        course_id: cp.courseId,
+        current_time_secs: p.current_time_secs,
+        watch_percentage: p.watch_percentage,
+        time_spent_secs: p.time_spent_secs,
+        is_completed: p.is_completed,
+        last_watched_at: p.last_watched_at,
+      };
     }
     return map;
   } catch (err) {
-    console.warn(`[makersflow] fetchCourseProgressMap lesson_progress threw, using fallback:`, err);
+    console.warn(`[makersflow] fetchCourseProgressMap threw:`, err);
     return {};
   }
 }
@@ -199,25 +195,16 @@ export async function upsertLessonProgress(
     return;
   }
   try {
-    const progressPayload = {
-      user_id: userId,
-      lesson_id: Number(payload.lesson_id),
+    await progressService.syncLessonProgress({
       course_id: payload.course_id,
-      watch_percentage: Math.round(payload.watch_percentage),
-      current_time_secs: Math.floor(payload.current_time_secs),
-      is_completed: payload.is_completed ?? false,
-      time_spent_secs: Math.floor(payload.time_spent_secs),
-      last_watched_at: new Date().toISOString(),
-    };
-    const { error } = await supabase
-      .from("lesson_progress")
-      .upsert(progressPayload, { onConflict: "user_id,course_id,lesson_id" });
-    if (error) {
-      console.error(`[makersflow] upsertLessonProgress upsert failed:`, error);
-      throw error;
-    }
+      lesson_id: payload.lesson_id,
+      watch_percentage: payload.watch_percentage,
+      current_time_secs: payload.current_time_secs,
+      is_completed: payload.is_completed,
+      time_spent_secs: payload.time_spent_secs,
+    });
   } catch (err) {
-    console.warn(`[makersflow] upsertLessonProgress lesson_progress threw:`, err);
+    console.warn(`[makersflow] upsertLessonProgress threw:`, err);
     throw err;
   }
 }
@@ -243,46 +230,9 @@ export async function markLessonComplete(userId: string, courseId: string, lesso
     return;
   }
   try {
-    const targetCourseId = await resolveCourseId(courseId);
-    const lessonNum = Number(lessonId);
-    const { data: existing } = await supabase
-      .from("lesson_progress")
-      .select("id, time_spent_secs")
-      .eq("user_id", userId)
-      .eq("course_id", targetCourseId)
-      .eq("lesson_id", lessonNum)
-      .maybeSingle();
-
-    if (existing) {
-      const { error } = await supabase
-        .from("lesson_progress")
-        .update({
-          is_completed: true,
-          watch_percentage: 100,
-          last_watched_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id);
-      if (error) {
-        console.error(`[makersflow] markLessonComplete update failed:`, error);
-        throw error;
-      }
-    } else {
-      const { error } = await supabase.from("lesson_progress").insert({
-        user_id: userId,
-        lesson_id: lessonNum,
-        course_id: courseId,
-        is_completed: true,
-        watch_percentage: 100,
-        time_spent_secs: 0,
-        last_watched_at: new Date().toISOString(),
-      });
-      if (error) {
-        console.error(`[makersflow] markLessonComplete insert failed:`, error);
-        throw error;
-      }
-    }
+    await progressService.markLessonComplete(courseId, lessonId);
   } catch (err) {
-    console.warn(`[makersflow] markLessonComplete lesson_progress threw:`, err);
+    console.warn(`[makersflow] markLessonComplete threw:`, err);
     throw err;
   }
 }
@@ -357,37 +307,10 @@ export async function fetchEnrolledCourses(userId: string): Promise<EnrolledCour
     const certMap = new Map<string, string>();
     certs?.forEach((c: any) => { if (c.course_id && c.id) certMap.set(String(c.course_id), c.id); });
 
-    // Query enrollments with course data joined
-    const { data: enrollments, error: enrError } = await supabase
-      .from("enrollments")
-      .select(
-        `
-        course_id,
-        enrolled_at,
-        completed_at,
-        courses (
-          id,
-          title,
-          category,
-          level,
-          thumbnail_url,
-          is_free,
-          price,
-          slug
-        )
-      `,
-      )
-      .eq("user_id", userId);
+    // Query enrollments with course data joined via enrollmentService
+    const enrollments = await enrollmentService.getMyEnrollments();
 
-    console.log("[fetchEnrolledCourses] Enrollments query response:", {
-      count: enrollments?.length ?? 0,
-      error: enrError,
-    });
-
-    if (enrError) {
-      console.error("[fetchEnrolledCourses] Query error:", enrError);
-      return out;
-    }
+    console.log("[fetchEnrolledCourses] Enrollments response count:", enrollments?.length ?? 0);
 
     if (!enrollments || enrollments.length === 0) {
       console.log("[fetchEnrolledCourses] No real-course enrollments found");
@@ -406,37 +329,26 @@ export async function fetchEnrolledCourses(userId: string): Promise<EnrolledCour
 
       console.log(`[fetchEnrolledCourses] Processing course: ${courseId}`);
 
-      // Fetch modules and lessons for this course
+      // Fetch modules and lessons for this course via courseService
       let modules: any[] = [];
 
       const targetCourseId = await resolveCourseId(courseId);
-      const { data: modulesData, error: modulesError } = await supabase
-        .from("modules")
-        .select("id, title, order_index")
-        .eq("course_id", targetCourseId)
-        .order("order_index", { ascending: true });
-
-      if (modulesData && !modulesError && modulesData.length > 0) {
-        const moduleIds = modulesData.map((m) => m.id);
-        const { data: lessonsData } = await supabase
-          .from("lessons")
-          .select("id, module_id, title, duration_secs, order_index")
-          .in("module_id", moduleIds)
-          .order("order_index", { ascending: true });
-
-        modules = modulesData.map((module: any) => ({
-          id: module.id,
+      try {
+        const curriculum = await courseService.getCourseCurriculum(targetCourseId);
+        modules = curriculum.map((module) => ({
+          id: String(module.id),
           title: module.title,
-          position: module.order_index ?? 0,
-          lessons: (lessonsData ?? [])
-            .filter((l) => String((l as any).module_id) === String(module.id))
-            .map((l: any) => ({
-              id: l.id,
-              title: l.title,
-              duration_minutes: l.duration_secs ? Math.round(l.duration_secs / 60) : null,
-              position: l.order_index ?? 0,
-            })),
+          position: module.position,
+          lessons: module.lessons.map((l) => ({
+            id: String(l.id),
+            title: l.title,
+            duration_minutes: l.duration_minutes,
+            position: l.position,
+          })),
         }));
+      } catch (err) {
+        console.warn(`[fetchEnrolledCourses] Could not load curriculum for ${courseId}:`, err);
+        modules = [];
       }
 
       const flat = flattenLessons(modules);
@@ -528,11 +440,8 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
   let longestStreak = 0;
 
   try {
-    const { data: enr } = await supabase
-      .from("enrollments")
-      .select("id, completed_at")
-      .eq("user_id", userId);
-    const erows = (enr as Array<{ completed_at: string | null }>) ?? [];
+    const enr = await enrollmentService.getMyEnrollments();
+    const erows = enr ?? [];
 
     // Add demo enrollments
     let demoEnrollments: string[] = [];
@@ -572,18 +481,12 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
   }
 
   try {
-    const { data: prog } = await supabase
-      .from("lesson_progress")
-      .select("lesson_id, time_spent_secs, watch_percentage, last_watched_at, is_completed")
-      .eq("user_id", userId);
-    const prows =
-      (prog as Array<{
-        lesson_id: number | string;
-        time_spent_secs: number | null;
-        watch_percentage: number | null;
-        last_watched_at: string | null;
-        is_completed: boolean | null;
-      }>) ?? [];
+    const myEnr = await enrollmentService.getMyEnrollments();
+    const progressPromises = (myEnr ?? []).map((e) =>
+      progressService.getCourseProgress(e.course_id),
+    );
+    const progressResults = await Promise.all(progressPromises);
+    const prows = progressResults.flatMap((cp) => cp?.lessonsProgress ?? []);
 
     // Add demo progress records
     const demoProgressRows: Array<{
@@ -617,31 +520,17 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
     }
 
     const dbLessonIds = prows
-      .map((r) => Number(r.lesson_id))
-      .filter((id) => !isNaN(id) && id > 0);
+      .map((r) => String(r.lesson_id))
+      .filter((id) => id && id !== "0");
 
-    const lessonDurationsMap = new Map<string | number, number>();
-    if (dbLessonIds.length > 0) {
-      const { data: lessonMeta } = await supabase
-        .from("lessons")
-        .select("id, duration_secs")
-        .in("id", dbLessonIds);
-
-      (lessonMeta ?? []).forEach((l: any) => {
-        if (l?.id) {
-          const secsVal = Number(l.duration_secs) || 0;
-          lessonDurationsMap.set(l.id, secsVal);
-          lessonDurationsMap.set(String(l.id), secsVal);
-        }
-      });
-    }
+    const lessonDurationsMap = await courseService.getLessonDurationsMap(dbLessonIds);
 
     let secs = 0;
     const byDay: Record<string, number> = {};
 
     for (const r of prows) {
       const spent = Number(r.time_spent_secs) || 0;
-      const dbDur = lessonDurationsMap.get(r.lesson_id) ?? lessonDurationsMap.get(Number(r.lesson_id)) ?? 0;
+      const dbDur = lessonDurationsMap.get(String(r.lesson_id)) ?? 0;
       const durSecs = dbDur > 0 ? dbDur : (spent > 0 ? spent : 180);
       const pct = Number(r.watch_percentage) || 0;
 

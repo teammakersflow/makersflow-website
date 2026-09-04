@@ -137,7 +137,8 @@ async function request<T = unknown>(
     !options._isRetry &&
     !cleanEndpoint.startsWith("/auth/login") &&
     !cleanEndpoint.startsWith("/auth/google") &&
-    !cleanEndpoint.startsWith("/auth/refresh")
+    !cleanEndpoint.startsWith("/auth/refresh") &&
+    !cleanEndpoint.startsWith("/auth/logout")
   ) {
     if (isRefreshing) {
       // Refresh in progress, queue this request

@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { paymentService } from "@/lib/paymentService";
 import type { CartItem } from "@/lib/cart";
 import type { ShippingAddress } from "@/lib/addresses";
 
@@ -36,71 +36,32 @@ export async function runRazorpayCheckout(opts: {
   userId?: string;
   /** Called when the server's amount differs from what was on screen. */
   onAmountAdjusted?: (serverAmountInRupees: number) => void;
-  onSuccess: (razorpayOrderId: string) => Promise<void> | void;
+  onSuccess: (razorpayOrderId: string, razorpayPaymentId: string) => Promise<void> | void;
 }) {
   const ok = await loadRazorpayScript();
   if (!ok) throw new Error("Could not load Razorpay. Check your connection.");
 
-  const { data: orderData, error: orderErr } = await supabase.functions.invoke(
-    "create-razorpay-order",
-    {
-      body: {
-        items: opts.items.map((i) => ({
-          id: i.is_course ? (i.course_id ?? i.id) : i.id,
-          qty: i.qty,
-          is_course: i.is_course,
-          price: i.price,
-        })),
-        total_amount: opts.totalAmount,
-        // Shipping is priced on the client from the selected address, so send
-        // the resolved figure rather than letting the server guess a flat fee.
-        include_shipping: true,
-        shipping_fee: opts.shippingFee ?? 0,
-        shipping_address: opts.shipping,
-        shipping_courier: opts.courier ?? null,
-        tax_amount: opts.taxAmount ?? 0,
-        discount_amount: opts.discountAmount ?? 0,
-        coupon_code: opts.couponCode ?? null,
-        coupon_id: opts.couponId ?? null,
-        currency: "INR",
-        receipt: `web_${Date.now()}`,
-        notes: {
-          source: "web",
-          items: opts.items.length,
-          pincode: opts.shipping.pincode,
-          courier: opts.courier ?? "",
-        },
-      },
-    },
-  );
+  // Call verified backend POST /payments/create-order via paymentService
+  const totalInRupees = Math.max(opts.totalAmount ?? 0, 1);
+  const order = await paymentService.createPaymentOrder({
+    amount: totalInRupees,
+    currency: "INR",
+    receipt: `web_${Date.now()}`,
+  });
 
-  if (orderErr || !orderData)
-    throw new Error(orderErr?.message ?? "Could not create payment order");
-
-  const order = orderData as {
-    id?: string;
-    order_id?: string;
-    key?: string;
-    key_id?: string;
-    amount?: number;
-    currency?: string;
-  };
-
-  const razorpayOrderId = order.id ?? order.order_id;
-  const keyId =
-    order.key ?? order.key_id ?? (import.meta.env.VITE_RAZORPAY_KEY_ID as string | undefined);
+  const razorpayOrderId = order.razorpay_order_id;
+  const keyId = order.key_id || (import.meta.env.VITE_RAZORPAY_KEY_ID as string | undefined);
 
   if (!razorpayOrderId) throw new Error("Payment order missing id");
   if (!keyId) throw new Error("Missing Razorpay key");
   if (!order.amount) throw new Error("Payment order missing amount");
 
   // The server decides the real amount. If it disagrees with the total we
-  // displayed, say so rather than silently charging a different number.
+  // displayed, notify the caller.
   const serverRupees = Math.round(order.amount / 100);
   if (opts.totalAmount != null && Math.abs(serverRupees - opts.totalAmount) > 1) {
     console.warn(
-      `[razorpay] Amount mismatch — screen ₹${opts.totalAmount}, server ₹${serverRupees}. ` +
-        "Check that create-razorpay-order honours shipping_fee.",
+      `[razorpay] Amount mismatch — screen ₹${opts.totalAmount}, server ₹${serverRupees}.`,
     );
     opts.onAmountAdjusted?.(serverRupees);
   }
@@ -122,31 +83,18 @@ export async function runRazorpayCheckout(opts: {
         razorpay_signature: string;
       }) => {
         try {
-          const { data: verify, error: verifyErr } = await supabase.functions.invoke(
-            "verify-razorpay-payment",
-            {
-              body: {
-                razorpay_payment_id: resp.razorpay_payment_id,
-                razorpay_order_id: resp.razorpay_order_id,
-                razorpay_signature: resp.razorpay_signature,
-                user_id: opts.userId,
-                amount: order.amount ? order.amount / 100 : 0,
-                coupon_code: opts.couponCode,
-                coupon_id: opts.couponId,
-                discount_amount: opts.discountAmount ?? 0,
-                tax_amount: opts.taxAmount ?? 0,
-                shipping_fee: opts.shippingFee ?? 0,
-                shipping_address: opts.shipping,
-              },
-            },
-          );
+          // Verify HMAC signature authoritatively via backend POST /payments/verify
+          const verification = await paymentService.verifyPayment({
+            razorpay_order_id: resp.razorpay_order_id,
+            razorpay_payment_id: resp.razorpay_payment_id,
+            razorpay_signature: resp.razorpay_signature,
+          });
 
-          if (verifyErr) throw new Error(verifyErr.message);
-          const v = verify as { verified?: boolean; success?: boolean } | null;
-          if (v && (v.verified === false || v.success === false))
-            throw new Error("Payment verification failed");
+          if (!verification.success) {
+            throw new Error(verification.message || "Payment verification failed");
+          }
 
-          await opts.onSuccess(resp.razorpay_order_id);
+          await opts.onSuccess(resp.razorpay_order_id, resp.razorpay_payment_id);
           resolve();
         } catch (err) {
           reject(err);

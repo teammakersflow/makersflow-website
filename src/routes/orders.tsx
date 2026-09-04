@@ -19,7 +19,11 @@ import {
 import { shareItem } from "@/lib/share-utils";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { orderService } from "@/lib/orderService";
+import { toast } from "sonner";
+import { courseService } from "@/lib/courseService";
+import { productService } from "@/lib/productService";
+import { enrollmentService } from "@/lib/enrollmentService";
 import { formatPrice } from "@/lib/store-data";
 import { cn } from "@/lib/utils";
 import {
@@ -97,14 +101,18 @@ type OrderItem = {
 };
 type Order = {
   id: string;
+  user_id?: string;
   total_amount: number;
   status: string;
   razorpay_order_id: string | null;
+  razorpay_payment_id?: string | null;
   coupon_code: string | null;
   discount_amount: number;
   tax_amount: number;
   items: OrderItem[];
   created_at: string;
+  shipping_address?: any;
+  tracking_number?: string | null;
 };
 type CoursePurchase = {
   id: string;
@@ -153,6 +161,7 @@ const STATUS_STYLES: Record<string, string> = {
   active: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
   revoked: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
   refunded: "bg-secondary text-secondary-foreground border border-border",
+  refund_requested: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
   captured: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
   processing: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20",
   completed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
@@ -164,50 +173,32 @@ function OrderCard({
   order,
   invoice,
   onInvoiceGenerated,
+  onRefundRequested,
 }: {
   order: Order;
   invoice?: Invoice;
   onInvoiceGenerated?: (inv: Invoice) => void;
+  onRefundRequested?: (orderId: string, reason: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [refunding, setRefunding] = useState(false);
   const items: OrderItem[] = Array.isArray(order.items) ? order.items : [];
 
   const downloadInvoice = async (existingInv?: Invoice) => {
     let finalInv = existingInv;
 
-    // If no cached invoice or invoice has temporary prefix, query or generate real sequential INV/YYYY-YY/XXXXX
+    // If no cached invoice or invoice has temporary prefix, generate real sequential INV/YYYY-YY/XXXXX
     if (!finalInv || !finalInv.invoice_number || finalInv.invoice_number.startsWith("INV-")) {
-      const { data: dbInv } = await supabase
-        .from("invoices")
-        .select("*")
-        .eq("order_id", order.id)
-        .maybeSingle();
+      const realSeqNumber = await generateInvoiceNumber();
+      finalInv = {
+        id: order.id,
+        invoice_number: realSeqNumber,
+        total_amount: order.total_amount,
+        order_id: order.id,
+      };
 
-      if (dbInv && dbInv.invoice_number && !dbInv.invoice_number.startsWith("INV-")) {
-        finalInv = dbInv as Invoice;
-      } else {
-        const realSeqNumber = await generateInvoiceNumber();
-        const { data: newInvRow } = await supabase
-          .from("invoices")
-          .insert({
-            user_id: (order as any).user_id,
-            order_id: order.id,
-            invoice_number: realSeqNumber,
-            total_amount: order.total_amount,
-          })
-          .select("*")
-          .maybeSingle();
-
-        finalInv = (newInvRow as Invoice) || {
-          id: order.id,
-          invoice_number: realSeqNumber,
-          total_amount: order.total_amount,
-          order_id: order.id,
-        };
-
-        if (onInvoiceGenerated && finalInv) {
-          onInvoiceGenerated(finalInv);
-        }
+      if (onInvoiceGenerated && finalInv) {
+        onInvoiceGenerated(finalInv);
       }
     }
 
@@ -219,11 +210,11 @@ function OrderCard({
 
     const hsnMap = new Map<string, string>();
     if (courseIds.length > 0) {
-      const { data: cRows } = await supabase.from("courses").select("id, hsn_code").in("id", courseIds);
+      const cRows = await courseService.getCoursesByIds(courseIds);
       cRows?.forEach((r: any) => { if (r.hsn_code) hsnMap.set(String(r.id), r.hsn_code); });
     }
     if (productIds.length > 0) {
-      const { data: pRows } = await supabase.from("products").select("id, hsn_code").in("id", productIds);
+      const pRows = await productService.getProductsByIds(productIds);
       pRows?.forEach((r: any) => { if (r.hsn_code) hsnMap.set(String(r.id), r.hsn_code); });
     }
 
@@ -484,6 +475,37 @@ function OrderCard({
                 <Download className="h-3.5 w-3.5" /> Download Tax Invoice
               </button>
             )}
+            {(order.status === "paid" || order.status === "completed" || order.status === "delivered") && (
+              <button
+                onClick={async () => {
+                  const reason = window.prompt("Please enter the reason for your refund request:");
+                  if (!reason || !reason.trim()) return;
+                  try {
+                    setRefunding(true);
+                    if (onRefundRequested) {
+                      await onRefundRequested(order.id, reason.trim());
+                    } else {
+                      await orderService.requestRefund(order.id, reason.trim());
+                      toast.success("Refund request submitted successfully");
+                    }
+                  } catch (err: any) {
+                    toast.error(err?.message || "Failed to submit refund request");
+                  } finally {
+                    setRefunding(false);
+                  }
+                }}
+                disabled={refunding}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-500/10 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", refunding && "animate-spin")} />
+                {refunding ? "Submitting..." : "Request Refund"}
+              </button>
+            )}
+            {order.status === "refund_requested" && (
+              <span className="flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-600">
+                <Clock className="h-3.5 w-3.5" /> Refund Under Review
+              </span>
+            )}
             {items
               .filter((i) => i.is_course && i.course_id)
               .map((item) => (
@@ -517,107 +539,172 @@ function OrdersPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const handleRefundRequested = async (orderId: string, reason: string) => {
+    const updated = await orderService.requestRefund(orderId, reason);
+    toast.success("Refund request submitted successfully");
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: "refund_requested" } : o))
+    );
+    setRefunds((prev) => [
+      {
+        id: updated.refund_id || orderId,
+        user_id: user?.id,
+        amount: Number(updated.total_amount) || 0,
+        status: "refund_requested",
+        reason,
+        razorpay_refund_id: null,
+        created_at: new Date().toISOString(),
+      },
+      ...prev.filter((r) => (r as any).order_id !== orderId),
+    ]);
+  };
+
   useEffect(() => {
     if (!user) return;
+    setLoading(true);
+
     Promise.all([
-      supabase
-        .from("orders")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("course_purchases")
-        .select("*, courses(id, title, thumbnail_url, category, price, is_free)")
-        .eq("user_id", user.id)
-        .order("purchased_at", { ascending: false }),
-      supabase
-        .from("enrollments")
-        .select("id, enrolled_at, razorpay_order_id, course_id, courses(id, title, thumbnail_url, category, price, is_free)")
-        .eq("user_id", user.id)
-        .order("enrolled_at", { ascending: false }),
-      supabase
-        .from("payments")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
-      supabase.from("invoices").select("*").eq("user_id", user.id),
-      supabase
-        .from("refunds")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
-    ]).then(([o, c, enr, p, inv, ref]) => {
-      const orderList = (o.data as Order[]) ?? [];
-      setOrders(orderList);
+      orderService.getMyOrders(),
+      enrollmentService.getMyEnrollments(),
+    ])
+      .then(([rawOrders, enrList]) => {
+        const orderList: Order[] = (rawOrders ?? []).map((ord) => {
+          let items: OrderItem[] = [];
+          if (Array.isArray(ord.items)) {
+            items = ord.items;
+          } else if (typeof ord.items === "string") {
+            try {
+              items = JSON.parse(ord.items);
+            } catch {
+              items = [];
+            }
+          } else if (Array.isArray(ord.order_items)) {
+            items = ord.order_items.map((oi: any) => ({
+              id: String(oi.product_id || oi.id),
+              title: oi.products?.title || "Product",
+              price: Number(oi.unit_price) || 0,
+              qty: Number(oi.quantity) || 1,
+              is_course: false,
+            }));
+          }
 
-      const cpList = (c.data as CoursePurchase[]) ?? [];
-      const enrList = (enr.data as any[]) ?? [];
+          return {
+            id: String(ord.id),
+            user_id: ord.user_id,
+            total_amount: Number(ord.total_amount) || 0,
+            status: ord.status || "pending",
+            razorpay_order_id: ord.razorpay_order_id ?? null,
+            razorpay_payment_id: ord.razorpay_payment_id ?? null,
+            coupon_code: ord.coupon_code ?? ord.promo_code ?? null,
+            discount_amount: Number(ord.discount_amount) || 0,
+            tax_amount: Number(ord.tax_amount) || 0,
+            items,
+            created_at: ord.created_at || new Date().toISOString(),
+            shipping_address: ord.shipping_address,
+            tracking_number: ord.tracking_number ?? null,
+          };
+        });
 
-      // Combine course_purchases and enrollments so all active course access is displayed
-      const courseMap = new Map<string, CoursePurchase>();
-      cpList.forEach((cp) => {
-        if (cp.course_id) courseMap.set(String(cp.course_id), cp);
-      });
+        setOrders(orderList);
 
-      enrList.forEach((e) => {
-        if (e.courses && !courseMap.has(String(e.course_id))) {
-          courseMap.set(String(e.course_id), {
-            id: e.id,
-            user_id: user.id,
-            course_id: e.course_id,
-            amount_paid: e.courses.price ?? 0,
-            currency: "INR",
-            razorpay_payment_id: e.razorpay_order_id ?? null,
-            status: "active",
-            purchased_at: e.enrolled_at,
-            courses: e.courses,
+        // Build course purchases from active enrollments + any course items in orders
+        const courseMap = new Map<string, CoursePurchase>();
+
+        (enrList ?? []).forEach((e) => {
+          if (e.courses && !courseMap.has(String(e.course_id))) {
+            courseMap.set(String(e.course_id), {
+              id: e.id,
+              user_id: user.id,
+              course_id: String(e.course_id),
+              amount_paid: Number(e.courses.price) || 0,
+              currency: "INR",
+              razorpay_payment_id: e.razorpay_order_id ?? null,
+              status: e.completed_at ? "completed" : "active",
+              purchased_at: e.enrolled_at || new Date().toISOString(),
+              courses: {
+                title: e.courses.title,
+                thumbnail_url: e.courses.thumbnail_url ?? null,
+              },
+            });
+          }
+        });
+
+        orderList.forEach((ord) => {
+          ord.items?.forEach((it) => {
+            if (it.is_course && it.course_id && !courseMap.has(String(it.course_id))) {
+              courseMap.set(String(it.course_id), {
+                id: `${ord.id}-${it.course_id}`,
+                user_id: user.id,
+                course_id: String(it.course_id),
+                amount_paid: it.price * it.qty,
+                currency: "INR",
+                razorpay_payment_id: ord.razorpay_payment_id ?? null,
+                status:
+                  ord.status === "paid" || ord.status === "completed" || ord.status === "delivered"
+                    ? "active"
+                    : ord.status,
+                purchased_at: ord.created_at,
+                courses: {
+                  title: it.title,
+                  thumbnail_url: null,
+                },
+              });
+            }
           });
-        }
-      });
+        });
 
-      setCourses(Array.from(courseMap.values()));
+        setCourses(Array.from(courseMap.values()));
 
-      // Payments: derive from orders if payments table is empty, or merge coupon_code from matching order
-      const paymentList = (p.data as Payment[]) ?? [];
-      const orderMapByRazorpay = new Map<string, Order>();
-      orderList.forEach((ord: any) => {
-        if (ord.razorpay_order_id) orderMapByRazorpay.set(ord.razorpay_order_id, ord);
-        if (ord.id) orderMapByRazorpay.set(ord.id, ord);
-      });
-
-      if (paymentList.length === 0 && orderList.length > 0) {
-        const derivedPayments: Payment[] = orderList.map((ord: any) => ({
+        // Payments: derived authoritatively from orders
+        const derivedPayments: Payment[] = orderList.map((ord) => ({
           id: ord.id,
           user_id: user.id,
-          razorpay_payment_id: ord.payment_id ?? ord.razorpay_order_id ?? ord.id,
-          amount: ord.total_amount ?? ord.amount ?? 0,
-          currency: ord.currency ?? "INR",
-          coupon_code: ord.coupon_code ?? null,
-          discount_amount: ord.discount_amount ?? 0,
-          tax_amount: ord.tax_amount ?? 0,
-          status: ord.payment_status ?? ord.status ?? "pending",
+          amount: ord.total_amount,
+          status:
+            ord.status === "paid" || ord.status === "completed" || ord.status === "delivered"
+              ? "captured"
+              : ord.status,
+          razorpay_payment_id: ord.razorpay_payment_id ?? ord.razorpay_order_id ?? ord.id,
+          coupon_code: ord.coupon_code,
+          discount_amount: ord.discount_amount,
+          tax_amount: ord.tax_amount,
           created_at: ord.created_at,
         }));
         setPayments(derivedPayments);
-      } else {
-        const mergedPayments = paymentList.map((pay: any) => {
-          const matchingOrder =
-            orderMapByRazorpay.get(pay.order_id) ||
-            orderMapByRazorpay.get(pay.razorpay_payment_id) ||
-            orderMapByRazorpay.get(pay.id);
-          return {
-            ...pay,
-            coupon_code: pay.coupon_code || matchingOrder?.coupon_code || null,
-            discount_amount: pay.discount_amount || matchingOrder?.discount_amount || 0,
-          };
-        });
-        setPayments(mergedPayments);
-      }
 
-      setRefunds((ref.data as Refund[]) ?? []);
-      setInvoices((inv.data as Invoice[]) ?? []);
-      setLoading(false);
-    });
+        // Refunds: derived authoritatively from orders whose status is refund_requested or refunded
+        const derivedRefunds: Refund[] = orderList
+          .filter((ord) => ord.status === "refund_requested" || ord.status === "refunded")
+          .map((ord) => ({
+            id: (ord as any).refund_id || ord.id,
+            user_id: user.id,
+            amount: ord.total_amount,
+            status: ord.status,
+            reason:
+              ord.status === "refund_requested"
+                ? "Refund under review"
+                : "Order refunded",
+            razorpay_refund_id: (ord as any).refund_id ?? null,
+            created_at: ord.created_at,
+          }));
+        setRefunds(derivedRefunds);
+
+        // Invoices: initialized for orders
+        const initialInvoices: Invoice[] = orderList.map((ord) => ({
+          id: ord.id,
+          invoice_number: `INV-${ord.id.slice(0, 8).toUpperCase()}`,
+          total_amount: ord.total_amount,
+          order_id: ord.id,
+        }));
+        setInvoices(initialInvoices);
+      })
+      .catch((err) => {
+        console.error("[OrdersPage] Failed to fetch orders/enrollments:", err);
+        toast.error("Failed to load your orders");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [user]);
 
   if (authLoading || loading) {
@@ -712,6 +799,7 @@ function OrdersPage() {
                     onInvoiceGenerated={(inv) =>
                       setInvoices((prev) => [...prev.filter((i) => i.order_id !== inv.order_id), inv])
                     }
+                    onRefundRequested={handleRefundRequested}
                   />
                 ))}
               </div>

@@ -12,7 +12,6 @@ import {
 } from "@/components/profile/ProfileComponents";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { fetchProfile, type Profile } from "@/lib/dashboard-data";
-import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/profile")({

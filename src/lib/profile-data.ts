@@ -1,20 +1,38 @@
-import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
+import { customAuthService, UpdateProfileInput } from "./auth/customAuthService";
 import type { Profile } from "./dashboard-data";
 
+/**
+ * Updates authenticated user profile via NestJS backend (PATCH /users/profile).
+ * Accepts either updateProfile(userId, patch) or updateProfile(patch).
+ * Note: userId is not sent to backend because JWT Bearer token identifies the current user.
+ */
 export async function updateProfile(
-  userId: string,
-  patch: Partial<Omit<Profile, "id">>,
+  userIdOrPatch: string | Partial<Omit<Profile, "id">>,
+  maybePatch?: Partial<Omit<Profile, "id">>,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const { error } = await supabase.from("profiles").update(patch).eq("id", userId);
-    if (error) {
-      console.error("[updateProfile] DB error:", error);
-      return { ok: false, error: "Could not update profile. Please try again." };
+    const rawPatch =
+      typeof userIdOrPatch === "string"
+        ? (maybePatch ?? {})
+        : (userIdOrPatch ?? {});
+
+    const dto: UpdateProfileInput = {
+      ...(rawPatch.full_name !== undefined ? { full_name: rawPatch.full_name || undefined } : {}),
+      ...(rawPatch.grade !== undefined ? { grade: rawPatch.grade || undefined } : {}),
+      ...(rawPatch.school !== undefined ? { school: rawPatch.school || undefined } : {}),
+      ...(rawPatch.avatar_url !== undefined ? { avatar_url: rawPatch.avatar_url || undefined } : {}),
+      ...(rawPatch.phone !== undefined ? { phone: rawPatch.phone || undefined } : {}),
+    };
+
+    const res = await customAuthService.updateProfile(dto);
+    if (!res.data && res.error) {
+      return { ok: false, error: res.error };
     }
     return { ok: true };
-  } catch (e) {
-    console.error("[updateProfile] Exception:", e);
-    return { ok: false, error: "Could not update profile. Please try again." };
+  } catch (e: unknown) {
+    console.error("[updateProfile] Backend error:", e);
+    const msg = e instanceof Error ? e.message : "Could not update profile. Please try again.";
+    return { ok: false, error: msg };
   }
 }
 
@@ -79,15 +97,10 @@ export function mapPasswordChangeError(error: { message?: string; status?: numbe
 }
 
 export async function changePassword(
-  newPassword: string,
+  _newPassword: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (!isSupabaseConfigured()) {
-    return { ok: false, error: "Authentication service is not configured. Please check your environment setup (.env)." };
-  }
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) {
-    console.error("[changePassword] Auth error:", error);
-    return { ok: false, error: mapPasswordChangeError(error) };
-  }
-  return { ok: true };
+  return {
+    ok: false,
+    error: "Account credentials and security are managed through Google Account Security.",
+  };
 }

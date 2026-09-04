@@ -1,38 +1,28 @@
 import { useEffect, useState } from "react";
 import { Megaphone, X, ExternalLink } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { announcementService, type AnnouncementItem } from "@/lib/announcementService";
 import { motion, AnimatePresence } from "framer-motion";
 
-type Announcement = {
-  id: string;
-  title: string;
-  message: string | null;
-  type: string | null;
-  link_url: string | null;
-  status: string;
-};
-
 export function AnnouncementBanner() {
-  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [announcement, setAnnouncement] = useState<AnnouncementItem | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    supabase
-      .from("announcements")
-      .select("id, title, message, type, link_url, status")
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    announcementService
+      .getActiveAnnouncements()
+      .then((items) => {
         if (cancelled) return;
-        if (data && !error) {
-          const dismissedId = sessionStorage.getItem(`dismissed_announcement_${data.id}`);
+        if (items && items.length > 0) {
+          const first = items[0];
+          const dismissedId = sessionStorage.getItem(`dismissed_announcement_${first.id}`);
           if (!dismissedId) {
-            setAnnouncement(data as Announcement);
+            setAnnouncement(first);
           }
         }
+      })
+      .catch((err) => {
+        console.error("[AnnouncementBanner] Failed to load announcements:", err);
       });
     return () => { cancelled = true; };
   }, []);

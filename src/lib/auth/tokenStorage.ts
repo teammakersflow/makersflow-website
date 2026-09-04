@@ -11,6 +11,13 @@ export interface StoredUser {
   profileImage?: string | null;
   avatar_url?: string | null;
   role: string;
+  grade?: string | null;
+  school?: string | null;
+  phone?: string | null;
+  bio?: string | null;
+  university?: string | null;
+  major?: string | null;
+  graduation_year?: string | null;
   createdAt?: string;
   updatedAt?: string;
   [key: string]: unknown;
@@ -116,7 +123,7 @@ export const tokenStorage = {
       sessionStorage.removeItem("makersflow.auth");
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const key = localStorage.key(i);
-        if (key && (key.startsWith("sb-") || key.includes("supabase.auth"))) {
+        if (key && (key.startsWith("sb-") || key.startsWith("supabase-") || key.startsWith("supabase:"))) {
           localStorage.removeItem(key);
         }
       }

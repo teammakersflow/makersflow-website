@@ -1,21 +1,23 @@
 /**
  * MakersFlow Custom Auth Service
- * Interfaces with the NestJS Backend Auth Endpoints:
- * - POST /auth/google
- * - POST /auth/refresh
- * - GET  /auth/me
- * - POST /auth/logout
+ * Interfaces with the NestJS Backend Auth & User Endpoints:
+ * - POST  /auth/google
+ * - POST  /auth/refresh
+ * - GET   /auth/me
+ * - POST  /auth/logout
+ * - GET   /users/:id
+ * - PATCH /users/profile
  */
 
-import { apiClient, ApiResponse } from "./apiClient";
+import { apiClient, ApiResponse, ApiError } from "./apiClient";
 import { tokenStorage, StoredUser } from "./tokenStorage";
 
 export interface BackendUser {
   id: string;
   email: string;
-  name?: string;
+  name?: string | null;
   full_name?: string | null;
-  profileImage?: string;
+  profileImage?: string | null;
   avatar_url?: string | null;
   role: string;
   grade?: string | null;
@@ -45,6 +47,19 @@ export interface GoogleLoginResponseData {
 export interface RefreshTokenResponseData {
   accessToken: string;
   expiresIn?: number;
+}
+
+export interface UpdateProfileInput {
+  full_name?: string;
+  grade?: string;
+  school?: string;
+  avatar_url?: string;
+  phone?: string;
+  bio?: string;
+  university?: string;
+  major?: string;
+  graduation_year?: string;
+  [key: string]: unknown;
 }
 
 export interface AuthUser {
@@ -124,7 +139,9 @@ export const customAuthService = {
         accessToken: res.data.accessToken,
         refreshToken: res.data.refreshToken,
       });
-      tokenStorage.setUser(res.data.user);
+      if (res.data.user) {
+        tokenStorage.setUser(res.data.user);
+      }
     }
 
     return res;
@@ -136,7 +153,7 @@ export const customAuthService = {
   async refreshAccessToken(): Promise<ApiResponse<RefreshTokenResponseData>> {
     const refreshToken = tokenStorage.getRefreshToken();
     if (!refreshToken) {
-      throw new Error("No refresh token available");
+      throw new ApiError("No refresh token available", 401);
     }
 
     const res = await apiClient.post<RefreshTokenResponseData>(
@@ -153,13 +170,101 @@ export const customAuthService = {
   },
 
   /**
-   * Fetch current authenticated user (GET /auth/me)
+   * Session refresh alias
+   */
+  async refreshSession(): Promise<ApiResponse<RefreshTokenResponseData>> {
+    return this.refreshAccessToken();
+  },
+
+  /**
+   * Fetch current authenticated user:
+   * 1. Calls GET /auth/me for JWT identity verification
+   * 2. If profile fields are missing, calls GET /users/:id to hydrate full profile
+   * 3. Merges and caches the normalized user
    */
   async getCurrentUser(): Promise<ApiResponse<BackendUser>> {
-    const res = await apiClient.get<BackendUser>("/auth/me");
-    if (res.data) {
-      tokenStorage.setUser(res.data);
+    const meRes = await apiClient.get<BackendUser>("/auth/me");
+    if (!meRes.data || !meRes.data.id) {
+      throw new ApiError("Failed to fetch authenticated identity", 401);
     }
+
+    let fullUser: BackendUser = { ...meRes.data };
+
+    // Fetch full profile from GET /users/:id if /auth/me gave minimal payload
+    try {
+      const userProfileRes = await apiClient.get<BackendUser>(`/users/${fullUser.id}`);
+      if (userProfileRes.data) {
+        fullUser = { ...fullUser, ...userProfileRes.data };
+      }
+    } catch {
+      // If /users/:id is unavailable or restricted, fallback to cached user fields
+      const cached = tokenStorage.getUser();
+      if (cached && cached.id === fullUser.id) {
+        fullUser = {
+          ...cached,
+          ...fullUser,
+          name: fullUser.name ?? cached.name ?? null,
+          full_name: fullUser.full_name ?? cached.full_name ?? null,
+          avatar_url: fullUser.avatar_url ?? cached.avatar_url ?? null,
+        };
+      }
+    }
+
+    // Preserve any existing local user metadata if not returned by backend
+    const existing = tokenStorage.getUser();
+    if (existing && existing.id === fullUser.id) {
+      fullUser = {
+        ...existing,
+        ...fullUser,
+        name: fullUser.name ?? existing.name ?? null,
+        full_name: fullUser.full_name ?? existing.full_name ?? null,
+        avatar_url: fullUser.avatar_url ?? existing.avatar_url ?? null,
+        phone: fullUser.phone ?? existing.phone ?? null,
+        bio: fullUser.bio ?? existing.bio ?? null,
+        university: fullUser.university ?? existing.university ?? null,
+        major: fullUser.major ?? existing.major ?? null,
+        graduation_year: fullUser.graduation_year ?? existing.graduation_year ?? null,
+      };
+    }
+
+    tokenStorage.setUser(fullUser);
+    return { ...meRes, data: fullUser };
+  },
+
+  /**
+   * Update current user profile (PATCH /users/profile)
+   */
+  async updateProfile(dto: UpdateProfileInput): Promise<ApiResponse<BackendUser>> {
+    // Only send backend supported fields to PATCH /users/profile:
+    // full_name, grade, school, avatar_url
+    const backendPayload: Record<string, unknown> = {};
+    if (dto.full_name !== undefined) backendPayload.full_name = dto.full_name;
+    if (dto.grade !== undefined) backendPayload.grade = dto.grade;
+    if (dto.school !== undefined) backendPayload.school = dto.school;
+    else if (dto.university !== undefined) backendPayload.school = dto.university;
+    if (dto.grade !== undefined) backendPayload.grade = dto.grade;
+    else if (dto.graduation_year !== undefined) backendPayload.grade = dto.graduation_year;
+    if (dto.avatar_url !== undefined) backendPayload.avatar_url = dto.avatar_url;
+
+    const res = await apiClient.patch<BackendUser>("/users/profile", backendPayload);
+
+    // Merge with cached user
+    const current = tokenStorage.getUser() || ({} as StoredUser);
+    const updatedUser: StoredUser = {
+      ...current,
+      ...(res.data || {}),
+      ...dto,
+    };
+    tokenStorage.setUser(updatedUser);
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("makersflow:profile_updated", {
+          detail: updatedUser,
+        }),
+      );
+    }
+
     return res;
   },
 
@@ -177,6 +282,26 @@ export const customAuthService = {
         window.dispatchEvent(new CustomEvent("makersflow:logout"));
       }
     }
+  },
+
+  /**
+   * Controlled handler for legacy password login
+   */
+  async login(_email?: string, _password?: string): Promise<{ success: boolean; error: string }> {
+    return {
+      success: false,
+      error: "Password authentication is not supported. Please sign in with Google.",
+    };
+  },
+
+  /**
+   * Controlled handler for legacy password signup
+   */
+  async signUp(_data?: unknown): Promise<{ success: boolean; error: string }> {
+    return {
+      success: false,
+      error: "Account registration is managed via Google Sign-In. Please sign up with Google.",
+    };
   },
 
   /**

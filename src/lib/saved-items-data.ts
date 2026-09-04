@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { wishlistService } from "./wishlistService";
 import { resolveCourseId } from "./explore-data";
 
 // ── Course Favorites ────────────────────────────────────────────────────────
@@ -160,73 +161,12 @@ export async function toggleWatchLater(
 // ── Product Wishlist ────────────────────────────────────────────────────────
 
 export async function isInWishlist(userId: string, productId: string): Promise<boolean> {
-  if (!userId || !productId) return false;
-  if (productId.startsWith("demo-")) {
-    try {
-      const list = JSON.parse(localStorage.getItem(`demo_wishlist_${userId}`) || "[]");
-      return list.includes(productId);
-    } catch {
-      return false;
-    }
-  }
-
-  try {
-    const { data } = await supabase
-      .from("wishlist")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("product_id", productId)
-      .maybeSingle();
-    return !!data;
-  } catch {
-    return false;
-  }
+  return wishlistService.isInWishlist(productId, userId);
 }
 
 export async function toggleWishlist(
   userId: string,
   productId: string,
 ): Promise<{ wishlisted: boolean; error?: string }> {
-  if (!userId) return { wishlisted: false, error: "Please sign in to add items to wishlist" };
-
-  if (productId.startsWith("demo-")) {
-    try {
-      const key = `demo_wishlist_${userId}`;
-      let list = JSON.parse(localStorage.getItem(key) || "[]");
-      const isW = list.includes(productId);
-      if (isW) {
-        list = list.filter((id: string) => id !== productId);
-      } else {
-        list.push(productId);
-      }
-      localStorage.setItem(key, JSON.stringify(list));
-      return { wishlisted: !isW };
-    } catch {
-      return { wishlisted: false, error: "Could not update demo wishlist" };
-    }
-  }
-
-  try {
-    const { data: existing } = await supabase
-      .from("wishlist")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("product_id", productId)
-      .maybeSingle();
-
-    if (existing) {
-      const { error } = await supabase.from("wishlist").delete().eq("id", existing.id);
-      if (error) throw error;
-      return { wishlisted: false };
-    } else {
-      const { error } = await supabase
-        .from("wishlist")
-        .insert({ user_id: userId, product_id: productId });
-      if (error) throw error;
-      return { wishlisted: true };
-    }
-  } catch (err: any) {
-    console.error("[toggleWishlist] Error:", err);
-    return { wishlisted: false, error: "Could not update wishlist" };
-  }
+  return wishlistService.toggleWishlist(productId, userId);
 }

@@ -30,7 +30,6 @@ import { exportUserData } from "@/lib/user-data-export";
 import { type Profile } from "@/lib/dashboard-data";
 import { changePassword, updateProfile } from "@/lib/profile-data";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import { DeleteAccountModal } from "@/components/profile/DeleteAccountModal";
 
 // ─── Field ────────────────────────────────────────────────────────────────────
@@ -573,31 +572,13 @@ export function SecurityTab({ isGoogle }: { isGoogle: boolean }) {
             <div>
               <div className="text-sm font-bold text-foreground">Google</div>
               <div className="text-xs text-muted-foreground">
-                {isGoogle ? "Connected — signed in via Google" : "Not connected"}
+                Connected — signed in via Google OAuth
               </div>
             </div>
           </div>
-          {isGoogle ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
-              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> Connected
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={async () => {
-                const { error } = await supabase.auth.linkIdentity({
-                  provider: "google",
-                  options: { redirectTo: `${window.location.origin}/profile` },
-                });
-                if (error) {
-                  toast.error(error.message || "Failed to connect Google account");
-                }
-              }}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground hover:bg-secondary hover:border-primary/30 transition-all"
-            >
-              Connect Google
-            </button>
-          )}
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-950/40 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> Connected
+          </span>
         </div>
       </SectionCard>
 

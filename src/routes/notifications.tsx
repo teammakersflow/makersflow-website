@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Bell, Info, CheckCircle2, AlertTriangle, Megaphone, ArrowUpRight, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { notificationService, type NotificationItem } from "@/lib/notificationService";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { markNotificationsAsRead } from "@/lib/notifications";
@@ -9,15 +9,7 @@ import { toast } from "sonner";
 
 type NotificationType = "info" | "success" | "warning" | "announcement" | string;
 
-type Notification = {
-  id: string;
-  title: string;
-  body: string | null;
-  type: NotificationType;
-  link_url: string | null;
-  is_read: boolean;
-  created_at: string;
-};
+type Notification = NotificationItem;
 
 const TYPE_META: Record<string, { icon: typeof Info; label: string; className: string }> = {
   info: { icon: Info, label: "Info", className: "bg-blue-500/10 text-blue-600" },
@@ -40,33 +32,40 @@ function NotificationsPage() {
 
   useEffect(() => {
     if (!user) return;
+    let active = true;
 
-    supabase
-      .from("notifications")
-      .select("id, title, body, type, link_url, is_read, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setNotifications((data as Notification[]) ?? []);
+    notificationService
+      .getMyNotifications()
+      .then((data) => {
+        if (!active) return;
+        setNotifications(data);
         setLoading(false);
         markNotificationsAsRead(user.id);
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.error("[notifications] Failed to load notifications:", err);
+        setLoading(false);
+        toast.error("Failed to load notifications");
       });
+
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   const handleDeleteNotification = async (id: string) => {
     if (!user) return;
+    const previousNotifications = [...notifications];
     setNotifications((prev) => prev.filter((n) => n.id !== id));
-    const { error } = await supabase
-      .from("notifications")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
 
-    if (error) {
-      console.error("[notifications] Delete failed:", error);
-      toast.error("Could not delete notification");
-    } else {
+    try {
+      await notificationService.deleteNotification(id);
       toast.success("Notification removed");
+    } catch (error) {
+      console.error("[notifications] Delete failed:", error);
+      setNotifications(previousNotifications);
+      toast.error("Could not delete notification");
     }
   };
 

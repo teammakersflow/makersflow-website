@@ -8,6 +8,7 @@ import { type CourseDetail, type Module, type Review, submitCourseReview, fetchM
 import { ImageCarousel } from "@/components/common/ImageCarousel";
 import Folder from "@/components/Folder";
 import { supabase } from "@/integrations/supabase/client";
+import { courseService } from "@/lib/courseService";
 
 // ─── Stat ─────────────────────────────────────────────────────────────────────
 
@@ -248,20 +249,9 @@ export function OverviewTab({
   const { data: courseResources = [] } = useQuery({
     queryKey: ["course-resources", course.id],
     queryFn: async () => {
-      // Get all lesson IDs for this course via modules
-      const { data: lessons } = await supabase
-        .from("lessons")
-        .select("id")
-        .in(
-          "module_id",
-          (await supabase.from("modules").select("id").eq("course_id", course.id)).data?.map(
-            (m: { id: number }) => m.id,
-          ) ?? [],
-        );
-
-      if (!lessons || lessons.length === 0) return [];
-
-      const lessonIds = lessons.map((l: { id: number }) => l.id);
+      // Get all lesson IDs for this course via courseService
+      const lessonIds = await courseService.getLessonIdsForCourse(course.id);
+      if (!lessonIds || lessonIds.length === 0) return [];
       const { data: resources } = await supabase
         .from("lesson_resources")
         .select("id, title, url, type")

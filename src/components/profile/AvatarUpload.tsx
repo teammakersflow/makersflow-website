@@ -57,16 +57,16 @@ export function AvatarUpload({
         <div className="flex-1 text-center sm:text-left">
           <h3 className="font-display text-base font-semibold text-foreground">Profile Avatar</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Select a character illustration from our preset avatar catalog.
+            Select a character illustration from our preset catalog or upload a custom photo.
           </p>
           <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-2">
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 cursor-pointer transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 cursor-pointer transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              Choose Avatar
+              Choose / Upload Avatar
             </button>
           </div>
         </div>

@@ -185,12 +185,32 @@ function CourseDetailPage() {
     });
   };
 
-  if (courseQ.isLoading || !course) {
+  if (courseQ.isLoading) {
     return (
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
         <div className="grid flex-1 place-items-center">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (courseQ.isError || !course) {
+    return (
+      <div className="flex min-h-screen w-full bg-background">
+        <AppSidebar />
+        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
+          <h2 className="text-2xl font-bold mb-2 text-foreground">Course Not Found</h2>
+          <p className="text-muted-foreground mb-6 max-w-md">
+            The course you are looking for does not exist, was unpublished, or could not be loaded.
+          </p>
+          <button
+            onClick={() => navigate({ to: "/explore" })}
+            className="rounded-lg bg-primary px-5 py-2.5 font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Back to Explore
+          </button>
         </div>
       </div>
     );

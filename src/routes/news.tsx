@@ -1,17 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { newsService, type NewsArticle } from "@/lib/newsService";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { Share2 } from "lucide-react";
 import { shareItem } from "@/lib/share-utils";
 
-type Article = {
-  id: string;
-  title: string;
-  slug: string;
-  created_at: string;
-  content: string | null;
-};
+type Article = NewsArticle;
 
 export const Route = createFileRoute("/news")({
   head: () => ({ meta: [{ title: "News & Updates — MakersFlow" }] }),
@@ -23,15 +17,23 @@ function NewsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase
-      .from("news")
-      .select("id, title, slug, created_at, content")
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setArticles((data as any[]) ?? []);
+    let active = true;
+    newsService
+      .getNews()
+      .then((data) => {
+        if (!active) return;
+        setArticles(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (!active) return;
+        console.error("[news] Failed to load news articles:", err);
+        setArticles([]);
         setLoading(false);
       });
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (

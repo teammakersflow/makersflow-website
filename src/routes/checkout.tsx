@@ -11,6 +11,9 @@ import { PaymentSection } from "@/components/checkout/PaymentSection";
 import { SlideToPay } from "@/components/checkout/SlideToPay";
 import { useAuth } from "@/integrations/supabase/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { courseService } from "@/lib/courseService";
+import { productService } from "@/lib/productService";
+import { orderService } from "@/lib/orderService";
 import {
   createAddress,
   deleteAddress as deleteAddressRow,
@@ -126,10 +129,10 @@ function CheckoutPage() {
 
     Promise.all([
       productIds.length
-        ? supabase.from("products").select("*").in("id", productIds)
+        ? productService.getProductsByIds(productIds).then((data) => ({ data }))
         : Promise.resolve({ data: [] }),
       courseIds.length
-        ? supabase.from("courses").select("*").in("id", courseIds)
+        ? courseService.getCoursesByIds(courseIds).then((data) => ({ data }))
         : Promise.resolve({ data: [] }),
     ]).then(([productRes, courseRes]) => {
       if (cancelled) return;
@@ -138,7 +141,7 @@ function CheckoutPage() {
       for (const row of (productRes.data ?? []) as DbRow[]) products.set(String(row.id), row);
 
       const courses = new Map<string, DbRow>();
-      for (const row of (courseRes.data ?? []) as DbRow[]) courses.set(String(row.id), row);
+      for (const row of (courseRes.data ?? []) as unknown as DbRow[]) courses.set(String(row.id), row);
 
       const patches = new Map<string, Partial<CartItem>>();
 
@@ -421,18 +424,9 @@ function CheckoutPage() {
     const productIds = items.filter((i) => !i.is_course).map((i) => i.id);
     if (productIds.length === 0) return null;
 
-    const { data } = await supabase
-      .from("products")
-      .select("id, title, stock_quantity, in_stock")
-      .in("id", productIds);
-
-    const rows = (data ?? []) as Array<{
-      title: string;
-      stock_quantity: number;
-      in_stock: boolean;
-    }>;
+    const rows = await productService.getProductsByIds(productIds);
     const soldOut = rows.find(
-      (p) => p.in_stock === false || (p.stock_quantity !== -1 && p.stock_quantity <= 0),
+      (p) => p.in_stock === false || (p.stock_quantity !== -1 && p.stock_quantity !== undefined && p.stock_quantity <= 0),
     );
     return soldOut?.title ?? null;
   };
@@ -476,41 +470,48 @@ function CheckoutPage() {
         onAmountAdjusted: (serverAmount) => {
           toast.warning(`Order total updated to ₹${serverAmount} by our server.`);
         },
-        onSuccess: async (razorpayOrderId) => {
-          const demoCourseIds = items
-            .filter((i) => i.is_course && i.course_id?.startsWith("demo-"))
-            .map((i) => i.course_id!);
+        onSuccess: async (razorpayOrderId, razorpayPaymentId) => {
+          let createdOrder = null;
+          try {
+            const cartItemsForBackend = items.map((item) => ({
+              id: item.is_course ? (item.course_id ?? item.id) : item.id,
+              title: item.title,
+              price: Number(item.price) || 0,
+              qty: item.qty,
+              is_course: Boolean(item.is_course),
+              course_id: item.is_course ? (item.course_id ?? item.id) : null,
+            }));
 
-          if (demoCourseIds.length > 0) {
-            try {
-              const key = `demo_enrollments_${user.id}`;
-              const current = JSON.parse(localStorage.getItem(key) || "[]") as string[];
-              for (const id of demoCourseIds) if (!current.includes(id)) current.push(id);
-              localStorage.setItem(key, JSON.stringify(current));
-            } catch {
-              /* localStorage is a convenience here, not the source of truth */
-            }
+            createdOrder = await orderService.checkoutOrder({
+              total_amount: totals.total,
+              subtotal: totals.subtotal,
+              tax_amount: totals.tax,
+              discount_amount: totals.discount,
+              order_type: needsDelivery ? "product" : "digital",
+              shipping_address: selectedAddress
+                ? {
+                    name: selectedAddress.full_name,
+                    address: `${selectedAddress.address_line1}${selectedAddress.address_line2 ? `, ${selectedAddress.address_line2}` : ""}`,
+                    city: selectedAddress.city,
+                    state: selectedAddress.state,
+                    pincode: selectedAddress.pincode,
+                    phone: selectedAddress.phone,
+                  }
+                : null,
+              items: cartItemsForBackend,
+              razorpay_order_id: razorpayOrderId,
+              razorpay_payment_id: razorpayPaymentId,
+              promo_code: promo.status === "applied" ? promo.code : null,
+              coupon_id: promo.status === "applied" ? promo.couponId : null,
+            });
+          } catch (orderSaveErr) {
+            console.error("[Checkout] Failed to persist order via backend:", orderSaveErr);
           }
 
-          // The order row is written by the edge function under the service
-          // role, so poll briefly for it before redirecting.
-          let dbOrderId: string | null = null;
-          for (let attempt = 0; attempt < 3; attempt++) {
-            const { data } = await supabase
-              .from("orders")
-              .select("id")
-              .eq("razorpay_order_id", razorpayOrderId)
-              .maybeSingle();
-            if (data?.id) {
-              dbOrderId = String(data.id);
-              break;
-            }
-            if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
-          }
-
+          const finalOrderId = createdOrder?.id ? String(createdOrder.id) : razorpayOrderId;
           navigate({
             to: "/payment-success",
-            search: { order_id: dbOrderId ?? razorpayOrderId, total: totals.total },
+            search: { order_id: finalOrderId, total: totals.total },
           });
           clear();
         },

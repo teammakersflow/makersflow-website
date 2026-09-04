@@ -8,7 +8,7 @@ export type RawDbLesson = {
   video_url?: string | null;
   order_index?: number | null;
   duration_secs?: number | null;
-  notes?: string | null;
+  notes?: string | string[] | null;
 };
 
 export type RawDbLessonResource = {
@@ -38,7 +38,9 @@ export function mapDbLessonToDetail(raw: RawDbLesson, courseId: string): LessonD
     description: null,
     video_url: raw.video_url ?? null,
     content: raw.content ?? null,
-    notes: raw.notes ?? raw.content ?? null,
+    notes: Array.isArray(raw.notes)
+      ? raw.notes.join("\n")
+      : (raw.notes ?? raw.content ?? null),
     duration_minutes: raw.duration_secs ? Math.round(raw.duration_secs / 60) : null,
     position: raw.order_index ?? 0,
   };

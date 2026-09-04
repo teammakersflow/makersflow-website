@@ -1,4 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "./auth/apiClient";
+import type { BackendUser } from "./auth/customAuthService";
+import { enrollmentService } from "./enrollmentService";
 
 export type Certificate = {
   id: string;
@@ -377,12 +380,14 @@ export async function getOrCreateCertificate(
       const cData = existing.courses as any;
       let instructorName: string | undefined = undefined;
       if (cData?.instructor_id) {
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", cData.instructor_id)
-          .maybeSingle();
-        if (prof?.full_name) instructorName = prof.full_name;
+        try {
+          const profRes = await apiClient.get<BackendUser>(`/users/${cData.instructor_id}`);
+          if (profRes.data?.full_name || profRes.data?.name) {
+            instructorName = (profRes.data.full_name ?? profRes.data.name) as string;
+          }
+        } catch {
+          // best-effort lookup
+        }
       }
 
       return {
@@ -428,12 +433,14 @@ export async function getOrCreateCertificate(
     const cData = inserted.courses as any;
     let instructorName: string | undefined = undefined;
     if (cData?.instructor_id) {
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", cData.instructor_id)
-        .maybeSingle();
-      if (prof?.full_name) instructorName = prof.full_name;
+      try {
+        const profRes = await apiClient.get<BackendUser>(`/users/${cData.instructor_id}`);
+        if (profRes.data?.full_name || profRes.data?.name) {
+          instructorName = (profRes.data.full_name ?? profRes.data.name) as string;
+        }
+      } catch {
+        // best-effort lookup
+      }
     }
 
     return {
@@ -486,12 +493,10 @@ export async function fetchCertificateById(certificateId: string): Promise<Certi
 
     let enrolled_at: string | null = null;
     try {
-      const { data: enr } = await supabase
-        .from("enrollments")
-        .select("enrolled_at")
-        .eq("user_id", data.user_id)
-        .eq("course_id", data.course_id)
-        .maybeSingle();
+      const myEnrollments = await enrollmentService.getMyEnrollments();
+      const enr = myEnrollments.find(
+        (e) => String(e.course_id) === String(data.course_id),
+      );
       if (enr?.enrolled_at) {
         enrolled_at = enr.enrolled_at;
       }
@@ -502,12 +507,14 @@ export async function fetchCertificateById(certificateId: string): Promise<Certi
     const cData = data.courses as any;
     let instructorName: string | undefined = undefined;
     if (cData?.instructor_id) {
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", cData.instructor_id)
-        .maybeSingle();
-      if (prof?.full_name) instructorName = prof.full_name;
+      try {
+        const profRes = await apiClient.get<BackendUser>(`/users/${cData.instructor_id}`);
+        if (profRes.data?.full_name || profRes.data?.name) {
+          instructorName = (profRes.data.full_name ?? profRes.data.name) as string;
+        }
+      } catch {
+        // best-effort lookup
+      }
     }
 
     return {

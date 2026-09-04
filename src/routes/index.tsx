@@ -22,7 +22,7 @@ import LogoLoop from "@/components/LogoLoop";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/integrations/supabase/auth";
 import { fetchFeaturedCourses } from "@/lib/landing-data";
-import { supabase } from "@/integrations/supabase/client";
+import { courseService } from "@/lib/courseService";
 
 const title = "MakersFlow — Learn, Build & Create with Robotics, AI, IoT & Electronics";
 const description =
@@ -273,28 +273,31 @@ function LandingPage() {
   const { data: projectCourses = [] } = useQuery({
     queryKey: ["landing", "project-courses"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("courses")
-        .select("id, title, category, level, price, gst_rate, is_free, thumbnail_url, instructor:profiles!courses_instructor_id_fkey(full_name)")
-        .eq("is_published", true)
-        .in("category", ["Robotics", "IoT", "Electronics"])
-        .limit(4);
+      try {
+        const courses = await courseService.getCourses();
+        const categories = new Set(["Robotics", "IoT", "Electronics"]);
+        const filtered = courses
+          .filter((c) => c.is_published !== false && c.category && categories.has(c.category))
+          .slice(0, 4);
 
-      if (!data) return [];
-      return data.map((c: any) => ({
-        id: c.id,
-        title: c.title,
-        category: c.category,
-        level: c.level,
-        price: c.price,
-        original_price: c.price ? Math.round(c.price * 1.25) : null,
-        is_free: c.is_free,
-        thumbnail_url: c.thumbnail_url,
-        rating: c.rating ?? 4.8,
-        total_reviews: c.total_reviews ?? 18,
-        instructor_name: c.instructor?.full_name ?? null,
-        gst_rate: c.gst_rate ?? 18,
-      }));
+        return filtered.map((c) => ({
+          id: String(c.id),
+          title: c.title,
+          category: c.category,
+          level: c.level,
+          price: c.price,
+          original_price: c.price ? Math.round(c.price * 1.25) : null,
+          is_free: c.is_free,
+          thumbnail_url: c.thumbnail_url,
+          rating: 4.8,
+          total_reviews: 18,
+          instructor_name: null,
+          gst_rate: c.gst_rate ?? 18,
+        }));
+      } catch (err) {
+        console.error("[projectCourses] Backend Error:", err);
+        return [];
+      }
     },
     staleTime: 60_000,
   });

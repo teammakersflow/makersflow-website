@@ -12,7 +12,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
 import { useAuthContext } from "@/context/AuthContext";
 import { signUpWithPassword } from "@/integrations/supabase/auth";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/register")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
@@ -32,7 +31,7 @@ export const Route = createFileRoute("/register")({
 });
 
 /**
- * Turn a Supabase auth error into something a user can act on.
+ * Turn a sign-up error into something a user can act on.
  * The raw message is always kept as a suffix so support can diagnose.
  */
 function mapSignUpError(error: { message?: string; status?: number }): string {
@@ -53,12 +52,9 @@ function mapSignUpError(error: { message?: string; status?: number }): string {
   if (msg.includes("invalid") && msg.includes("email")) {
     return "That email address was rejected. Please check it and try again.";
   }
-  if (msg.includes("confirmation") || msg.includes("smtp") || msg.includes("sending")) {
-    return "Account created, but the confirmation email could not be sent. Please contact support.";
-  }
   return error?.message
-    ? `Could not create account: ${error.message}`
-    : "Could not create account. Please try again.";
+    ? `Notice: ${error.message}`
+    : "Registration is managed via Google Sign-In. Please sign up with Google.";
 }
 
 const grades = ["6", "7", "8", "9", "10", "11", "12", "12+"] as const;
@@ -122,7 +118,7 @@ type FormValues = z.infer<typeof schema>;
 function RegisterPage() {
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
-  const { loginWithGoogle } = useAuthContext();
+  const { loginWithGoogle, updateProfile } = useAuthContext();
   const [values, setValues] = useState<FormValues>({
     full_name: "",
     email: "",
@@ -180,29 +176,12 @@ function RegisterPage() {
       redirect,
     )) as { error: any; data: any };
 
+    setLoading(false);
+
     if (res.error) {
-      console.error("[register] Sign up failed:", res.error);
-      setLoading(false);
       setFormError(mapSignUpError(res.error));
       return;
     }
-
-    if (res.data?.user && res.data?.session) {
-      const profilePayload = {
-        id: res.data.user.id,
-        full_name: formData.full_name,
-        email: formData.email,
-        phone: formData.phone || null,
-        grade: formData.grade,
-        school: formData.school,
-        role: "student",
-      };
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      await supabase.from("profiles").upsert(profilePayload, { onConflict: "id" });
-    }
-
-    setLoading(false);
 
     if (res.data?.session) {
       navigate({ to: redirect || "/dashboard" });
@@ -215,11 +194,26 @@ function RegisterPage() {
     setGoogleLoading(true);
     setFormError(null);
     const res = await loginWithGoogle(idToken);
-    setGoogleLoading(false);
     if (!res.success) {
+      setGoogleLoading(false);
       setFormError(res.error || "Google Sign-In failed. Please try again.");
       return;
     }
+
+    // Persist profile details provided on registration form to backend profile
+    if (values.grade || values.school || values.full_name) {
+      try {
+        await updateProfile({
+          full_name: values.full_name || undefined,
+          grade: values.grade || undefined,
+          school: values.school || undefined,
+        });
+      } catch (err) {
+        console.warn("[register] Profile sync notice:", err);
+      }
+    }
+
+    setGoogleLoading(false);
     navigate({ to: redirect || "/dashboard" });
   };
 

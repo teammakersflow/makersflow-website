@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 
 export interface QuizQuestion {
   id: string;
@@ -19,10 +20,26 @@ export interface QuizAttemptResult {
 }
 
 /**
- * Fetches all questions for a given lesson from quiz_questions_public view.
+ * Fetches all questions for a given lesson from quiz_questions_public view or NestJS backend.
  * Returns empty array if no questions are assigned to this lesson.
  */
 export async function fetchQuizQuestions(lessonId: string): Promise<QuizQuestion[]> {
+  try {
+    const res = await apiClient.get<any[]>(`/quiz-questions/lesson/${lessonId}`);
+    const items = res.data ?? [];
+    if (Array.isArray(items) && items.length > 0) {
+      return items.map((q: any) => ({
+        id: q.id,
+        lesson_id: String(q.lesson_id),
+        question_text: q.question_text,
+        options: Array.isArray(q.options) ? q.options : JSON.parse(q.options || "[]"),
+        position: q.position,
+      }));
+    }
+  } catch {
+    // fallback to Supabase if endpoint fails or unauthenticated
+  }
+
   try {
     const { data, error } = await (supabase as any)
       .from("quiz_questions_public")

@@ -1,9 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Trophy, Flame, Medal, Award, User, Sparkles } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { apiClient } from "@/lib/auth/apiClient";
-import type { BackendUser } from "@/lib/auth/customAuthService";
 import { cn } from "@/lib/utils";
 
 export type LeaderboardEntry = {
@@ -15,61 +13,41 @@ export type LeaderboardEntry = {
   isSelf: boolean;
 };
 
+interface BackendLeaderboardItem {
+  rank: number;
+  user_id: string;
+  name: string | null;
+  avatar: string | null;
+  longest_streak: number;
+}
+
 export function Leaderboard({ currentUserId }: { currentUserId?: string }) {
   const leaderboardQ = useQuery({
     queryKey: ["leaderboard", currentUserId],
     queryFn: async (): Promise<LeaderboardEntry[]> => {
-      const { data: streakData, error: streakError } = await supabase
-        .from("streaks")
-        .select("user_id, longest_streak, current_streak")
-        .order("longest_streak", { ascending: false })
-        .limit(10);
+      try {
+        const res = await apiClient.get<BackendLeaderboardItem[]>("/leaderboard");
+        const items = res.data ?? [];
+        if (!Array.isArray(items) || items.length === 0) return [];
 
-      if (streakError || !streakData || streakData.length === 0) return [];
+        return items.map((item) => {
+          const displayName =
+            item.name?.trim() ||
+            (item.user_id === currentUserId ? "You" : `Learner #${item.user_id.slice(0, 5)}`);
 
-      const userIds = streakData.map((s) => s.user_id).filter(Boolean);
-
-      const userProfilePromises = userIds.map(async (id) => {
-        try {
-          const res = await apiClient.get<BackendUser>(`/users/${id}`);
-          if (res.data) {
-            return {
-              id: res.data.id,
-              full_name: (res.data.full_name ?? res.data.name ?? null) as string | null,
-              avatar_url: (res.data.avatar_url ?? res.data.profileImage ?? null) as string | null,
-            };
-          }
-        } catch {
-          // best effort lookup
-        }
-        return null;
-      });
-
-      const profilesResults = await Promise.all(userProfilePromises);
-      const profileMap = new Map(
-        profilesResults.filter(Boolean).map((p) => [p!.id, p!]),
-      );
-
-      // Filter out orphaned streak rows that have no matching profile and are not the current user
-      const validStreakRows = streakData.filter(
-        (s) => profileMap.has(s.user_id) || (currentUserId && s.user_id === currentUserId),
-      );
-
-      return validStreakRows.map((s, index) => {
-        const profile = profileMap.get(s.user_id);
-        const displayName =
-          profile?.full_name?.trim() ||
-          (s.user_id === currentUserId ? "You" : `Learner #${s.user_id.slice(0, 5)}`);
-
-        return {
-          rank: index + 1,
-          userId: s.user_id,
-          name: s.user_id === currentUserId ? `${displayName} (You)` : displayName,
-          avatarUrl: profile?.avatar_url ?? null,
-          streakDays: Number(s.longest_streak ?? s.current_streak ?? 0),
-          isSelf: s.user_id === currentUserId,
-        };
-      });
+          return {
+            rank: item.rank,
+            userId: item.user_id,
+            name: item.user_id === currentUserId ? `${displayName} (You)` : displayName,
+            avatarUrl: item.avatar ?? null,
+            streakDays: Number(item.longest_streak ?? 0),
+            isSelf: item.user_id === currentUserId,
+          };
+        });
+      } catch (err) {
+        console.warn("[Leaderboard] Error fetching leaderboard from backend:", err);
+        return [];
+      }
     },
     enabled: true,
   });

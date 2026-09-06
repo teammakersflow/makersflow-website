@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 import { courseService } from "@/lib/courseService";
 import { enrollmentService } from "./enrollmentService";
 import { progressService } from "./progressService";
@@ -105,6 +106,16 @@ export async function fetchLesson(courseId: string, lessonId: string): Promise<L
 }
 
 export async function fetchLessonResources(lessonId: string): Promise<LessonResource[]> {
+  try {
+    const res = await apiClient.get<any[]>(`/lesson-resources/lesson/${lessonId}`);
+    const items = res.data ?? [];
+    if (Array.isArray(items) && items.length > 0) {
+      return items.map((r) => mapDbLessonResource(r));
+    }
+  } catch {
+    // fallback to Supabase if endpoint fails or unauthenticated
+  }
+
   try {
     const { data, error } = await supabase
       .from("lesson_resources")
@@ -576,23 +587,45 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
   }
 
   try {
-    const { data: streak } = await supabase
-      .from("streaks")
-      .select("current_streak, longest_streak, activity_log")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (streak) {
-      const s = streak as {
+    let streakRecord: any = null;
+    try {
+      const res = await apiClient.get<any>("/streaks/me");
+      if (res.data) {
+        streakRecord = res.data;
+      }
+    } catch {
+      // fallback to Supabase if endpoint fails or unauthenticated
+    }
+
+    if (!streakRecord) {
+      const { data: streak } = await supabase
+        .from("streaks")
+        .select("current_streak, longest_streak, activity_log")
+        .eq("user_id", userId)
+        .maybeSingle();
+      streakRecord = streak;
+    }
+
+    if (streakRecord) {
+      const s = streakRecord as {
         current_streak?: number;
         longest_streak?: number;
-        activity_log?: Record<string, number> | null;
+        activity_log?: Record<string, number> | string[] | null;
       };
       currentStreak = s.current_streak ?? 0;
       longestStreak = s.longest_streak ?? 0;
-      if (s.activity_log && typeof s.activity_log === "object") {
-        for (const a of activity) {
-          const v = (s.activity_log as Record<string, number>)[a.date];
-          if (typeof v === "number" && v > a.count) a.count = v;
+      if (s.activity_log) {
+        if (Array.isArray(s.activity_log)) {
+          for (const dateStr of s.activity_log) {
+            const dateKey = typeof dateStr === "string" ? dateStr.split("T")[0] : "";
+            const matched = activity.find((a) => a.date === dateKey);
+            if (matched && matched.count === 0) matched.count = 1;
+          }
+        } else if (typeof s.activity_log === "object") {
+          for (const a of activity) {
+            const v = (s.activity_log as Record<string, number>)[a.date];
+            if (typeof v === "number" && v > a.count) a.count = v;
+          }
         }
       }
     }

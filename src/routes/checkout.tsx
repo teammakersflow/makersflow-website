@@ -11,6 +11,7 @@ import { PaymentSection } from "@/components/checkout/PaymentSection";
 import { SlideToPay } from "@/components/checkout/SlideToPay";
 import { useAuth } from "@/integrations/supabase/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 import { courseService } from "@/lib/courseService";
 import { productService } from "@/lib/productService";
 import { orderService } from "@/lib/orderService";
@@ -316,7 +317,46 @@ function CheckoutPage() {
     const code = raw.trim().toUpperCase();
     if (!code) return;
     setApplyingPromo(true);
+
+    const courseIds = items.filter((i) => i.is_course).map((i) => i.course_id ?? i.id);
+    const productIds = items.filter((i) => !i.is_course).map((i) => i.id);
+
     try {
+      // 1. Try backend NestJS /coupons/validate
+      try {
+        const res = await apiClient.post<{
+          valid: boolean;
+          coupon_id: string;
+          code: string;
+          discount_amount: number;
+          final_amount: number;
+        }>("/coupons/validate", {
+          code,
+          order_amount: subtotal,
+          course_ids: courseIds.length ? courseIds : undefined,
+          product_ids: productIds.length ? productIds : undefined,
+        });
+
+        if (res.data?.valid) {
+          setPromo({
+            status: "applied",
+            code: res.data.code || code,
+            amount: res.data.discount_amount,
+            label: `${res.data.code || code} applied`,
+            couponId: res.data.coupon_id,
+          });
+          toast.success(`${code} applied`);
+          return;
+        }
+      } catch (backendErr: any) {
+        if (backendErr?.status && backendErr.status >= 400 && backendErr.status < 500) {
+          setPromo({ status: "error", message: backendErr.message || "Invalid coupon code" });
+          return;
+        }
+        // If network/500/unauthorized, fallback to Supabase
+      }
+
+      // 2. Fallback to Supabase validate-coupon function
       const { data, error } = await supabase.functions.invoke("validate-coupon", {
         body: { code, subtotal, item_ids: items.map((i) => i.course_id ?? i.id) },
       });

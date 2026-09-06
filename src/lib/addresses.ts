@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 
 /**
  * Saved shipping addresses — the same address book the mobile app shows.
@@ -224,6 +225,20 @@ async function writeWithColumnFallback(
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
 export async function listAddresses(userId: string): Promise<SavedAddress[]> {
+  try {
+    const res = await apiClient.get<RawRow[]>("/shipping-addresses");
+    if (res.data && Array.isArray(res.data)) {
+      return res.data
+        .map(toSavedAddress)
+        .filter((a) => a.id)
+        .sort((a, b) => Number(b.is_default) - Number(a.is_default));
+    }
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn("[addresses] Backend /shipping-addresses failed, falling back to Supabase", e);
+    }
+  }
+
   const table = await resolveAddressTable();
   if (!table || !userId) return [];
 
@@ -241,6 +256,27 @@ export async function createAddress(
   address: ShippingAddress,
   makeDefault: boolean,
 ): Promise<{ address: SavedAddress | null; error: string | null }> {
+  try {
+    const payload = {
+      full_name: address.full_name.trim(),
+      address_line1: address.address_line1.trim(),
+      address_line2: address.address_line2.trim() || undefined,
+      city: address.city.trim(),
+      state: address.state.trim(),
+      postal_code: address.pincode.trim(),
+      phone: normalizePhone(address.phone) || address.phone.trim(),
+      is_default: makeDefault,
+    };
+    const res = await apiClient.post<RawRow>("/shipping-addresses", payload);
+    if (res.data) {
+      return { address: toSavedAddress(res.data), error: null };
+    }
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn("[addresses] Backend POST /shipping-addresses failed, falling back to Supabase", e);
+    }
+  }
+
   const table = await resolveAddressTable();
   if (!table) {
     return {
@@ -270,6 +306,27 @@ export async function updateAddress(
   address: ShippingAddress,
   makeDefault: boolean,
 ): Promise<{ address: SavedAddress | null; error: string | null }> {
+  try {
+    const payload = {
+      full_name: address.full_name.trim(),
+      address_line1: address.address_line1.trim(),
+      address_line2: address.address_line2.trim() || undefined,
+      city: address.city.trim(),
+      state: address.state.trim(),
+      postal_code: address.pincode.trim(),
+      phone: normalizePhone(address.phone) || address.phone.trim(),
+      is_default: makeDefault,
+    };
+    const res = await apiClient.patch<RawRow>(`/shipping-addresses/${id}`, payload);
+    if (res.data) {
+      return { address: toSavedAddress(res.data), error: null };
+    }
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn(`[addresses] Backend PATCH /shipping-addresses/${id} failed, falling back to Supabase`, e);
+    }
+  }
+
   const table = await resolveAddressTable();
   if (!table) return { address: null, error: "No address table found." };
 
@@ -288,6 +345,15 @@ export async function updateAddress(
 }
 
 export async function deleteAddress(id: string): Promise<string | null> {
+  try {
+    await apiClient.delete(`/shipping-addresses/${id}`);
+    return null;
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn(`[addresses] Backend DELETE /shipping-addresses/${id} failed, falling back to Supabase`, e);
+    }
+  }
+
   const table = await resolveAddressTable();
   if (!table) return "No address table found.";
 
@@ -296,6 +362,15 @@ export async function deleteAddress(id: string): Promise<string | null> {
 }
 
 export async function setDefaultAddress(userId: string, id: string): Promise<string | null> {
+  try {
+    await apiClient.patch(`/shipping-addresses/${id}`, { is_default: true });
+    return null;
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn(`[addresses] Backend PATCH /shipping-addresses/${id} failed, falling back to Supabase`, e);
+    }
+  }
+
   const table = await resolveAddressTable();
   if (!table) return "No address table found.";
 

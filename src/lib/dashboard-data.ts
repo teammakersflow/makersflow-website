@@ -114,6 +114,18 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
 export async function fetchStreak(userId: string): Promise<StreakInfo> {
   return safe(
     async () => {
+      try {
+        const res = await apiClient.get<any>("/streaks/me");
+        if (res.data) {
+          return {
+            current_streak: res.data.current_streak ?? 0,
+            longest_streak: res.data.longest_streak ?? 0,
+          };
+        }
+      } catch {
+        // fallback to direct query if offline / unauthenticated
+      }
+
       const { data } = await supabase
         .from("streaks")
         .select("current_streak, longest_streak")

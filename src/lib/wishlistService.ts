@@ -11,6 +11,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 
 export interface WishlistItem {
   id: string;
@@ -23,7 +24,7 @@ export interface WishlistItem {
 }
 
 class WishlistService {
-  public readonly isBackendSupported = false;
+  public readonly isBackendSupported = true;
   private cacheTTL = 15 * 1000; // 15 seconds
   private wishlistCache: { data: string[]; timestamp: number } | null = null;
   private pendingWishlistPromise: Promise<string[]> | null = null;
@@ -53,6 +54,18 @@ class WishlistService {
     }
 
     this.pendingWishlistPromise = (async () => {
+      try {
+        const res = await apiClient.get<any[]>("/wishlist/me");
+        const items = res.data ?? [];
+        if (Array.isArray(items)) {
+          const ids = items.map((r: any) => String(r.product_id ?? r.products?.id ?? r.id));
+          this.wishlistCache = { data: ids, timestamp: Date.now() };
+          return ids;
+        }
+      } catch {
+        // fallback to Supabase if endpoint fails
+      }
+
       try {
         const { data } = await supabase
           .from("wishlist")
@@ -87,6 +100,13 @@ class WishlistService {
     this.invalidateCache();
 
     try {
+      await apiClient.post(`/wishlist/${pidStr}`);
+      return;
+    } catch {
+      // fallback to Supabase if endpoint fails
+    }
+
+    try {
       await supabase
         .from("wishlist")
         .upsert({ user_id: userId, product_id: pidStr as any }, { onConflict: "user_id,product_id" });
@@ -106,6 +126,13 @@ class WishlistService {
     if (!pidStr || !userId) return;
 
     this.invalidateCache();
+
+    try {
+      await apiClient.delete(`/wishlist/${pidStr}`);
+      return;
+    } catch {
+      // fallback to Supabase if endpoint fails
+    }
 
     try {
       await supabase

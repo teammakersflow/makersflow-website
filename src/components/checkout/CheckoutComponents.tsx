@@ -21,6 +21,7 @@ import { useCart, type CartItem } from "@/lib/cart";
 import { formatPrice } from "@/lib/store-data";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 
 // Helper to call Supabase edge functions
 async function supabaseFn(name: string, body: Record<string, unknown>) {
@@ -687,7 +688,47 @@ export function OrderSummary({
     if (!key) return;
     setApplying(true);
 
+    const courseIds = items.filter((i) => i.is_course).map((i) => i.course_id ?? i.id);
+    const productIds = items.filter((i) => !i.is_course).map((i) => i.id);
+
     try {
+      // 1. Try backend NestJS /coupons/validate
+      try {
+        const res = await apiClient.post<{
+          valid: boolean;
+          coupon_id: string;
+          code: string;
+          discount_amount: number;
+          final_amount: number;
+        }>("/coupons/validate", {
+          code: key,
+          order_amount: subtotal,
+          course_ids: courseIds.length ? courseIds : undefined,
+          product_ids: productIds.length ? productIds : undefined,
+        });
+
+        if (res.data?.valid) {
+          const applied: PromoState = {
+            status: "applied",
+            code: res.data.code || key,
+            amount: res.data.discount_amount,
+            label: `${res.data.code || key} applied`,
+            coupon_id: res.data.coupon_id,
+          };
+          setPromo(applied);
+          setPromoInput("");
+          onCouponChange?.(res.data.discount_amount, res.data.code || key, res.data.coupon_id);
+          return;
+        }
+      } catch (backendErr: any) {
+        if (backendErr?.status && backendErr.status >= 400 && backendErr.status < 500) {
+          setPromo({ status: "error", message: backendErr.message || "Invalid promo code" });
+          onCouponChange?.(0, null, null);
+          return;
+        }
+      }
+
+      // 2. Fallback to Supabase validate-coupon function
       const res = (await supabaseFn("validate-coupon", {
         code: key,
         subtotal,
@@ -711,9 +752,9 @@ export function OrderSummary({
       }
     } catch {
       setPromo({ status: "error", message: "Could not validate coupon. Try again." });
+    } finally {
+      setApplying(false);
     }
-
-    setApplying(false);
   };
 
   const removePromo = () => {

@@ -20,6 +20,7 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPrice } from "@/lib/store-data";
 import { toggleCourseFavorite, toggleWatchLater, toggleWishlist } from "@/lib/saved-items-data";
+import { wishlistService } from "@/lib/wishlistService";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/favorites")({
@@ -108,24 +109,8 @@ function FavoritesPage() {
   const wishlistQ = useQuery({
     queryKey: ["wishlist", user?.id],
     queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("wishlist")
-        .select("id, product_id, created_at, products(title, price, category, thumbnail_url)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error || !data) return [];
-      return data.map((r: any) => ({
-        id: String(r.id),
-        product_id: String(r.product_id),
-        title: r.products?.title ?? "Untitled Product",
-        price: Number(r.products?.price ?? 0),
-        category: r.products?.category ?? "Product",
-        thumbnail_url: r.products?.thumbnail_url ?? null,
-        type: "wishlist" as const,
-        created_at: r.created_at,
-      }));
+      if (!user?.id) return [];
+      return wishlistService.getWishlistItems(user.id);
     },
     enabled: !!user?.id,
   });

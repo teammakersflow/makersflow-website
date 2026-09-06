@@ -73,12 +73,12 @@ export interface RefundRequestPayload {
 
 export const orderService = {
   /**
-   * Fetches all orders belonging to current authenticated student via GET /orders/me.
+   * Fetches all orders belonging to current authenticated student via GET /orders/my.
    * Student identity is derived exclusively from JWT on the backend.
    */
   async getMyOrders(): Promise<BackendOrder[]> {
     try {
-      const res = await apiClient.get<BackendOrder[]>("/orders/me");
+      const res = await apiClient.get<BackendOrder[]>("/orders/my");
       const data = res?.data ?? res;
       return Array.isArray(data) ? data : [];
     } catch (error) {
@@ -88,11 +88,11 @@ export const orderService = {
   },
 
   /**
-   * Fetches single order by UUID with student ownership check via GET /orders/:id.
+   * Fetches single order by UUID with student ownership check via GET /orders/my/:id.
    */
   async getOrderById(orderId: string): Promise<BackendOrder | null> {
     try {
-      const res = await apiClient.get<BackendOrder>(`/orders/${orderId}`);
+      const res = await apiClient.get<BackendOrder>(`/orders/my/${orderId}`);
       return (res?.data ?? res) as BackendOrder | null;
     } catch (error) {
       console.error(`[OrderService] getOrderById error for ${orderId}:`, error);

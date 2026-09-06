@@ -1,5 +1,22 @@
 import { supabase } from "@/integrations/supabase/client";
-import { apiClient } from "@/lib/auth/apiClient";
+import { apiClient, ApiError } from "@/lib/auth/apiClient";
+
+function isNetworkOrUnavailable(err: unknown): boolean {
+  if (!err) return false;
+  if (err instanceof ApiError) {
+    return (
+      err.status === 0 ||
+      err.status === 408 ||
+      err.status === 502 ||
+      err.status === 503 ||
+      err.status === 504
+    );
+  }
+  if (err instanceof Error) {
+    return err.name === "AbortError" || /network|failed to fetch/i.test(err.message);
+  }
+  return false;
+}
 
 /**
  * Saved shipping addresses — the same address book the mobile app shows.
@@ -234,8 +251,14 @@ export async function listAddresses(userId: string): Promise<SavedAddress[]> {
         .sort((a, b) => Number(b.is_default) - Number(a.is_default));
     }
   } catch (e) {
+    if (!isNetworkOrUnavailable(e)) {
+      if (import.meta.env.DEV) {
+        console.warn("[addresses] Backend /shipping-addresses application error:", e);
+      }
+      return [];
+    }
     if (import.meta.env.DEV) {
-      console.warn("[addresses] Backend /shipping-addresses failed, falling back to Supabase", e);
+      console.warn("[addresses] Backend /shipping-addresses network unavailable, falling back to Supabase", e);
     }
   }
 
@@ -271,9 +294,15 @@ export async function createAddress(
     if (res.data) {
       return { address: toSavedAddress(res.data), error: null };
     }
-  } catch (e) {
+  } catch (e: any) {
+    if (!isNetworkOrUnavailable(e)) {
+      return {
+        address: null,
+        error: Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Failed to save address"),
+      };
+    }
     if (import.meta.env.DEV) {
-      console.warn("[addresses] Backend POST /shipping-addresses failed, falling back to Supabase", e);
+      console.warn("[addresses] Backend POST /shipping-addresses network unavailable, falling back to Supabase", e);
     }
   }
 
@@ -321,9 +350,15 @@ export async function updateAddress(
     if (res.data) {
       return { address: toSavedAddress(res.data), error: null };
     }
-  } catch (e) {
+  } catch (e: any) {
+    if (!isNetworkOrUnavailable(e)) {
+      return {
+        address: null,
+        error: Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Failed to update address"),
+      };
+    }
     if (import.meta.env.DEV) {
-      console.warn(`[addresses] Backend PATCH /shipping-addresses/${id} failed, falling back to Supabase`, e);
+      console.warn(`[addresses] Backend PATCH /shipping-addresses/${id} network unavailable, falling back to Supabase`, e);
     }
   }
 
@@ -348,9 +383,12 @@ export async function deleteAddress(id: string): Promise<string | null> {
   try {
     await apiClient.delete(`/shipping-addresses/${id}`);
     return null;
-  } catch (e) {
+  } catch (e: any) {
+    if (!isNetworkOrUnavailable(e)) {
+      return Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Could not delete address");
+    }
     if (import.meta.env.DEV) {
-      console.warn(`[addresses] Backend DELETE /shipping-addresses/${id} failed, falling back to Supabase`, e);
+      console.warn(`[addresses] Backend DELETE /shipping-addresses/${id} network unavailable, falling back to Supabase`, e);
     }
   }
 
@@ -365,9 +403,12 @@ export async function setDefaultAddress(userId: string, id: string): Promise<str
   try {
     await apiClient.patch(`/shipping-addresses/${id}`, { is_default: true });
     return null;
-  } catch (e) {
+  } catch (e: any) {
+    if (!isNetworkOrUnavailable(e)) {
+      return Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Could not set default address");
+    }
     if (import.meta.env.DEV) {
-      console.warn(`[addresses] Backend PATCH /shipping-addresses/${id} failed, falling back to Supabase`, e);
+      console.warn(`[addresses] Backend PATCH /shipping-addresses/${id} network unavailable, falling back to Supabase`, e);
     }
   }
 

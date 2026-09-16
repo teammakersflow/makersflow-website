@@ -27,7 +27,7 @@ import {
   SelectField,
   TextField,
 } from "@/components/challenges/ChallengeUI";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 
 export const Route = createFileRoute("/challenges/innovation")({
   head: () => ({
@@ -323,7 +323,6 @@ function InnovationChallengePage() {
 
 // ─── Submission form ─────────────────────────────────────────────────────────
 
-const BUCKET = "challenge-uploads";
 const MAX_VIDEO_MB = 50;
 const MAX_IMAGE_MB = 5;
 const MAX_IMAGES = 5;
@@ -371,20 +370,47 @@ function SubmissionForm() {
     return null;
   };
 
-  /** Uploads one file and returns its public URL, or null if it failed. */
-  const upload = async (file: File, folder: string): Promise<string | null> => {
-    const safeName = file.name.replace(/[^\w.-]/g, "_");
-    const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
-
-    const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
-      cacheControl: "3600",
-      upsert: false,
-    });
-    if (error) {
-      console.warn("[challenge] upload failed:", error.message);
+  /**
+   * Uploads one file via the NestJS presigned-URL flow and returns its
+   * public S3 URL, or null if the upload failed.
+   *
+   * Backend: POST /challenges/media/upload-url
+   * Response: { uploadUrl, key, publicUrl }  (wrapped in ApiResponse.data)
+   * Allowed types: image/jpeg, image/png, image/webp, video/mp4, video/webm
+   */
+  const upload = async (file: File, _folder: string): Promise<string | null> => {
+    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'];
+    const contentType = file.type;
+    if (!ALLOWED.includes(contentType)) {
+      console.warn('[challenge] unsupported content type:', contentType);
+      toast.error(`Unsupported file type: ${contentType}. Use JPEG, PNG, WebP, MP4, or WebM.`);
       return null;
     }
-    return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+
+    try {
+      const res = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
+        '/challenges/media/upload-url',
+        { fileName: file.name, contentType },
+      );
+      const { uploadUrl, publicUrl } = res.data;
+
+      // Upload directly to S3 — no Authorization header sent to S3
+      const s3Res = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': contentType },
+      });
+
+      if (!s3Res.ok) {
+        console.warn('[challenge] S3 PUT failed:', s3Res.status);
+        return null;
+      }
+
+      return publicUrl;
+    } catch (err: any) {
+      console.warn('[challenge] upload failed:', err?.message ?? err);
+      return null;
+    }
   };
 
   const submit = async () => {
@@ -418,28 +444,26 @@ function SubmissionForm() {
       }
 
       setProgress("Saving your entry…");
-      const { error } = await supabase.from("challenge_submissions").insert({
-        full_name: form.full_name.trim(),
-        age: form.age ? Number(form.age) : null,
-        institution: form.institution.trim() || null,
-        kit_name: form.kit_name.trim() || null,
-        project_title: form.project_title.trim(),
-        description: form.description.trim(),
-        problem_solved: form.problem_solved.trim() || null,
-        inspiration: form.inspiration.trim() || null,
-        video_url: videoUrl,
-        image_urls: imageUrls,
-        feature_consent: form.feature_consent === "Yes",
-      });
-
-      if (error) {
-        const missingTable =
-          error.code === "42P01" || (error.message ?? "").toLowerCase().includes("schema cache");
-        toast.error(
-          missingTable
-            ? "Submissions aren't set up yet. Please contact support@makersflow.in."
-            : (error.message ?? "Could not submit your entry"),
-        );
+      try {
+        await apiClient.post("/challenges/submissions", {
+          full_name: form.full_name.trim(),
+          age: form.age ? Number(form.age) : undefined,
+          institution: form.institution.trim() || undefined,
+          kit_name: form.kit_name.trim() || undefined,
+          project_title: form.project_title.trim(),
+          description: form.description.trim(),
+          problem_solved: form.problem_solved.trim() || undefined,
+          inspiration: form.inspiration.trim() || undefined,
+          video_url: videoUrl || undefined,
+          image_urls: imageUrls,
+          feature_consent: form.feature_consent === "Yes",
+        });
+      } catch (err: any) {
+        if (err?.status === 404) {
+          toast.error("Submissions aren't set up yet. Please contact support@makersflow.in.");
+        } else {
+          toast.error(err?.data?.message ?? "Could not submit your entry");
+        }
         return;
       }
 

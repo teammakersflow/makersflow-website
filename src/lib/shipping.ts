@@ -1,15 +1,20 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
+import {
+  settingsService,
+  DEFAULT_SHIPPING_CONFIG,
+  type ShippingConfig,
+} from "@/lib/settingsService";
 
 /**
  * Delivery pricing — mirrors the mobile app's checkout.
  *
- * The real rate comes from Shiprocket via the `get-shipping-rate` edge
- * function, keyed on the PIN code of the address the customer picked. If that
+ * The real rate comes from Shiprocket via the NestJS `/shipping/rates` API,
+ * keyed on the PIN code of the address the customer picked. If that
  * call fails we fall back to the flat fee in the `settings` table so checkout
  * never dead-ends on a courier outage.
  */
 
-/** Raw response from the `get-shipping-rate` edge function. */
+/** Rate response structure from Shiprocket courier serviceability. */
 export type ShiprocketRate = {
   success: boolean;
   fee: number | null;
@@ -27,17 +32,9 @@ export type ShippingQuote = {
   source: "shiprocket" | "fallback" | "free" | "digital";
 };
 
-export type ShippingSettings = {
-  fee: number;
-  remoteFee: number;
-  threshold: number;
-};
+export type ShippingSettings = ShippingConfig;
 
-export const DEFAULT_SHIPPING_SETTINGS: ShippingSettings = {
-  fee: 49,
-  remoteFee: 149,
-  threshold: 999,
-};
+export const DEFAULT_SHIPPING_SETTINGS: ShippingSettings = DEFAULT_SHIPPING_CONFIG;
 
 /** States/UTs that cost more to reach. Used only by the fallback path. */
 export const REMOTE_STATES = new Set([
@@ -59,32 +56,9 @@ export function isRemoteState(state: string | null | undefined): boolean {
   return state ? REMOTE_STATES.has(state) : false;
 }
 
-/** Admin-configurable flat fees, read from `public.settings`. */
+/** Admin-configurable flat fees, read from NestJS settings backend. */
 export async function fetchShippingSettings(): Promise<ShippingSettings> {
-  try {
-    const { data } = await supabase
-      .from("settings")
-      .select("key, value")
-      .in("key", ["shipping_fee", "shipping_fee_remote", "free_shipping_threshold"]);
-
-    if (!data) return DEFAULT_SHIPPING_SETTINGS;
-
-    const map = Object.fromEntries(
-      (data as Array<{ key: string; value: string }>).map((r) => [r.key, Number(r.value)]),
-    );
-
-    return {
-      fee: Number.isFinite(map.shipping_fee) ? map.shipping_fee : DEFAULT_SHIPPING_SETTINGS.fee,
-      remoteFee: Number.isFinite(map.shipping_fee_remote)
-        ? map.shipping_fee_remote
-        : DEFAULT_SHIPPING_SETTINGS.remoteFee,
-      threshold: Number.isFinite(map.free_shipping_threshold)
-        ? map.free_shipping_threshold
-        : DEFAULT_SHIPPING_SETTINGS.threshold,
-    };
-  } catch {
-    return DEFAULT_SHIPPING_SETTINGS;
-  }
+  return settingsService.getShippingSettings();
 }
 
 /**
@@ -137,27 +111,52 @@ export async function fetchShiprocketRate(params: {
   if (rateCache.has(cacheKey)) return rateCache.get(cacheKey) ?? null;
 
   try {
-    const { data, error } = await supabase.functions.invoke("get-shipping-rate", {
-      body: {
-        deliveryPincode: pincode,
-        weightKg,
-        declaredValue,
-      },
+    const res = await apiClient.post<any>("/shipping/rates", {
+      pickup_postcode: "500034",
+      delivery_postcode: pincode,
+      weight: weightKg,
+      product_type: "physical",
     });
 
-    if (error || !data || (data as ShiprocketRate).success !== true) {
-      if (import.meta.env.DEV) {
-        console.warn("[shipping] Shiprocket lookup failed, using flat fee:", error ?? data);
+    const resData = res?.data?.data ?? res?.data ?? res;
+    const couriers: any[] =
+      resData?.available_courier_companies ??
+      resData?.data?.available_courier_companies ??
+      [];
+
+    if (Array.isArray(couriers) && couriers.length > 0) {
+      const sorted = couriers
+        .filter((c: any) => typeof c.rate === "number" && c.rate > 0)
+        .sort((a: any, b: any) => a.rate - b.rate);
+      if (sorted.length > 0) {
+        const best = sorted[0];
+        const rate: ShiprocketRate = {
+          success: true,
+          fee: Math.round(best.rate),
+          courier: best.courier_name ?? "Shiprocket",
+          etd: best.estimated_delivery_days ? `${best.estimated_delivery_days} days` : (best.etd ?? null),
+          source: "shiprocket",
+        };
+        rateCache.set(cacheKey, rate);
+        return rate;
       }
-      rateCache.set(cacheKey, null);
-      return null;
     }
 
-    const rate = normalizeRate(data);
-    rateCache.set(cacheKey, rate);
-    return rate;
+    if (resData) {
+      const rate = normalizeRate(resData);
+      if (rate && typeof rate.fee === "number") {
+        rateCache.set(cacheKey, rate);
+        return rate;
+      }
+    }
+
+    if (import.meta.env.DEV) {
+      console.warn("[shipping] Backend returned no available couriers, using flat fee:", res);
+    }
+    rateCache.set(cacheKey, null);
+    return null;
   } catch (err) {
-    if (import.meta.env.DEV) console.warn("[shipping] Shiprocket lookup threw:", err);
+    if (import.meta.env.DEV) console.warn("[shipping] Shiprocket backend lookup threw:", err);
     rateCache.set(cacheKey, null);
     return null;
   }

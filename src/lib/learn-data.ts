@@ -1,8 +1,8 @@
-import { supabase } from "@/integrations/supabase/client";
 import { apiClient } from "@/lib/auth/apiClient";
 import { courseService } from "@/lib/courseService";
 import { enrollmentService } from "./enrollmentService";
 import { progressService } from "./progressService";
+import { fetchMyCertificates } from "./certificates";
 import { FALLBACK, DEMO_MODULES, resolveCourseId, type Module } from "./explore-data";
 import {
   mapDbLessonToDetail,
@@ -44,19 +44,23 @@ export type LessonProgressRow = {
 
 export async function fetchSignedVideoUrl(
   lessonId: string | number,
-  userId?: string,
+  _userId?: string,
 ): Promise<string | null> {
   try {
-    const { data, error } = await supabase.functions.invoke("get-signed-video-url", {
-      body: { lessonId, userId },
-    });
-    if (error) {
-      console.warn("[fetchSignedVideoUrl] Edge Function error:", error);
+    const res = await apiClient.get<{ signedUrl: string; expiresIn: number }>(
+      `/lessons/${lessonId}/video`,
+    );
+    const url = res?.data?.signedUrl ?? null;
+    if (!url) {
+      console.warn("[fetchSignedVideoUrl] NestJS returned no signedUrl for lesson", lessonId);
       return null;
     }
-    return (data?.signed_url as string) ?? (data?.video_url as string) ?? null;
-  } catch (err) {
-    console.warn("[fetchSignedVideoUrl] Exception:", err);
+    return url;
+  } catch (err: any) {
+    // 401 → token expired (apiClient auto-refreshes; if it reaches here, session is gone)
+    // 403 → not enrolled / access denied → do NOT fall back to raw URL
+    // 404 → lesson has no video
+    console.warn("[fetchSignedVideoUrl] NestJS /lessons/:id/video failed:", err?.message ?? err);
     return null;
   }
 }
@@ -106,36 +110,22 @@ export async function fetchLesson(courseId: string, lessonId: string): Promise<L
 }
 
 export async function fetchLessonResources(lessonId: string): Promise<LessonResource[]> {
+  if (!lessonId || isNaN(Number(lessonId))) {
+    return [];
+  }
   try {
     const res = await apiClient.get<any[]>(`/lesson-resources/lesson/${lessonId}`);
-    const items = res.data ?? [];
-    if (Array.isArray(items) && items.length > 0) {
+    const items = res.data ?? (Array.isArray(res) ? res : []);
+    if (Array.isArray(items)) {
       return items.map((r) => mapDbLessonResource(r));
     }
-  } catch {
-    // fallback to Supabase if endpoint fails or unauthenticated
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("lesson_resources")
-      .select("id, title, url, type, size_bytes")
-      .eq("lesson_id", lessonId);
-
-    // Table doesn't exist yet (404) or other DB error — return empty, no noise
-    if (error) {
-      if (error.code !== "42P01") {
-        // Only log if it's NOT a "table does not exist" error
-        console.warn(`[makersflow] fetchLessonResources error:`, error.message);
-      }
+  } catch (err: any) {
+    if (err?.status === 403 || err?.statusCode === 403) {
+      // User is not enrolled in this course / non-preview lesson
       return [];
     }
-
-    if (data && data.length) return data.map((r) => mapDbLessonResource(r));
-  } catch (err) {
-    console.warn(`[makersflow] fetchLessonResources threw:`, err);
+    console.warn(`[makersflow] fetchLessonResources error:`, err?.message || err);
   }
-  // No resources found — return empty array (no fake placeholder resources)
   return [];
 }
 
@@ -310,13 +300,18 @@ export async function fetchEnrolledCourses(userId: string): Promise<EnrolledCour
   }
 
   try {
-    // Query certificates for user
-    const { data: certs } = await supabase
-      .from("certificates")
-      .select("id, course_id")
-      .eq("user_id", userId);
+    // Query certificates for user: Authoritative NestJS GET /certificates/me
     const certMap = new Map<string, string>();
-    certs?.forEach((c: any) => { if (c.course_id && c.id) certMap.set(String(c.course_id), c.id); });
+    try {
+      const myCerts = await fetchMyCertificates();
+      if (myCerts && myCerts.length > 0) {
+        myCerts.forEach((c) => {
+          if (c.course_id && c.id) certMap.set(String(c.course_id), c.id);
+        });
+      }
+    } catch {
+      // Best effort
+    }
 
     // Query enrollments with course data joined via enrollmentService
     const enrollments = await enrollmentService.getMyEnrollments();
@@ -592,34 +587,33 @@ export async function fetchProgressOverview(userId: string): Promise<ProgressOve
       const res = await apiClient.get<any>("/streaks/me");
       if (res.data) {
         streakRecord = res.data;
+      } else if (res.data === null) {
+        // Valid response: user has no streak row yet
+        streakRecord = { current_streak: 0, longest_streak: 0, activity_log: [] };
       }
-    } catch {
-      // fallback to Supabase if endpoint fails or unauthenticated
-    }
-
-    if (!streakRecord) {
-      const { data: streak } = await supabase
-        .from("streaks")
-        .select("current_streak, longest_streak, activity_log")
-        .eq("user_id", userId)
-        .maybeSingle();
-      streakRecord = streak;
+    } catch (streakErr) {
+      console.warn(`[makersflow] fetchProgressOverview /streaks/me error:`, streakErr);
     }
 
     if (streakRecord) {
       const s = streakRecord as {
         current_streak?: number;
         longest_streak?: number;
-        activity_log?: Record<string, number> | string[] | null;
+        activity_log?: any;
       };
       currentStreak = s.current_streak ?? 0;
       longestStreak = s.longest_streak ?? 0;
       if (s.activity_log) {
         if (Array.isArray(s.activity_log)) {
-          for (const dateStr of s.activity_log) {
-            const dateKey = typeof dateStr === "string" ? dateStr.split("T")[0] : "";
-            const matched = activity.find((a) => a.date === dateKey);
-            if (matched && matched.count === 0) matched.count = 1;
+          for (const dateItem of s.activity_log) {
+            const dateObj = new Date(dateItem);
+            if (!isNaN(dateObj.getTime())) {
+              const dateKey = dateObj.toISOString().slice(0, 10);
+              const matched = activity.find((a) => a.date === dateKey);
+              if (matched && matched.count === 0) matched.count = 1;
+              const matchedWeekly = weekly.find((w) => w.date === dateKey);
+              if (matchedWeekly && matchedWeekly.count === 0) matchedWeekly.count = 1;
+            }
           }
         } else if (typeof s.activity_log === "object") {
           for (const a of activity) {

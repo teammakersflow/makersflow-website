@@ -5,6 +5,7 @@ import { tokenStorage } from "./auth/tokenStorage";
 import { enrollmentService } from "./enrollmentService";
 import { progressService } from "./progressService";
 import { orderService } from "./orderService";
+import { wishlistService } from "./wishlistService";
 
 export async function exportUserData(userId: string): Promise<{ ok: boolean; error?: string }> {
   try {
@@ -22,23 +23,47 @@ export async function exportUserData(userId: string): Promise<{ ok: boolean; err
       }
     }
 
-    const [myEnrollments, myOrders, ...otherResults] = await Promise.all([
+    const [
+      myEnrollments,
+      myOrders,
+      wishlistItems,
+      favoritesRes,
+      watchLaterRes,
+      quizAttemptsRes,
+      reviewsRes,
+    ] = await Promise.all([
       enrollmentService.getMyEnrollments(),
       orderService.getMyOrders(),
-      supabase.from("quiz_attempts").select("*").eq("user_id", userId),
-      supabase.from("course_favorites").select("*").eq("user_id", userId),
-      supabase.from("watch_later").select("*").eq("user_id", userId),
-      supabase.from("wishlist").select("*").eq("user_id", userId),
-      supabase.from("reviews").select("*").eq("user_id", userId),
+      wishlistService.getWishlistItems(userId),
+      apiClient.get<any[]>("/course-favorites").then((r) => r.data ?? []).catch(() => []),
+      apiClient.get<any[]>("/watch-later").then((r) => r.data ?? []).catch(() => []),
+      apiClient.get<any[]>("/quiz-attempts/me")
+        .then((r) => r.data ?? (Array.isArray(r) ? r : []))
+        .catch(async () => {
+          try {
+            const { data } = await supabase.from("quiz_attempts").select("*").eq("user_id", userId);
+            return data ?? [];
+          } catch {
+            return [];
+          }
+        }),
+      apiClient.get<any[]>("/reviews/me")
+        .then((r) => r.data ?? (Array.isArray(r) ? r : []))
+        .catch(async () => {
+          try {
+            const { data } = await supabase.from("reviews").select("*").eq("user_id", userId);
+            return data ?? [];
+          } catch {
+            return [];
+          }
+        }),
     ]);
 
-    const [
-      { data: quizAttempts },
-      { data: favorites },
-      { data: watchLater },
-      { data: wishlist },
-      { data: reviews },
-    ] = otherResults as any[];
+    const quizAttempts = Array.isArray(quizAttemptsRes) ? quizAttemptsRes : [];
+    const reviews = Array.isArray(reviewsRes) ? reviewsRes : [];
+
+    const favorites = Array.isArray(favoritesRes) ? favoritesRes : [];
+    const watchLater = Array.isArray(watchLaterRes) ? watchLaterRes : [];
 
     // Fetch progress for each enrolled course
     const courseProgressPromises = (myEnrollments as any[]).map((e) =>
@@ -68,7 +93,7 @@ export async function exportUserData(userId: string): Promise<{ ok: boolean; err
       },
       commerce_and_reviews: {
         orders: myOrders ?? [],
-        wishlist: wishlist ?? [],
+        wishlist: wishlistItems ?? [],
         reviews: reviews ?? [],
       },
     };

@@ -24,10 +24,13 @@ export interface QuizAttemptResult {
  * Returns empty array if no questions are assigned to this lesson.
  */
 export async function fetchQuizQuestions(lessonId: string): Promise<QuizQuestion[]> {
+  if (!lessonId || isNaN(Number(lessonId))) {
+    return [];
+  }
   try {
     const res = await apiClient.get<any[]>(`/quiz-questions/lesson/${lessonId}`);
-    const items = res.data ?? [];
-    if (Array.isArray(items) && items.length > 0) {
+    const items = res.data ?? (Array.isArray(res) ? res : []);
+    if (Array.isArray(items)) {
       return items.map((q: any) => ({
         id: q.id,
         lesson_id: String(q.lesson_id),
@@ -36,30 +39,12 @@ export async function fetchQuizQuestions(lessonId: string): Promise<QuizQuestion
         position: q.position,
       }));
     }
-  } catch {
-    // fallback to Supabase if endpoint fails or unauthenticated
-  }
-
-  try {
-    const { data, error } = await (supabase as any)
-      .from("quiz_questions_public")
-      .select("id, lesson_id, question_text, options, position")
-      .eq("lesson_id", lessonId)
-      .order("position", { ascending: true });
-
-    if (error) throw error;
-
-    if (data && data.length > 0) {
-      return data.map((q: any) => ({
-        id: q.id,
-        lesson_id: q.lesson_id,
-        question_text: q.question_text,
-        options: Array.isArray(q.options) ? q.options : JSON.parse(q.options || "[]"),
-        position: q.position,
-      }));
+  } catch (err: any) {
+    if (err?.status === 403 || err?.statusCode === 403) {
+      // User is not enrolled in course / non-preview lesson
+      return [];
     }
-  } catch (err) {
-    console.warn(`[makersflow] fetchQuizQuestions error:`, err);
+    console.warn(`[makersflow] fetchQuizQuestions NestJS error:`, err?.message || err);
   }
 
   return [];

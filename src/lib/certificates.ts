@@ -1,7 +1,7 @@
-import { supabase } from "@/integrations/supabase/client";
 import { apiClient } from "./auth/apiClient";
 import type { BackendUser } from "./auth/customAuthService";
 import { enrollmentService } from "./enrollmentService";
+import { courseService } from "./courseService";
 
 export type Certificate = {
   id: string;
@@ -22,15 +22,6 @@ export type Certificate = {
     } | null;
   } | null;
 };
-
-/**
-  * Generates a unique certificate number (e.g. MF-CERT-2026-A8F92)
-  */
-export function generateCertificateNumber(): string {
-  const year = new Date().getFullYear();
-  const randomHex = Math.random().toString(16).substring(2, 8).toUpperCase();
-  return `MF-CERT-${year}-${randomHex}`;
-}
 
 /**
  * Single-source-of-truth HTML generator ported from mobile certificate.tsx template
@@ -351,8 +342,73 @@ export function getCertificateHtml(
 </html>`;
 }
 
+async function augmentCertificateWithCourse(rawCert: any): Promise<Certificate> {
+  const courseId = Number(rawCert.course_id);
+  let courseData: any = null;
+  let instructorName: string | undefined = undefined;
+
+  try {
+    const c = await courseService.getCourseById(courseId);
+    if (c) {
+      courseData = c;
+      if (c.instructor_id) {
+        try {
+          const profRes = await apiClient.get<BackendUser>(`/users/${c.instructor_id}`);
+          if (profRes.data?.full_name || profRes.data?.name) {
+            instructorName = (profRes.data.full_name ?? profRes.data.name) as string;
+          }
+        } catch {
+          // best effort
+        }
+      }
+    }
+  } catch {
+    // best effort
+  }
+
+  return {
+    id: String(rawCert.id),
+    user_id: String(rawCert.user_id),
+    course_id: courseId,
+    certificate_number: String(rawCert.certificate_number),
+    issued_at: String(rawCert.issued_at),
+    created_at: String(rawCert.created_at),
+    courses: courseData
+      ? {
+          id: Number(courseData.id),
+          title: String(courseData.title),
+          category: courseData.category ?? null,
+          level: courseData.level ?? null,
+          thumbnail_url: courseData.thumbnail_url ?? null,
+          instructor: instructorName
+            ? { full_name: instructorName }
+            : courseData.instructor
+              ? { full_name: courseData.instructor }
+              : null,
+        }
+      : undefined,
+  };
+}
+
+/**
+ * Fetches all issued certificates for the authenticated student via NestJS GET /certificates/me.
+ */
+export async function fetchMyCertificates(): Promise<Certificate[]> {
+  try {
+    const res = await apiClient.get<any[]>("/certificates/me");
+    const list = res?.data ?? (Array.isArray(res) ? res : []);
+    if (Array.isArray(list)) {
+      return await Promise.all(list.map((c) => augmentCertificateWithCourse(c)));
+    }
+  } catch (err) {
+    console.warn("[fetchMyCertificates] NestJS failed:", err);
+  }
+  return [];
+}
+
 /**
  * Fetches an existing certificate for a user + course, or creates one if the course is completed.
+ * Authoritative: NestJS POST /certificates/me & GET /certificates/me
  */
 export async function getOrCreateCertificate(
   userId: string,
@@ -362,182 +418,76 @@ export async function getOrCreateCertificate(
   if (!userId || isNaN(numericCourseId)) return null;
 
   try {
-    // 1. Check if certificate already exists
-    const { data: existing, error: fetchErr } = await supabase
-      .from("certificates")
-      .select(
-        "id, user_id, course_id, certificate_number, issued_at, created_at, courses(id, title, category, level, thumbnail_url, instructor_id)",
-      )
-      .eq("user_id", userId)
-      .eq("course_id", numericCourseId)
-      .maybeSingle();
-
-    if (fetchErr) {
-      console.error("[getOrCreateCertificate] Supabase fetch error:", fetchErr);
+    // Check if already issued in NestJS
+    const myCertsRes = await apiClient.get<any[]>("/certificates/me");
+    const myCerts = myCertsRes?.data ?? (Array.isArray(myCertsRes) ? myCertsRes : []);
+    const match = myCerts.find((c: any) => Number(c.course_id) === numericCourseId);
+    if (match) {
+      return await augmentCertificateWithCourse(match);
     }
 
-    if (existing && !fetchErr) {
-      const cData = existing.courses as any;
-      let instructorName: string | undefined = undefined;
-      if (cData?.instructor_id) {
-        try {
-          const profRes = await apiClient.get<BackendUser>(`/users/${cData.instructor_id}`);
-          if (profRes.data?.full_name || profRes.data?.name) {
-            instructorName = (profRes.data.full_name ?? profRes.data.name) as string;
-          }
-        } catch {
-          // best-effort lookup
-        }
-      }
-
-      return {
-        id: String(existing.id),
-        user_id: String(existing.user_id),
-        course_id: Number(existing.course_id),
-        certificate_number: String(existing.certificate_number),
-        issued_at: String(existing.issued_at),
-        created_at: String(existing.created_at),
-        courses: cData
-          ? {
-              id: Number(cData.id),
-              title: String(cData.title),
-              category: cData.category ?? null,
-              level: cData.level ?? null,
-              thumbnail_url: cData.thumbnail_url ?? null,
-              instructor: instructorName ? { full_name: instructorName } : null,
-            }
-          : undefined,
-      };
-    }
-
-    // 2. If not found, attempt to insert new certificate row
-    const newCertNumber = generateCertificateNumber();
-    const { data: inserted, error: insertErr } = await supabase
-      .from("certificates")
-      .insert({
-        user_id: userId,
+    // Self-issue via NestJS POST /certificates/me
+    try {
+      const createRes = await apiClient.post<any>("/certificates/me", {
         course_id: numericCourseId,
-        certificate_number: newCertNumber,
-        issued_at: new Date().toISOString(),
-      })
-      .select(
-        "id, user_id, course_id, certificate_number, issued_at, created_at, courses(id, title, category, level, thumbnail_url, instructor_id)",
-      )
-      .single();
-
-    if (insertErr || !inserted) {
-      console.warn("[getOrCreateCertificate] Could not create certificate row:", insertErr);
-      return null;
-    }
-
-    const cData = inserted.courses as any;
-    let instructorName: string | undefined = undefined;
-    if (cData?.instructor_id) {
-      try {
-        const profRes = await apiClient.get<BackendUser>(`/users/${cData.instructor_id}`);
-        if (profRes.data?.full_name || profRes.data?.name) {
-          instructorName = (profRes.data.full_name ?? profRes.data.name) as string;
+      });
+      const created = createRes?.data ?? createRes;
+      if (created && created.id) {
+        return await augmentCertificateWithCourse(created);
+      }
+    } catch (postErr: any) {
+      if (postErr?.status === 409 || postErr?.statusCode === 409) {
+        // Already exists on backend, refetch
+        const refetch = await apiClient.get<any[]>("/certificates/me");
+        const refetchList = refetch?.data ?? (Array.isArray(refetch) ? refetch : []);
+        const refetchedMatch = refetchList.find((c: any) => Number(c.course_id) === numericCourseId);
+        if (refetchedMatch) {
+          return await augmentCertificateWithCourse(refetchedMatch);
         }
-      } catch {
-        // best-effort lookup
+      } else if (postErr?.status === 403 || postErr?.statusCode === 403) {
+        // Not eligible yet according to backend
+        console.warn("[getOrCreateCertificate] Not eligible yet for certificate:", postErr?.message);
+        return null;
       }
     }
-
-    return {
-      id: String(inserted.id),
-      user_id: String(inserted.user_id),
-      course_id: Number(inserted.course_id),
-      certificate_number: String(inserted.certificate_number),
-      issued_at: String(inserted.issued_at),
-      created_at: String(inserted.created_at),
-      courses: cData
-        ? {
-            id: Number(cData.id),
-            title: String(cData.title),
-            category: cData.category ?? null,
-            level: cData.level ?? null,
-            thumbnail_url: cData.thumbnail_url ?? null,
-            instructor: instructorName ? { full_name: instructorName } : null,
-          }
-        : undefined,
-    };
-  } catch (err) {
-    console.error("Failed to get or create certificate:", err);
-    return null;
+  } catch (backendErr) {
+    console.warn("[getOrCreateCertificate] NestJS certificate error:", backendErr);
   }
+
+  return null;
 }
 
 /**
  * Fetches a specific certificate by its UUID (`certificates.id`).
+ * Authoritative: NestJS GET /certificates/me (for authenticated student).
+ * NOTE: Backend (5) currently lacks a public unauthenticated certificate verification endpoint.
+ * GET /certificates/:id requires admin role. Public verification remains a documented backend blocker.
  */
 export async function fetchCertificateById(certificateId: string): Promise<Certificate | null> {
   if (!certificateId) return null;
 
   try {
-    const { data, error } = await supabase
-      .from("certificates")
-      .select(
-        "id, user_id, course_id, certificate_number, issued_at, created_at, courses(id, title, category, level, thumbnail_url, instructor_id)",
-      )
-      .eq("id", certificateId)
-      .maybeSingle();
-
-    if (error) {
-      console.error("[fetchCertificateById] Supabase query error:", error);
-      return null;
-    }
-    if (!data) {
-      console.warn("[fetchCertificateById] No certificate record found for ID:", certificateId);
-      return null;
-    }
-
-    let enrolled_at: string | null = null;
-    try {
-      const myEnrollments = await enrollmentService.getMyEnrollments();
-      const enr = myEnrollments.find(
-        (e) => String(e.course_id) === String(data.course_id),
-      );
-      if (enr?.enrolled_at) {
-        enrolled_at = enr.enrolled_at;
-      }
-    } catch {
-      // Best effort enrollment lookup
-    }
-
-    const cData = data.courses as any;
-    let instructorName: string | undefined = undefined;
-    if (cData?.instructor_id) {
+    const res = await apiClient.get<any[]>("/certificates/me");
+    const certs = res?.data ?? (Array.isArray(res) ? res : []);
+    const match = certs.find((c: any) => String(c.id) === String(certificateId));
+    if (match) {
+      const augmented = await augmentCertificateWithCourse(match);
       try {
-        const profRes = await apiClient.get<BackendUser>(`/users/${cData.instructor_id}`);
-        if (profRes.data?.full_name || profRes.data?.name) {
-          instructorName = (profRes.data.full_name ?? profRes.data.name) as string;
+        const myEnrollments = await enrollmentService.getMyEnrollments();
+        const enr = myEnrollments.find(
+          (e) => String(e.course_id) === String(match.course_id),
+        );
+        if (enr?.enrolled_at) {
+          augmented.enrolled_at = enr.enrolled_at;
         }
       } catch {
-        // best-effort lookup
+        // Best effort
       }
+      return augmented;
     }
-
-    return {
-      id: String(data.id),
-      user_id: String(data.user_id),
-      course_id: Number(data.course_id),
-      certificate_number: String(data.certificate_number),
-      issued_at: String(data.issued_at),
-      created_at: String(data.created_at),
-      enrolled_at,
-      courses: cData
-        ? {
-            id: Number(cData.id),
-            title: String(cData.title),
-            category: cData.category ?? null,
-            level: cData.level ?? null,
-            thumbnail_url: cData.thumbnail_url ?? null,
-            instructor: instructorName ? { full_name: instructorName } : null,
-          }
-        : undefined,
-    };
   } catch (err) {
-    console.error("Failed to fetch certificate by ID:", err);
-    return null;
+    console.warn("[fetchCertificateById] NestJS failed:", err);
   }
+
+  return null;
 }

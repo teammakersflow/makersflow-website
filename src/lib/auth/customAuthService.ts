@@ -285,6 +285,27 @@ export const customAuthService = {
   },
 
   /**
+   * Delete current user account (DELETE /users/me)
+   * Identity is derived from authenticated JWT Bearer token
+   */
+  async deleteAccount(): Promise<{ success: boolean; error?: string }> {
+    try {
+      await apiClient.delete("/users/me");
+      tokenStorage.clear();
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("makersflow:logout"));
+      }
+      return { success: true };
+    } catch (e: any) {
+      console.error("[customAuthService] deleteAccount error:", e);
+      return {
+        success: false,
+        error: e?.data?.message || e?.message || "Failed to delete account",
+      };
+    }
+  },
+
+  /**
    * Controlled handler for legacy password login
    */
   async login(_email?: string, _password?: string): Promise<{ success: boolean; error: string }> {

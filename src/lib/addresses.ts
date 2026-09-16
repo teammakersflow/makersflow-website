@@ -1,32 +1,11 @@
-import { supabase } from "@/integrations/supabase/client";
-import { apiClient, ApiError } from "@/lib/auth/apiClient";
-
-function isNetworkOrUnavailable(err: unknown): boolean {
-  if (!err) return false;
-  if (err instanceof ApiError) {
-    return (
-      err.status === 0 ||
-      err.status === 408 ||
-      err.status === 502 ||
-      err.status === 503 ||
-      err.status === 504
-    );
-  }
-  if (err instanceof Error) {
-    return err.name === "AbortError" || /network|failed to fetch/i.test(err.message);
-  }
-  return false;
-}
+import { apiClient } from "@/lib/auth/apiClient";
 
 /**
- * Saved shipping addresses — the same address book the mobile app shows.
- *
- * The web and the app share one Supabase project, but this repo never had an
- * addresses table of its own, so the exact table/column names live in the
- * mobile migration. Rather than hard-code a guess, the helpers below discover
- * the table once per session and tolerate the common column spellings. If the
- * app's schema doesn't match any of them, set `ADDRESS_TABLE_CANDIDATES[0]` to
- * the real table name and the rest keeps working.
+ * Saved shipping addresses — backed by the NestJS backend endpoints:
+ * - GET    /shipping-addresses
+ * - POST   /shipping-addresses
+ * - PATCH  /shipping-addresses/:id
+ * - DELETE /shipping-addresses/:id
  */
 
 export type ShippingAddress = {
@@ -58,14 +37,6 @@ export const EMPTY_ADDRESS: ShippingAddress = {
   pincode: "",
   country: "India",
 };
-
-/** Checked in order; the first one that exists wins. */
-const ADDRESS_TABLE_CANDIDATES = [
-  "user_addresses",
-  "addresses",
-  "shipping_addresses",
-  "saved_addresses",
-] as const;
 
 export const INDIAN_STATES = [
   "Andhra Pradesh",
@@ -106,64 +77,6 @@ export const INDIAN_STATES = [
   "Puducherry",
 ];
 
-// ─── Schema discovery ────────────────────────────────────────────────────────
-
-type PostgrestErrorish = { code?: string; message?: string } | null;
-
-function isMissingTable(error: PostgrestErrorish): boolean {
-  if (!error) return false;
-  const code = error.code ?? "";
-  const message = (error.message ?? "").toLowerCase();
-  return (
-    code === "42P01" ||
-    code === "PGRST205" ||
-    message.includes("does not exist") ||
-    message.includes("schema cache")
-  );
-}
-
-function missingColumnFrom(error: PostgrestErrorish): string | null {
-  if (!error) return null;
-  const message = error.message ?? "";
-  // PostgREST: Could not find the 'landmark' column of 'addresses' in the schema cache
-  const quoted = message.match(/could not find the '([^']+)' column/i);
-  if (quoted) return quoted[1];
-  // Postgres: column "landmark" of relation "addresses" does not exist
-  const relation = message.match(/column "([^"]+)" of relation/i);
-  if (relation) return relation[1];
-  return null;
-}
-
-let resolvedTable: string | null = null;
-let resolving: Promise<string | null> | null = null;
-
-/** Returns the address table name, or null when the project has none yet. */
-export async function resolveAddressTable(): Promise<string | null> {
-  if (resolvedTable) return resolvedTable;
-  if (resolving) return resolving;
-
-  resolving = (async () => {
-    for (const table of ADDRESS_TABLE_CANDIDATES) {
-      const { error } = await supabase.from(table).select("id").limit(1);
-      // No error, or an error that isn't "missing table" (e.g. RLS), means it exists.
-      if (!error || !isMissingTable(error as PostgrestErrorish)) {
-        resolvedTable = table;
-        return table;
-      }
-    }
-    if (import.meta.env.DEV) {
-      console.warn(
-        "[addresses] No address table found. Run supabase/migrations/0014_user_addresses.sql.",
-      );
-    }
-    return null;
-  })();
-
-  const result = await resolving;
-  resolving = null;
-  return result;
-}
-
 // ─── Row mapping ─────────────────────────────────────────────────────────────
 
 type RawRow = Record<string, unknown>;
@@ -194,51 +107,6 @@ function toSavedAddress(row: RawRow): SavedAddress {
   };
 }
 
-/** Canonical payload; unknown columns are dropped automatically on write. */
-function toRow(address: ShippingAddress, userId: string, isDefault: boolean): RawRow {
-  return {
-    user_id: userId,
-    full_name: address.full_name.trim(),
-    phone: normalizePhone(address.phone),
-    email: address.email.trim() || null,
-    address_line1: address.address_line1.trim(),
-    address_line2: address.address_line2.trim() || null,
-    city: address.city.trim(),
-    state: address.state.trim(),
-    pincode: address.pincode.trim(),
-    country: address.country?.trim() || "India",
-    is_default: isDefault,
-  };
-}
-
-/**
- * Write, dropping any column the target table doesn't have and retrying.
- * Lets one payload shape work against both this repo's migration and whatever
- * the mobile app created.
- */
-async function writeWithColumnFallback(
-  table: string,
-  payload: RawRow,
-  run: (table: string, payload: RawRow) => Promise<{ data: unknown; error: PostgrestErrorish }>,
-): Promise<{ data: unknown; error: PostgrestErrorish }> {
-  const body = { ...payload };
-
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const result = await run(table, body);
-    if (!result.error) return result;
-
-    const badColumn = missingColumnFrom(result.error);
-    if (!badColumn || !(badColumn in body)) return result;
-
-    delete body[badColumn];
-    if (import.meta.env.DEV) {
-      console.warn(`[addresses] '${table}' has no '${badColumn}' column — skipping it.`);
-    }
-  }
-
-  return { data: null, error: { message: "Could not save address" } };
-}
-
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
 export async function listAddresses(userId: string): Promise<SavedAddress[]> {
@@ -251,27 +119,11 @@ export async function listAddresses(userId: string): Promise<SavedAddress[]> {
         .sort((a, b) => Number(b.is_default) - Number(a.is_default));
     }
   } catch (e) {
-    if (!isNetworkOrUnavailable(e)) {
-      if (import.meta.env.DEV) {
-        console.warn("[addresses] Backend /shipping-addresses application error:", e);
-      }
-      return [];
-    }
     if (import.meta.env.DEV) {
-      console.warn("[addresses] Backend /shipping-addresses network unavailable, falling back to Supabase", e);
+      console.warn("[addresses] Backend /shipping-addresses error:", e);
     }
   }
-
-  const table = await resolveAddressTable();
-  if (!table || !userId) return [];
-
-  const { data, error } = await supabase.from(table).select("*").eq("user_id", userId);
-  if (error || !data) return [];
-
-  return (data as RawRow[])
-    .map(toSavedAddress)
-    .filter((a) => a.id)
-    .sort((a, b) => Number(b.is_default) - Number(a.is_default));
+  return [];
 }
 
 export async function createAddress(
@@ -294,39 +146,13 @@ export async function createAddress(
     if (res.data) {
       return { address: toSavedAddress(res.data), error: null };
     }
+    return { address: null, error: "Failed to save address" };
   } catch (e: any) {
-    if (!isNetworkOrUnavailable(e)) {
-      return {
-        address: null,
-        error: Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Failed to save address"),
-      };
-    }
-    if (import.meta.env.DEV) {
-      console.warn("[addresses] Backend POST /shipping-addresses network unavailable, falling back to Supabase", e);
-    }
-  }
-
-  const table = await resolveAddressTable();
-  if (!table) {
     return {
       address: null,
-      error: "No address table found. Run migration 0014_user_addresses.sql in Supabase.",
+      error: Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Failed to save address"),
     };
   }
-
-  if (makeDefault) await clearDefaults(table, userId);
-
-  const { data, error } = await writeWithColumnFallback(
-    table,
-    toRow(address, userId, makeDefault),
-    async (t, body) => {
-      const res = await supabase.from(t).insert(body).select().single();
-      return { data: res.data, error: res.error as PostgrestErrorish };
-    },
-  );
-
-  if (error) return { address: null, error: error.message ?? "Could not save address" };
-  return { address: toSavedAddress((data ?? {}) as RawRow), error: null };
 }
 
 export async function updateAddress(
@@ -350,33 +176,13 @@ export async function updateAddress(
     if (res.data) {
       return { address: toSavedAddress(res.data), error: null };
     }
+    return { address: null, error: "Failed to update address" };
   } catch (e: any) {
-    if (!isNetworkOrUnavailable(e)) {
-      return {
-        address: null,
-        error: Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Failed to update address"),
-      };
-    }
-    if (import.meta.env.DEV) {
-      console.warn(`[addresses] Backend PATCH /shipping-addresses/${id} network unavailable, falling back to Supabase`, e);
-    }
+    return {
+      address: null,
+      error: Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Failed to update address"),
+    };
   }
-
-  const table = await resolveAddressTable();
-  if (!table) return { address: null, error: "No address table found." };
-
-  if (makeDefault) await clearDefaults(table, userId);
-
-  const payload = toRow(address, userId, makeDefault);
-  delete payload.user_id; // never reassign ownership on edit
-
-  const { data, error } = await writeWithColumnFallback(table, payload, async (t, body) => {
-    const res = await supabase.from(t).update(body).eq("id", id).select().single();
-    return { data: res.data, error: res.error as PostgrestErrorish };
-  });
-
-  if (error) return { address: null, error: error.message ?? "Could not update address" };
-  return { address: toSavedAddress((data ?? {}) as RawRow), error: null };
 }
 
 export async function deleteAddress(id: string): Promise<string | null> {
@@ -384,19 +190,8 @@ export async function deleteAddress(id: string): Promise<string | null> {
     await apiClient.delete(`/shipping-addresses/${id}`);
     return null;
   } catch (e: any) {
-    if (!isNetworkOrUnavailable(e)) {
-      return Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Could not delete address");
-    }
-    if (import.meta.env.DEV) {
-      console.warn(`[addresses] Backend DELETE /shipping-addresses/${id} network unavailable, falling back to Supabase`, e);
-    }
+    return Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Could not delete address");
   }
-
-  const table = await resolveAddressTable();
-  if (!table) return "No address table found.";
-
-  const { error } = await supabase.from(table).delete().eq("id", id);
-  return error ? (error.message ?? "Could not delete address") : null;
 }
 
 export async function setDefaultAddress(userId: string, id: string): Promise<string | null> {
@@ -404,27 +199,7 @@ export async function setDefaultAddress(userId: string, id: string): Promise<str
     await apiClient.patch(`/shipping-addresses/${id}`, { is_default: true });
     return null;
   } catch (e: any) {
-    if (!isNetworkOrUnavailable(e)) {
-      return Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Could not set default address");
-    }
-    if (import.meta.env.DEV) {
-      console.warn(`[addresses] Backend PATCH /shipping-addresses/${id} network unavailable, falling back to Supabase`, e);
-    }
-  }
-
-  const table = await resolveAddressTable();
-  if (!table) return "No address table found.";
-
-  await clearDefaults(table, userId);
-  const { error } = await supabase.from(table).update({ is_default: true }).eq("id", id);
-  return error ? (error.message ?? "Could not set default address") : null;
-}
-
-async function clearDefaults(table: string, userId: string): Promise<void> {
-  try {
-    await supabase.from(table).update({ is_default: false }).eq("user_id", userId);
-  } catch {
-    /* table may not track a default — not fatal */
+    return Array.isArray(e?.message) ? e.message.join(", ") : (e?.message || "Could not set default address");
   }
 }
 

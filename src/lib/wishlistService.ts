@@ -1,34 +1,15 @@
 /**
  * MakersFlow Wishlist Service
  * 
- * Routes product wishlist actions through the NestJS backend as PRIMARY:
+ * Routes product wishlist actions exclusively through the NestJS backend:
  * - GET    /wishlist/me
  * - POST   /wishlist/:productId
  * - DELETE /wishlist/:productId
  * 
  * Identity is derived exclusively from JWT.
- * Supabase is retained only as a bounded fallback on network or gateway unavailability.
  */
 
-import { supabase } from "@/integrations/supabase/client";
-import { apiClient, ApiError } from "@/lib/auth/apiClient";
-
-function isNetworkOrUnavailable(err: unknown): boolean {
-  if (!err) return false;
-  if (err instanceof ApiError) {
-    return (
-      err.status === 0 ||
-      err.status === 408 ||
-      err.status === 502 ||
-      err.status === 503 ||
-      err.status === 504
-    );
-  }
-  if (err instanceof Error) {
-    return err.name === "AbortError" || /network|failed to fetch/i.test(err.message);
-  }
-  return false;
-}
+import { apiClient } from "@/lib/auth/apiClient";
 
 export interface WishlistItem {
   id: string;
@@ -91,26 +72,9 @@ class WishlistService {
           return ids;
         }
       } catch (e: any) {
-        if (!isNetworkOrUnavailable(e)) {
-          console.warn("[WishlistService] Backend /wishlist/me application error:", e);
-          return [];
+        if (import.meta.env.DEV) {
+          console.warn("[WishlistService] Backend /wishlist/me error:", e);
         }
-        console.warn("[WishlistService] Backend unavailable, falling back to Supabase for wishlist IDs", e);
-      }
-
-      // Bounded Supabase fallback (only on network/server outage)
-      try {
-        const { data, error } = await supabase
-          .from("wishlist")
-          .select("product_id")
-          .eq("user_id", userId);
-        if (!error && data && data.length > 0) {
-          const ids = data.map((r) => String(r.product_id));
-          this.wishlistCache = { data: ids, timestamp: Date.now() };
-          return ids;
-        }
-      } catch (err) {
-        console.warn("[WishlistService] Supabase fallback fetch error:", err);
       }
       return [];
     })().finally(() => {
@@ -143,36 +107,11 @@ class WishlistService {
         }));
       }
     } catch (e: any) {
-      if (!isNetworkOrUnavailable(e)) {
-        console.warn("[WishlistService] Backend /wishlist/me items application error:", e);
-        return [];
+      if (import.meta.env.DEV) {
+        console.warn("[WishlistService] Backend /wishlist/me items error:", e);
       }
-      console.warn("[WishlistService] Backend unavailable, falling back to Supabase for wishlist items", e);
     }
-
-    // Bounded Supabase fallback (only on network/server outage)
-    try {
-      const { data, error } = await supabase
-        .from("wishlist")
-        .select("id, product_id, created_at, products(title, price, category, thumbnail_url)")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-
-      if (error || !data) return [];
-      return data.map((r: any) => ({
-        id: String(r.id),
-        product_id: String(r.product_id),
-        title: r.products?.title ?? "Untitled Product",
-        price: Number(r.products?.price ?? 0),
-        category: r.products?.category ?? "Product",
-        thumbnail_url: r.products?.thumbnail_url ?? null,
-        type: "wishlist" as const,
-        created_at: r.created_at,
-      }));
-    } catch (err) {
-      console.warn("[WishlistService] Supabase getWishlistItems fallback error:", err);
-      return [];
-    }
+    return [];
   }
 
   /**
@@ -190,27 +129,9 @@ class WishlistService {
 
     try {
       await apiClient.post(`/wishlist/${pidStr}`);
-      return;
     } catch (e: any) {
-      if (!isNetworkOrUnavailable(e)) {
-        console.error("[WishlistService] Backend error on addToWishlist:", e);
-        throw e;
-      }
-      console.warn("[WishlistService] Backend unavailable on addToWishlist, falling back to Supabase", e);
-    }
-
-    // Bounded Supabase fallback (only on network/server outage)
-    if (userId) {
-      const { error } = await supabase
-        .from("wishlist")
-        .upsert(
-          { user_id: userId, product_id: Number(pidStr) as any },
-          { onConflict: "user_id,product_id" }
-        );
-      if (error) {
-        console.error("[WishlistService] Supabase fallback addToWishlist error:", error);
-        throw error;
-      }
+      console.error("[WishlistService] Backend error on addToWishlist:", e);
+      throw e;
     }
   }
 
@@ -229,30 +150,13 @@ class WishlistService {
 
     try {
       await apiClient.delete(`/wishlist/${pidStr}`);
-      return;
     } catch (e: any) {
-      if (!isNetworkOrUnavailable(e)) {
-        if (e?.status === 404) {
-          // Already not in wishlist, treat as successful removal
-          return;
-        }
-        console.error("[WishlistService] Backend error on removeFromWishlist:", e);
-        throw e;
+      if (e?.status === 404) {
+        // Already not in wishlist, treat as successful removal
+        return;
       }
-      console.warn("[WishlistService] Backend unavailable on removeFromWishlist, falling back to Supabase", e);
-    }
-
-    // Bounded Supabase fallback (only on network/server outage)
-    if (userId) {
-      const { error } = await supabase
-        .from("wishlist")
-        .delete()
-        .eq("user_id", userId)
-        .eq("product_id", Number(pidStr) as any);
-      if (error) {
-        console.error("[WishlistService] Supabase fallback removeFromWishlist error:", error);
-        throw error;
-      }
+      console.error("[WishlistService] Backend error on removeFromWishlist:", e);
+      throw e;
     }
   }
 

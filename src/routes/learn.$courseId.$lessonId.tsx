@@ -11,7 +11,6 @@ import { Quiz } from "@/components/learn/Quiz";
 import { LessonHeaderNav } from "@/components/learn/LessonHeaderNav";
 import { LessonUpNextCard } from "@/components/learn/LessonUpNextCard";
 import { LessonLockedView } from "@/components/learn/LessonLockedView";
-import { supabase } from "@/integrations/supabase/client";
 import { courseService } from "@/lib/courseService";
 import { enrollmentService } from "@/lib/enrollmentService";
 import {
@@ -102,25 +101,12 @@ function LessonPlayerPage() {
         return;
       }
 
-      // Check enrollment via enrollmentService OR course_purchases for paid courses
-      const [enrolled, { count: purchaseCount, error: purErr }] =
-        await Promise.all([
-          enrollmentService.isEnrolled(targetCourseId, user!.id),
-          supabase
-            .from("course_purchases")
-            .select("id", { count: "exact", head: true })
-            .eq("user_id", user!.id)
-            .eq("course_id", targetCourseId)
-            .eq("status", "active"),
-        ]);
+      // Authoritative enrollment check via NestJS enrollmentService for paid courses
+      const enrolled = await enrollmentService.isEnrolled(targetCourseId, user?.id);
 
       if (cancelled) return;
 
-      if (enrolled || (!purErr && (purchaseCount ?? 0) > 0)) {
-        setAccessGranted(true);
-      } else {
-        setAccessGranted(false);
-      }
+      setAccessGranted(Boolean(enrolled));
     }
     checkAccess();
     return () => { cancelled = true; };

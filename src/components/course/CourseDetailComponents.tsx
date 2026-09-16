@@ -7,7 +7,7 @@ import { CurriculumAccordion } from "@/components/course/CurriculumAccordion";
 import { type CourseDetail, type Module, type Review, submitCourseReview, fetchMyCourseReview } from "@/lib/explore-data";
 import { ImageCarousel } from "@/components/common/ImageCarousel";
 import Folder from "@/components/Folder";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 import { courseService } from "@/lib/courseService";
 
 // ─── Stat ─────────────────────────────────────────────────────────────────────
@@ -252,13 +252,26 @@ export function OverviewTab({
       // Get all lesson IDs for this course via courseService
       const lessonIds = await courseService.getLessonIdsForCourse(course.id);
       if (!lessonIds || lessonIds.length === 0) return [];
-      const { data: resources } = await supabase
-        .from("lesson_resources")
-        .select("id, title, url, type")
-        .in("lesson_id", lessonIds)
-        .order("created_at", { ascending: true });
 
-      return resources ?? [];
+      try {
+        const validIds = lessonIds.filter((id) => id && !isNaN(Number(id)));
+        if (validIds.length === 0) return [];
+        const results = await Promise.allSettled(
+          validIds.map((id) => apiClient.get<any>(`/lesson-resources/lesson/${id}`))
+        );
+        const allResources: any[] = [];
+        for (const res of results) {
+          if (res.status === "fulfilled") {
+            const list = res.value?.data ?? (Array.isArray(res.value) ? res.value : []);
+            if (Array.isArray(list)) {
+              allResources.push(...list);
+            }
+          }
+        }
+        return allResources;
+      } catch {
+        return [];
+      }
     },
     staleTime: 60_000,
   });

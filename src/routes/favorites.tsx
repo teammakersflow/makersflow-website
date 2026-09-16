@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { PredictiveText } from "@/components/ui/predictive-text";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 import { formatPrice } from "@/lib/store-data";
 import { toggleCourseFavorite, toggleWatchLater, toggleWishlist } from "@/lib/saved-items-data";
 import { wishlistService } from "@/lib/wishlistService";
@@ -62,22 +62,22 @@ function FavoritesPage() {
     queryKey: ["favorites", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from("course_favorites")
-        .select("id, course_id, created_at, courses(title, category, thumbnail_url)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error || !data) return [];
-      return data.map((r: any) => ({
-        id: String(r.id),
-        course_id: String(r.course_id),
-        title: r.courses?.title ?? "Untitled Course",
-        category: r.courses?.category ?? "Course",
-        thumbnail_url: r.courses?.thumbnail_url ?? null,
-        type: "favorite" as const,
-        created_at: r.created_at,
-      }));
+      try {
+        const res = await apiClient.get<any[]>("/course-favorites");
+        const items = res.data ?? [];
+        return items.map((r: any) => ({
+          id: String(r.id),
+          course_id: String(r.course_id),
+          title: r.courses?.title ?? "Untitled Course",
+          category: r.courses?.category ?? "Course",
+          thumbnail_url: r.courses?.thumbnail_url ?? null,
+          type: "favorite" as const,
+          created_at: r.created_at,
+        }));
+      } catch (err) {
+        console.error("[favoritesQ] Error:", err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });
@@ -86,22 +86,22 @@ function FavoritesPage() {
     queryKey: ["watch_later", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from("watch_later")
-        .select("id, course_id, created_at, courses(title, category, thumbnail_url)")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error || !data) return [];
-      return data.map((r: any) => ({
-        id: String(r.id),
-        course_id: String(r.course_id),
-        title: r.courses?.title ?? "Untitled Course",
-        category: r.courses?.category ?? "Course",
-        thumbnail_url: r.courses?.thumbnail_url ?? null,
-        type: "watch_later" as const,
-        created_at: r.created_at,
-      }));
+      try {
+        const res = await apiClient.get<any[]>("/watch-later");
+        const items = res.data ?? [];
+        return items.map((r: any) => ({
+          id: String(r.id),
+          course_id: String(r.course_id),
+          title: r.courses?.title ?? "Untitled Course",
+          category: r.courses?.category ?? "Course",
+          thumbnail_url: r.courses?.thumbnail_url ?? null,
+          type: "watch_later" as const,
+          created_at: r.created_at,
+        }));
+      } catch (err) {
+        console.error("[watchLaterQ] Error:", err);
+        return [];
+      }
     },
     enabled: !!user?.id,
   });

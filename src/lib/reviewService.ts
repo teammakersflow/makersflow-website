@@ -5,6 +5,7 @@
  */
 
 import { apiClient, ApiError, type ApiResponse } from "@/lib/auth/apiClient";
+import { customAuthService } from "@/lib/auth/customAuthService";
 import { supabase } from "@/integrations/supabase/client";
 import { courseService } from "@/lib/courseService";
 
@@ -187,15 +188,15 @@ class ReviewService {
 
       console.warn(`[ReviewService] Backend unavailable, attempting Supabase fallback for my review ${courseId}:`, err);
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (!authData?.user) return null;
+        const currentUserId = customAuthService.getCachedUser()?.id;
+        if (!currentUserId) return null;
 
         const numericCourseId = Number(targetCourseId);
         const { data, error: sbError } = await supabase
           .from("reviews")
           .select("id, user_id, course_id, rating, comment, status, created_at")
           .eq("course_id", numericCourseId)
-          .eq("user_id", authData.user.id)
+          .eq("user_id", currentUserId)
           .maybeSingle();
 
         if (sbError || !data) return null;
@@ -256,8 +257,8 @@ class ReviewService {
 
       console.warn(`[ReviewService] Backend unavailable on submitCourseReview for ${courseId}, attempting Supabase fallback:`, err);
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (!authData?.user) {
+        const currentUserId = customAuthService.getCachedUser()?.id;
+        if (!currentUserId) {
           return { ok: false, error: "Please sign in to submit a review." };
         }
 
@@ -266,7 +267,7 @@ class ReviewService {
           .from("reviews")
           .upsert(
             {
-              user_id: authData.user.id,
+              user_id: currentUserId,
               course_id: numericCourseId,
               rating: Math.round(rating),
               comment: comment?.trim() || null,
@@ -460,15 +461,15 @@ class ReviewService {
 
       console.warn(`[ReviewService] Backend unavailable, attempting Supabase fallback for my product review ${productId}:`, err);
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (!authData?.user) return null;
+        const currentUserId = customAuthService.getCachedUser()?.id;
+        if (!currentUserId) return null;
 
         const numericProductId = Number(productIdStr);
         const { data, error: sbError } = await supabase
           .from("product_reviews")
           .select("id, user_id, product_id, rating, comment, status, created_at")
           .eq("product_id", numericProductId)
-          .eq("user_id", authData.user.id)
+          .eq("user_id", currentUserId)
           .maybeSingle();
 
         if (sbError || !data) return null;
@@ -522,8 +523,8 @@ class ReviewService {
 
       console.warn(`[ReviewService] Backend unavailable on submitProductReview for ${productId}, attempting Supabase fallback:`, err);
       try {
-        const { data: authData } = await supabase.auth.getUser();
-        if (!authData?.user) {
+        const currentUserId = customAuthService.getCachedUser()?.id;
+        if (!currentUserId) {
           return { ok: false, error: "Please sign in to submit a review." };
         }
 
@@ -532,7 +533,7 @@ class ReviewService {
           .from("product_reviews")
           .upsert(
             {
-              user_id: authData.user.id,
+              user_id: currentUserId,
               product_id: numericProductId,
               rating: Math.round(rating),
               comment: comment?.trim() || null,

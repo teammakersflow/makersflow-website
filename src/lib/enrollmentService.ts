@@ -69,10 +69,15 @@ class EnrollmentService {
 
     this.pendingMyEnrollmentsPromise = (async () => {
       try {
-        const res: ApiResponse<BackendEnrollment[]> =
-          await apiClient.get<BackendEnrollment[]>("/enrollments/me");
+        let res: any;
+        try {
+          res = await apiClient.get<BackendEnrollment[]>("/enrollments/my");
+        } catch {
+          res = await apiClient.get<BackendEnrollment[]>("/enrollments/me");
+        }
 
-        const enrollments = res.data ?? [];
+        const rawList = res?.data ?? (Array.isArray(res) ? res : []);
+        const enrollments = Array.isArray(rawList) ? rawList : [];
         // Normalize IDs to strings
         const normalized = enrollments.map((e) => ({
           ...e,
@@ -213,18 +218,27 @@ class EnrollmentService {
     try {
       const targetCourseId = await courseService.resolveCourseId(courseIdStr);
 
-      const res = await apiClient.post<BackendEnrollment>(
-        `/courses/${targetCourseId}/enroll`,
-        {},
-      );
+      let res: any;
+      try {
+        res = await apiClient.post<BackendEnrollment>(
+          "/enrollments/free",
+          { course_id: Number(targetCourseId) },
+        );
+      } catch (freeErr: any) {
+        // Fall back to /courses/:id/enroll if backend routes differ
+        res = await apiClient.post<BackendEnrollment>(
+          `/courses/${targetCourseId}/enroll`,
+          {},
+        );
+      }
 
       // Invalidate cache on successful enrollment
       this.invalidateCache();
 
       return {
         ok: true,
-        data: res.data,
-        message: res.message || "Enrolled successfully",
+        data: res?.data ?? res,
+        message: res?.message || "Enrolled successfully",
       };
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Failed to enroll";

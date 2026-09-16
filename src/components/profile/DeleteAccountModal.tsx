@@ -3,8 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { tokenStorage } from "@/lib/auth/tokenStorage";
-import { signOut } from "@/integrations/supabase/auth";
+import { customAuthService } from "@/lib/auth/customAuthService";
 
 export function DeleteAccountModal({
   open,
@@ -22,27 +21,11 @@ export function DeleteAccountModal({
     setDeleting(true);
 
     try {
-      const token = tokenStorage.getAccessToken();
-
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey =
-        import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      const res = await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          apikey: anonKey,
-        },
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Deletion failed");
+      const res = await customAuthService.deleteAccount();
+      if (!res.success) {
+        throw new Error(res.error ?? "Account deletion failed");
       }
 
-      await signOut();
       toast.success("Account deleted successfully");
       onClose();
       navigate({ to: "/" });

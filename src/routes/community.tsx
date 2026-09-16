@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Users, MessageSquare, Award, Compass } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,24 +42,20 @@ function CommunityPage() {
     }
 
     setIsSubmitting(true);
-    const { error: dbError } = await supabase
-      .from("waitlist_signups")
-      .insert({ email: email.trim().toLowerCase() });
-
-    setIsSubmitting(false);
-
-    if (dbError) {
-      if (dbError.code === "23505") {
+    try {
+      await apiClient.post("/waitlist", { email: email.trim().toLowerCase() });
+      toast.success("Success! You've been added to the community waitlist. 🎉");
+      setEmail("");
+    } catch (err: any) {
+      if (err?.status === 409) {
         toast.info("You are already on the community waitlist! 🎉");
         setEmail("");
-        return;
+      } else {
+        toast.error("Could not save waitlist entry. Please try again.");
       }
-      toast.error("Could not save waitlist entry. Please try again.");
-      return;
+    } finally {
+      setIsSubmitting(false);
     }
-
-    toast.success("Success! You've been added to the community waitlist. 🎉");
-    setEmail("");
   };
 
   return (

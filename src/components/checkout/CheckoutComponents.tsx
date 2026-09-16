@@ -20,23 +20,7 @@ import {
 import { useCart, type CartItem } from "@/lib/cart";
 import { formatPrice } from "@/lib/store-data";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
 import { apiClient } from "@/lib/auth/apiClient";
-
-// Helper to call Supabase edge functions
-async function supabaseFn(name: string, body: Record<string, unknown>) {
-  const { data, error } = await supabase.functions.invoke(name, { body });
-  if (error) throw new Error(error.message);
-  return data as Record<string, unknown>;
-}
-
-type CouponValidation = {
-  valid: boolean;
-  discount: number;
-  label: string;
-  coupon_id: string;
-  message?: string;
-};
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -692,66 +676,40 @@ export function OrderSummary({
     const productIds = items.filter((i) => !i.is_course).map((i) => i.id);
 
     try {
-      // 1. Try backend NestJS /coupons/validate
-      try {
-        const res = await apiClient.post<{
-          valid: boolean;
-          coupon_id: string;
-          code: string;
-          discount_amount: number;
-          final_amount: number;
-        }>("/coupons/validate", {
-          code: key,
-          order_amount: subtotal,
-          course_ids: courseIds.length ? courseIds : undefined,
-          product_ids: productIds.length ? productIds : undefined,
-        });
-
-        if (res.data?.valid) {
-          const applied: PromoState = {
-            status: "applied",
-            code: res.data.code || key,
-            amount: res.data.discount_amount,
-            label: `${res.data.code || key} applied`,
-            coupon_id: res.data.coupon_id,
-          };
-          setPromo(applied);
-          setPromoInput("");
-          onCouponChange?.(res.data.discount_amount, res.data.code || key, res.data.coupon_id);
-          return;
-        }
-      } catch (backendErr: any) {
-        if (backendErr?.status && backendErr.status >= 400 && backendErr.status < 500) {
-          setPromo({ status: "error", message: backendErr.message || "Invalid promo code" });
-          onCouponChange?.(0, null, null);
-          return;
-        }
-      }
-
-      // 2. Fallback to Supabase validate-coupon function
-      const res = (await supabaseFn("validate-coupon", {
+      const res = await apiClient.post<{
+        valid: boolean;
+        coupon_id: string;
+        code: string;
+        discount_amount: number;
+        final_amount: number;
+      }>("/coupons/validate", {
         code: key,
-        subtotal,
-        item_ids: items.map((i) => i.course_id ?? i.id),
-      })) as unknown as CouponValidation;
+        order_amount: subtotal,
+        course_ids: courseIds.length ? courseIds : undefined,
+        product_ids: productIds.length ? productIds : undefined,
+      });
 
-      if (res.valid) {
+      if (res.data?.valid) {
         const applied: PromoState = {
           status: "applied",
-          code: key,
-          amount: res.discount,
-          label: res.label,
-          coupon_id: res.coupon_id,
+          code: res.data.code || key,
+          amount: res.data.discount_amount,
+          label: `${res.data.code || key} applied`,
+          coupon_id: res.data.coupon_id,
         };
         setPromo(applied);
         setPromoInput("");
-        onCouponChange?.(res.discount, key, res.coupon_id);
+        onCouponChange?.(res.data.discount_amount, res.data.code || key, res.data.coupon_id);
       } else {
-        setPromo({ status: "error", message: res.message ?? "Invalid promo code" });
+        setPromo({ status: "error", message: "Invalid promo code" });
         onCouponChange?.(0, null, null);
       }
-    } catch {
-      setPromo({ status: "error", message: "Could not validate coupon. Try again." });
+    } catch (backendErr: any) {
+      const msg = Array.isArray(backendErr?.message)
+        ? backendErr.message.join(", ")
+        : (backendErr?.message || "Invalid promo code");
+      setPromo({ status: "error", message: msg });
+      onCouponChange?.(0, null, null);
     } finally {
       setApplying(false);
     }

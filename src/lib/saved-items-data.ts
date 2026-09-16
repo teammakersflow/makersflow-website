@@ -1,8 +1,49 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "./auth/apiClient";
 import { wishlistService } from "./wishlistService";
 import { resolveCourseId } from "./explore-data";
 
 // ── Course Favorites ────────────────────────────────────────────────────────
+
+let courseFavoritesCache: { data: string[]; timestamp: number } | null = null;
+let pendingCourseFavoritesPromise: Promise<string[]> | null = null;
+
+export function invalidateCourseFavoritesCache(): void {
+  courseFavoritesCache = null;
+  pendingCourseFavoritesPromise = null;
+}
+
+export async function getCourseFavorites(userId?: string): Promise<string[]> {
+  if (!userId) return [];
+  const now = Date.now();
+  if (courseFavoritesCache && now - courseFavoritesCache.timestamp < 15000) {
+    return courseFavoritesCache.data;
+  }
+
+  if (pendingCourseFavoritesPromise) {
+    return pendingCourseFavoritesPromise;
+  }
+
+  pendingCourseFavoritesPromise = (async () => {
+    try {
+      const res = await apiClient.get<any[]>("/course-favorites");
+      const items = res.data ?? [];
+      if (Array.isArray(items)) {
+        const ids = items.map((r: any) => String(r.course_id ?? r.courses?.id ?? r.id));
+        courseFavoritesCache = { data: ids, timestamp: Date.now() };
+        return ids;
+      }
+    } catch (e: any) {
+      if (import.meta.env.DEV) {
+        console.warn("[saved-items-data] /course-favorites fetch error:", e);
+      }
+    }
+    return [];
+  })().finally(() => {
+    pendingCourseFavoritesPromise = null;
+  });
+
+  return pendingCourseFavoritesPromise;
+}
 
 export async function isCourseFavorite(userId: string, courseId: string | number): Promise<boolean> {
   if (!userId) return false;
@@ -18,13 +59,8 @@ export async function isCourseFavorite(userId: string, courseId: string | number
 
   try {
     const targetCourseId = await resolveCourseId(courseId);
-    const { data } = await supabase
-      .from("course_favorites")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("course_id", targetCourseId)
-      .maybeSingle();
-    return !!data;
+    const list = await getCourseFavorites(userId);
+    return list.includes(String(targetCourseId));
   } catch {
     return false;
   }
@@ -56,31 +92,65 @@ export async function toggleCourseFavorite(
 
   try {
     const targetCourseId = await resolveCourseId(courseId);
-    const { data: existing } = await supabase
-      .from("course_favorites")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("course_id", targetCourseId)
-      .maybeSingle();
+    const isFav = await isCourseFavorite(userId, targetCourseId);
+    invalidateCourseFavoritesCache();
 
-    if (existing) {
-      const { error } = await supabase.from("course_favorites").delete().eq("id", existing.id);
-      if (error) throw error;
+    if (isFav) {
+      await apiClient.delete(`/course-favorites/${encodeURIComponent(String(targetCourseId))}`);
       return { favorite: false };
     } else {
-      const { error } = await supabase
-        .from("course_favorites")
-        .insert({ user_id: userId, course_id: targetCourseId });
-      if (error) throw error;
+      await apiClient.post(`/course-favorites/${encodeURIComponent(String(targetCourseId))}`);
       return { favorite: true };
     }
   } catch (err: any) {
     console.error("[toggleCourseFavorite] Error:", err);
+    invalidateCourseFavoritesCache();
     return { favorite: false, error: "Could not update course favorites" };
   }
 }
 
 // ── Watch Later ────────────────────────────────────────────────────────────
+
+let watchLaterCache: { data: string[]; timestamp: number } | null = null;
+let pendingWatchLaterPromise: Promise<string[]> | null = null;
+
+export function invalidateWatchLaterCache(): void {
+  watchLaterCache = null;
+  pendingWatchLaterPromise = null;
+}
+
+export async function getWatchLater(userId?: string): Promise<string[]> {
+  if (!userId) return [];
+  const now = Date.now();
+  if (watchLaterCache && now - watchLaterCache.timestamp < 15000) {
+    return watchLaterCache.data;
+  }
+
+  if (pendingWatchLaterPromise) {
+    return pendingWatchLaterPromise;
+  }
+
+  pendingWatchLaterPromise = (async () => {
+    try {
+      const res = await apiClient.get<any[]>("/watch-later");
+      const items = res.data ?? [];
+      if (Array.isArray(items)) {
+        const ids = items.map((r: any) => String(r.course_id ?? r.courses?.id ?? r.id));
+        watchLaterCache = { data: ids, timestamp: Date.now() };
+        return ids;
+      }
+    } catch (e: any) {
+      if (import.meta.env.DEV) {
+        console.warn("[saved-items-data] /watch-later fetch error:", e);
+      }
+    }
+    return [];
+  })().finally(() => {
+    pendingWatchLaterPromise = null;
+  });
+
+  return pendingWatchLaterPromise;
+}
 
 export async function isWatchLater(userId: string, courseId: string | number): Promise<boolean> {
   if (!userId) return false;
@@ -96,13 +166,8 @@ export async function isWatchLater(userId: string, courseId: string | number): P
 
   try {
     const targetCourseId = await resolveCourseId(courseId);
-    const { data } = await supabase
-      .from("watch_later")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("course_id", targetCourseId)
-      .maybeSingle();
-    return !!data;
+    const list = await getWatchLater(userId);
+    return list.includes(String(targetCourseId));
   } catch {
     return false;
   }
@@ -134,26 +199,19 @@ export async function toggleWatchLater(
 
   try {
     const targetCourseId = await resolveCourseId(courseId);
-    const { data: existing } = await supabase
-      .from("watch_later")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("course_id", targetCourseId)
-      .maybeSingle();
+    const isSaved = await isWatchLater(userId, targetCourseId);
+    invalidateWatchLaterCache();
 
-    if (existing) {
-      const { error } = await supabase.from("watch_later").delete().eq("id", existing.id);
-      if (error) throw error;
+    if (isSaved) {
+      await apiClient.delete(`/watch-later/${encodeURIComponent(String(targetCourseId))}`);
       return { saved: false };
     } else {
-      const { error } = await supabase
-        .from("watch_later")
-        .insert({ user_id: userId, course_id: targetCourseId });
-      if (error) throw error;
+      await apiClient.post(`/watch-later/${encodeURIComponent(String(targetCourseId))}`);
       return { saved: true };
     }
   } catch (err: any) {
     console.error("[toggleWatchLater] Error:", err);
+    invalidateWatchLaterCache();
     return { saved: false, error: "Could not update watch later list" };
   }
 }

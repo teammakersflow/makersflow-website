@@ -1,9 +1,17 @@
 import { apiClient } from "./auth/apiClient";
 
+export interface CreatePaymentOrderItem {
+  productId: string | number;
+  quantity: number;
+}
+
 export interface CreatePaymentOrderParams {
-  amount: number; // in INR Rupees (backend multiplies by 100 to get paise)
+  amount?: number; // in INR Rupees (retained for compatibility, backend calculates authoritative total)
   currency?: string; // defaults to 'INR'
   receipt?: string;
+  items: CreatePaymentOrderItem[];
+  shipping_address?: Record<string, any> | null;
+  order_type?: string; // defaults to 'product'
 }
 
 export interface RazorpayOrderResponse {
@@ -12,6 +20,14 @@ export interface RazorpayOrderResponse {
   currency: string; // "INR"
   payment_id: string; // database payments table UUID
   key_id?: string; // public Razorpay Key ID
+  pricing?: {
+    subtotal: string;
+    tax_amount: string;
+    shipping_amount: string;
+    discount_amount: string;
+    total_amount: string;
+    items?: any[];
+  };
 }
 
 export interface VerifyPaymentParams {
@@ -24,13 +40,15 @@ export interface VerifyPaymentResponse {
   success: boolean;
   message?: string;
   payment?: any;
+  order?: any;
+  invoice?: any;
 }
 
 export const paymentService = {
   /**
    * Creates a Razorpay order via backend POST /payments/create-order.
    * Student identity is derived exclusively from JWT Bearer token on backend.
-   * Amount should be in INR Rupees.
+   * Backend calculates authoritative total from database prices and GST rates.
    */
   async createPaymentOrder(params: CreatePaymentOrderParams): Promise<RazorpayOrderResponse> {
     try {
@@ -38,6 +56,9 @@ export const paymentService = {
         amount: params.amount,
         currency: params.currency || "INR",
         receipt: params.receipt,
+        items: params.items,
+        shipping_address: params.shipping_address,
+        order_type: params.order_type || "product",
       });
 
       const data = res?.data ?? res;
@@ -52,6 +73,7 @@ export const paymentService = {
         currency: data.currency || "INR",
         payment_id: data.payment_id,
         key_id: data.key_id,
+        pricing: data.pricing,
       };
     } catch (error) {
       console.error("[PaymentService] createPaymentOrder error:", error);
@@ -72,12 +94,14 @@ export const paymentService = {
       });
 
       const data = res?.data ?? res;
-      const success = Boolean(data?.success ?? true);
+      const success = data?.success === true;
 
       return {
         success,
         message: data?.message,
         payment: data?.payment,
+        order: data?.order,
+        invoice: data?.invoice,
       };
     } catch (error) {
       console.error("[PaymentService] verifyPayment error:", error);

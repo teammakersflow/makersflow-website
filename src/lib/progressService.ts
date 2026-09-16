@@ -7,6 +7,7 @@ import { apiClient, type ApiResponse } from "@/lib/auth/apiClient";
 import { courseService } from "@/lib/courseService";
 
 export interface BackendLessonProgressItem {
+  id?: string;
   lesson_id: string;
   is_completed: boolean;
   current_time_secs: number;
@@ -90,32 +91,76 @@ class ProgressService {
 
     const promise = (async () => {
       try {
-        const res: ApiResponse<BackendCourseProgress> =
-          await apiClient.get<BackendCourseProgress>(
-            `/lesson-progress/course/${targetCourseId}`,
+        const res: ApiResponse<any> =
+          await apiClient.get<any>(
+            `/lesson-progress/my/course/${targetCourseId}`,
           );
 
         if (!res.data) return null;
 
         const raw = res.data;
+        const lessonsProgress: BackendLessonProgressItem[] = raw.lessons
+          ? raw.lessons
+              .filter((l: any) => l.progress != null)
+              .map((l: any) => ({
+                id: l.progress?.id ? String(l.progress.id) : undefined,
+                lesson_id: String(l.lesson_id),
+                is_completed: Boolean(l.progress?.is_completed),
+                current_time_secs: Number(l.progress?.current_time_secs ?? 0),
+                watch_percentage: Number(l.progress?.watch_percentage ?? 0),
+                time_spent_secs: Number(l.progress?.time_spent_secs ?? 0),
+                last_watched_at: l.progress?.last_watched_at ?? null,
+              }))
+          : (raw.lessonsProgress ?? []).map((p: any) => ({
+              id: p.id ? String(p.id) : undefined,
+              lesson_id: String(p.lesson_id),
+              is_completed: Boolean(p.is_completed),
+              current_time_secs: Number(p.current_time_secs ?? 0),
+              watch_percentage: Number(p.watch_percentage ?? 0),
+              time_spent_secs: Number(p.time_spent_secs ?? 0),
+              last_watched_at: p.last_watched_at ?? null,
+            }));
+
+        const totalLessons = Number(
+          raw.total_lessons ?? raw.totalLessons ?? (raw.lessons?.length || 0),
+        );
+        const completedLessonsCount = Number(
+          raw.completed_lessons ??
+            raw.completedLessonsCount ??
+            lessonsProgress.filter((p) => p.is_completed).length,
+        );
+        const completedLessonIds = (
+          raw.completedLessonIds ??
+          lessonsProgress.filter((p) => p.is_completed).map((p) => p.lesson_id)
+        ).map((id: any) => String(id));
+        const completionPercentage = Number(
+          raw.completion_percentage ??
+            raw.completionPercentage ??
+            (totalLessons > 0
+              ? Math.round((completedLessonsCount / totalLessons) * 100)
+              : 0),
+        );
+        const totalTimeSpentSecs = Number(
+          raw.totalTimeSpentSecs ??
+            lessonsProgress.reduce(
+              (sum, p) => sum + (p.time_spent_secs || 0),
+              0,
+            ),
+        );
+
         const normalized: BackendCourseProgress = {
-          courseId: String(raw.courseId),
-          totalLessons: Number(raw.totalLessons ?? 0),
-          completedLessonsCount: Number(raw.completedLessonsCount ?? 0),
-          completedLessonIds: (raw.completedLessonIds ?? []).map((id) => String(id)),
-          completionPercentage: Number(raw.completionPercentage ?? 0),
-          totalTimeSpentSecs: Number(raw.totalTimeSpentSecs ?? 0),
-          lessonsProgress: (raw.lessonsProgress ?? []).map((p) => ({
-            lesson_id: String(p.lesson_id),
-            is_completed: Boolean(p.is_completed),
-            current_time_secs: Number(p.current_time_secs ?? 0),
-            watch_percentage: Number(p.watch_percentage ?? 0),
-            time_spent_secs: Number(p.time_spent_secs ?? 0),
-            last_watched_at: p.last_watched_at ?? null,
-          })),
+          courseId: String(raw.course_id ?? raw.courseId ?? targetCourseId),
+          totalLessons,
+          completedLessonsCount,
+          completedLessonIds,
+          completionPercentage,
+          totalTimeSpentSecs,
+          lessonsProgress,
           lastAccessedLessonId: raw.lastAccessedLessonId
             ? String(raw.lastAccessedLessonId)
-            : null,
+            : lessonsProgress.length > 0
+              ? lessonsProgress[lessonsProgress.length - 1].lesson_id
+              : null,
         };
 
         this.courseProgressCache.set(targetCourseId, {
@@ -137,9 +182,9 @@ class ProgressService {
   }
 
   /**
-   * Sync/Upsert lesson progress for current student (POST /lesson-progress/sync).
-   * Notice: Backend DTO expects numeric course_id and lesson_id.
-   * Safe integer boundary conversion is performed only at this HTTP boundary.
+   * Sync/Upsert lesson progress for current student via backend API.
+   * Calls PATCH /lesson-progress/:id with UpdateLessonProgressDto if existing,
+   * or POST /lesson-progress with CreateLessonProgressDto if new.
    */
   public async syncLessonProgress(
     payload: SyncProgressPayload,
@@ -168,39 +213,110 @@ class ProgressService {
           "[ProgressService] ID exceeds safe integer bounds or is non-positive for sync:",
           { targetCourseId, lessonIdStr },
         );
-        throw new Error("Numeric ID conversion unsafe for lesson progress sync DTO");
+        throw new Error("Numeric ID conversion unsafe for lesson progress DTO");
       }
 
-      const body: Record<string, any> = {
-        course_id: numCourseId,
-        lesson_id: numLessonId,
-      };
-
-      if (payload.is_completed !== undefined) {
-        body.is_completed = Boolean(payload.is_completed);
-      }
-      if (payload.current_time_secs !== undefined) {
-        body.current_time_secs = Math.max(0, Math.floor(payload.current_time_secs));
-      }
-      if (payload.watch_percentage !== undefined) {
-        body.watch_percentage = Math.max(0, Math.min(100, Math.round(payload.watch_percentage)));
-      }
-      if (payload.time_spent_secs !== undefined) {
-        body.time_spent_secs = Math.max(0, Math.floor(payload.time_spent_secs));
-      }
-      if (payload.last_watched_at) {
-        body.last_watched_at = payload.last_watched_at;
-      }
-
-      const res = await apiClient.post<BackendLessonProgressItem>(
-        "/lesson-progress/sync",
-        body,
+      // Check if progress record exists for this lesson
+      const currentProgress = await this.getCourseProgress(targetCourseId);
+      const existing = (currentProgress?.lessonsProgress as any[])?.find(
+        (p: any) => String(p.lesson_id) === String(numLessonId),
       );
+
+      let resultData: any = null;
+
+      if (existing?.id) {
+        // Record exists: PATCH /lesson-progress/:id (UpdateLessonProgressDto)
+        const patchDto: Record<string, any> = {};
+        if (payload.is_completed !== undefined) {
+          patchDto.is_completed = Boolean(payload.is_completed);
+        }
+        if (payload.current_time_secs !== undefined) {
+          patchDto.current_time_secs = Math.max(0, Math.floor(payload.current_time_secs));
+        }
+        if (payload.watch_percentage !== undefined) {
+          patchDto.watch_percentage = Math.max(0, Math.min(100, Math.round(payload.watch_percentage)));
+        }
+        if (payload.time_spent_secs !== undefined) {
+          patchDto.time_spent_secs = Math.max(0, Math.floor(payload.time_spent_secs));
+        }
+        if (payload.last_watched_at) {
+          patchDto.last_watched_at = payload.last_watched_at;
+        }
+
+        const res = await apiClient.patch<any>(`/lesson-progress/${existing.id}`, patchDto);
+        resultData = res.data ?? null;
+      } else {
+        // New record: POST /lesson-progress (CreateLessonProgressDto)
+        const createDto: Record<string, any> = {
+          course_id: numCourseId,
+          lesson_id: numLessonId,
+        };
+        if (payload.is_completed !== undefined) {
+          createDto.is_completed = Boolean(payload.is_completed);
+        }
+        if (payload.current_time_secs !== undefined) {
+          createDto.current_time_secs = Math.max(0, Math.floor(payload.current_time_secs));
+        }
+        if (payload.watch_percentage !== undefined) {
+          createDto.watch_percentage = Math.max(0, Math.min(100, Math.round(payload.watch_percentage)));
+        }
+        if (payload.time_spent_secs !== undefined) {
+          createDto.time_spent_secs = Math.max(0, Math.floor(payload.time_spent_secs));
+        }
+        if (payload.last_watched_at) {
+          createDto.last_watched_at = payload.last_watched_at;
+        }
+
+        try {
+          const res = await apiClient.post<any>("/lesson-progress", createDto);
+          resultData = res.data ?? null;
+        } catch (postErr: any) {
+          if (postErr?.status === 409 || postErr?.data?.statusCode === 409) {
+            const refreshed = await this.getCourseProgress(targetCourseId, true);
+            const found = (refreshed?.lessonsProgress as any[])?.find(
+              (p: any) => String(p.lesson_id) === String(numLessonId),
+            );
+            if (found?.id) {
+              const patchDto: Record<string, any> = {};
+              if (payload.is_completed !== undefined) {
+                patchDto.is_completed = Boolean(payload.is_completed);
+              }
+              if (payload.current_time_secs !== undefined) {
+                patchDto.current_time_secs = Math.max(0, Math.floor(payload.current_time_secs));
+              }
+              if (payload.watch_percentage !== undefined) {
+                patchDto.watch_percentage = Math.max(0, Math.min(100, Math.round(payload.watch_percentage)));
+              }
+              if (payload.time_spent_secs !== undefined) {
+                patchDto.time_spent_secs = Math.max(0, Math.floor(payload.time_spent_secs));
+              }
+              if (payload.last_watched_at) {
+                patchDto.last_watched_at = payload.last_watched_at;
+              }
+
+              const patchRes = await apiClient.patch<any>(`/lesson-progress/${found.id}`, patchDto);
+              resultData = patchRes.data ?? null;
+            }
+          } else {
+            throw postErr;
+          }
+        }
+      }
 
       // Invalidate course progress cache for this course
       this.invalidateCourseCache(targetCourseId);
 
-      return res.data ?? null;
+      if (!resultData) return null;
+
+      return {
+        id: resultData.id ? String(resultData.id) : undefined,
+        lesson_id: String(resultData.lesson_id ?? numLessonId),
+        is_completed: Boolean(resultData.is_completed),
+        current_time_secs: Number(resultData.current_time_secs ?? 0),
+        watch_percentage: Number(resultData.watch_percentage ?? 0),
+        time_spent_secs: Number(resultData.time_spent_secs ?? 0),
+        last_watched_at: resultData.last_watched_at ?? null,
+      };
     } catch (err) {
       console.error("[ProgressService] syncLessonProgress failed:", err);
       throw err;

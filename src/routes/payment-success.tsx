@@ -51,13 +51,24 @@ function PaymentSuccessPage() {
           if (Array.isArray(items)) {
             setHasCourses(items.some((i: any) => i.is_course));
           }
-          generateInvoiceNumber().then((seq) => {
+
+          // Prioritize server-authoritative invoice number if returned by backend
+          const serverInvoiceNum = (order as any).invoices?.[0]?.invoice_number || (order as any).invoice_number;
+          if (serverInvoiceNum) {
             setInvoice({
               id: order.id,
-              invoice_number: seq,
+              invoice_number: serverInvoiceNum,
               total_amount: Number(order.total_amount) || total,
             });
-          });
+          } else {
+            generateInvoiceNumber().then((seq) => {
+              setInvoice({
+                id: order.id,
+                invoice_number: seq,
+                total_amount: Number(order.total_amount) || total,
+              });
+            });
+          }
         }
       })
       .catch((err) => {
@@ -66,6 +77,13 @@ function PaymentSuccessPage() {
   }, [order_id, total]);
 
   const downloadInvoice = async () => {
+    // If backend provided an authoritative invoice URL or PDF, open it directly
+    const serverInvoiceUrl = orderDetails?.invoice_url || (orderDetails as any)?.invoices?.[0]?.invoice_url;
+    if (serverInvoiceUrl) {
+      window.open(serverInvoiceUrl, "_blank");
+      return;
+    }
+
     if (!invoice) return;
     const seller = await fetchSellerSettings();
     const items = (orderDetails?.items as any[]) ?? [];

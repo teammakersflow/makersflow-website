@@ -32,7 +32,7 @@ import {
   StatBox,
   TextField,
 } from "@/components/challenges/ChallengeUI";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/auth/apiClient";
 
 export const Route = createFileRoute("/challenges/30-day")({
   head: () => ({
@@ -498,35 +498,30 @@ function RegistrationForm() {
     }
 
     setSaving(true);
-    const { error } = await supabase.from("challenge_registrations").insert({
-      full_name: form.full_name.trim(),
-      age: form.age ? Number(form.age) : null,
-      email: form.email.trim().toLowerCase(),
-      phone: form.phone.replace(/\D/g, "").slice(-10),
-      institution: form.institution.trim(),
-      class_year: form.class_year.trim() || null,
-      city: form.city.trim() || null,
-      project_category: form.project_category || null,
-      motivation: form.motivation.trim() || null,
-    });
-    setSaving(false);
-
-    if (error) {
-      // A missing table is a setup problem, not the visitor's fault — say so
-      // plainly rather than showing a raw Postgres error.
-      const missingTable =
-        error.code === "42P01" || (error.message ?? "").toLowerCase().includes("schema cache");
-      toast.error(
-        missingTable
-          ? "Registration isn't set up yet. Please contact hello@edodwaja.com."
-          : (error.message ?? "Could not submit your registration"),
-      );
-      return;
+    try {
+      await apiClient.post("/challenges/register", {
+        full_name: form.full_name.trim(),
+        age: form.age ? Number(form.age) : undefined,
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.replace(/\D/g, "").slice(-10),
+        institution: form.institution.trim(),
+        class_year: form.class_year.trim() || undefined,
+        city: form.city.trim() || undefined,
+        project_category: form.project_category || undefined,
+        motivation: form.motivation.trim() || undefined,
+      });
+      setDone(true);
+      setForm({ ...EMPTY_FORM });
+      toast.success("Registration submitted");
+    } catch (err: any) {
+      if (err?.status === 404) {
+        toast.error("Registration isn't set up yet. Please contact hello@edodwaja.com.");
+      } else {
+        toast.error(err?.data?.message ?? "Could not submit your registration");
+      }
+    } finally {
+      setSaving(false);
     }
-
-    setDone(true);
-    setForm({ ...EMPTY_FORM });
-    toast.success("Registration submitted");
   };
 
   if (done) {

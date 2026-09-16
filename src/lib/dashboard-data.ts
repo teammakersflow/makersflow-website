@@ -1,4 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
 import { apiClient } from "./auth/apiClient";
 import { courseService } from "./courseService";
 import { enrollmentService } from "./enrollmentService";
@@ -111,7 +110,7 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
   );
 }
 
-export async function fetchStreak(userId: string): Promise<StreakInfo> {
+export async function fetchStreak(_userId?: string): Promise<StreakInfo> {
   return safe(
     async () => {
       try {
@@ -122,19 +121,17 @@ export async function fetchStreak(userId: string): Promise<StreakInfo> {
             longest_streak: res.data.longest_streak ?? 0,
           };
         }
-      } catch {
-        // fallback to direct query if offline / unauthenticated
+        if (res.data === null) {
+          return {
+            current_streak: 0,
+            longest_streak: 0,
+          };
+        }
+      } catch (err) {
+        console.warn("[dashboard-data] fetchStreak /streaks/me error:", err);
       }
 
-      const { data } = await supabase
-        .from("streaks")
-        .select("current_streak, longest_streak")
-        .eq("user_id", userId)
-        .maybeSingle();
-      return {
-        current_streak: (data as any)?.current_streak ?? 0,
-        longest_streak: (data as any)?.longest_streak ?? 0,
-      };
+      return { current_streak: 0, longest_streak: 0 };
     },
     { current_streak: 0, longest_streak: 0 },
     "fetchStreak",
@@ -144,14 +141,7 @@ export async function fetchStreak(userId: string): Promise<StreakInfo> {
 export async function fetchStats(userId: string): Promise<DashboardStats> {
   return safe(
     async () => {
-      const [enrList, { data: pur }] = await Promise.all([
-        enrollmentService.getMyEnrollments(),
-        supabase
-          .from("course_purchases")
-          .select("id, course_id, status")
-          .eq("user_id", userId)
-          .eq("status", "active"),
-      ]);
+      const enrList = await enrollmentService.getMyEnrollments();
 
       const enrRows =
         (enrList as Array<{
@@ -159,17 +149,11 @@ export async function fetchStats(userId: string): Promise<DashboardStats> {
           course_id: string | number;
           completed_at?: string | null;
         }>) ?? [];
-      const purRows = (pur as Array<{ id: string; course_id: string | number }>) ?? [];
 
-      // Combine unique course IDs from enrollments and course_purchases
+      // Combine unique course IDs from authoritative enrollments
       const courseMap = new Map<string, { course_id: string | number; completed_at?: string | null }>();
       for (const r of enrRows) {
         if (r?.course_id) courseMap.set(String(r.course_id), r);
-      }
-      for (const r of purRows) {
-        if (r?.course_id && !courseMap.has(String(r.course_id))) {
-          courseMap.set(String(r.course_id), { course_id: r.course_id, completed_at: null });
-        }
       }
 
       // Fetch progress for each unique course via progressService

@@ -10,7 +10,6 @@ import { OrderSummaryCard, type PromoState } from "@/components/checkout/OrderSu
 import { PaymentSection } from "@/components/checkout/PaymentSection";
 import { SlideToPay } from "@/components/checkout/SlideToPay";
 import { useAuth } from "@/integrations/supabase/auth";
-import { supabase } from "@/integrations/supabase/client";
 import { apiClient } from "@/lib/auth/apiClient";
 import { courseService } from "@/lib/courseService";
 import { productService } from "@/lib/productService";
@@ -45,14 +44,6 @@ export const Route = createFileRoute("/checkout")({
   head: () => ({ meta: [{ title: "Checkout — MakersFlow" }] }),
   component: CheckoutPage,
 });
-
-type CouponValidation = {
-  valid: boolean;
-  discount: number;
-  label: string;
-  coupon_id: string;
-  message?: string;
-};
 
 type DbRow = Record<string, unknown>;
 
@@ -322,61 +313,36 @@ function CheckoutPage() {
     const productIds = items.filter((i) => !i.is_course).map((i) => i.id);
 
     try {
-      // 1. Try backend NestJS /coupons/validate
-      try {
-        const res = await apiClient.post<{
-          valid: boolean;
-          coupon_id: string;
-          code: string;
-          discount_amount: number;
-          final_amount: number;
-        }>("/coupons/validate", {
-          code,
-          order_amount: subtotal,
-          course_ids: courseIds.length ? courseIds : undefined,
-          product_ids: productIds.length ? productIds : undefined,
-        });
-
-        if (res.data?.valid) {
-          setPromo({
-            status: "applied",
-            code: res.data.code || code,
-            amount: res.data.discount_amount,
-            label: `${res.data.code || code} applied`,
-            couponId: res.data.coupon_id,
-          });
-          toast.success(`${code} applied`);
-          return;
-        }
-      } catch (backendErr: any) {
-        if (backendErr?.status && backendErr.status >= 400 && backendErr.status < 500) {
-          setPromo({ status: "error", message: backendErr.message || "Invalid coupon code" });
-          return;
-        }
-        // If network/500/unauthorized, fallback to Supabase
-      }
-
-      // 2. Fallback to Supabase validate-coupon function
-      const { data, error } = await supabase.functions.invoke("validate-coupon", {
-        body: { code, subtotal, item_ids: items.map((i) => i.course_id ?? i.id) },
+      const res = await apiClient.post<{
+        valid: boolean;
+        coupon_id: string;
+        code: string;
+        discount_amount: number;
+        final_amount: number;
+      }>("/coupons/validate", {
+        code,
+        order_amount: subtotal,
+        course_ids: courseIds.length ? courseIds : undefined,
+        product_ids: productIds.length ? productIds : undefined,
       });
-      if (error) throw new Error(error.message);
 
-      const result = data as CouponValidation;
-      if (result?.valid) {
+      if (res.data?.valid) {
         setPromo({
           status: "applied",
-          code,
-          amount: result.discount,
-          label: result.label,
-          couponId: result.coupon_id,
+          code: res.data.code || code,
+          amount: res.data.discount_amount,
+          label: `${res.data.code || code} applied`,
+          couponId: res.data.coupon_id,
         });
         toast.success(`${code} applied`);
       } else {
-        setPromo({ status: "error", message: result?.message ?? "That code isn't valid" });
+        setPromo({ status: "error", message: "Invalid coupon code" });
       }
-    } catch {
-      setPromo({ status: "error", message: "Could not check that code. Try again." });
+    } catch (backendErr: any) {
+      const msg = Array.isArray(backendErr?.message)
+        ? backendErr.message.join(", ")
+        : (backendErr?.message || "Could not check that code. Try again.");
+      setPromo({ status: "error", message: msg });
     } finally {
       setApplyingPromo(false);
     }
@@ -476,6 +442,18 @@ function CheckoutPage() {
     if (paying) return;
     if (!user || !selectedAddress) return;
 
+    const hasCourses = items.some((i) => i.is_course);
+    const hasPhysical = items.some((i) => !i.is_course);
+
+    if (hasCourses) {
+      if (!hasPhysical) {
+        toast.error("Digital courses require the separate course enrollment flow. Please enroll directly on the course page.");
+      } else {
+        toast.error("Your cart contains both courses and physical products. The store payment flow currently supports physical products only. Please remove courses to proceed with store checkout.");
+      }
+      return;
+    }
+
     setPaying(true);
     try {
       // Re-check stock immediately before charging: a product can sell out
@@ -510,42 +488,46 @@ function CheckoutPage() {
         onAmountAdjusted: (serverAmount) => {
           toast.warning(`Order total updated to ₹${serverAmount} by our server.`);
         },
-        onSuccess: async (razorpayOrderId, razorpayPaymentId) => {
-          let createdOrder = null;
-          try {
-            const cartItemsForBackend = items.map((item) => ({
-              id: item.is_course ? (item.course_id ?? item.id) : item.id,
-              title: item.title,
-              price: Number(item.price) || 0,
-              qty: item.qty,
-              is_course: Boolean(item.is_course),
-              course_id: item.is_course ? (item.course_id ?? item.id) : null,
-            }));
+        onSuccess: async (razorpayOrderId, razorpayPaymentId, verification) => {
+          let createdOrder = verification?.order ?? null;
 
-            createdOrder = await orderService.checkoutOrder({
-              total_amount: totals.total,
-              subtotal: totals.subtotal,
-              tax_amount: totals.tax,
-              discount_amount: totals.discount,
-              order_type: needsDelivery ? "product" : "digital",
-              shipping_address: selectedAddress
-                ? {
-                    name: selectedAddress.full_name,
-                    address: `${selectedAddress.address_line1}${selectedAddress.address_line2 ? `, ${selectedAddress.address_line2}` : ""}`,
-                    city: selectedAddress.city,
-                    state: selectedAddress.state,
-                    pincode: selectedAddress.pincode,
-                    phone: selectedAddress.phone,
-                  }
-                : null,
-              items: cartItemsForBackend,
-              razorpay_order_id: razorpayOrderId,
-              razorpay_payment_id: razorpayPaymentId,
-              promo_code: promo.status === "applied" ? promo.code : null,
-              coupon_id: promo.status === "applied" ? promo.couponId : null,
-            });
-          } catch (orderSaveErr) {
-            console.error("[Checkout] Failed to persist order via backend:", orderSaveErr);
+          // If backend didn't fulfill order server-side in verify, fallback safely
+          if (!createdOrder) {
+            try {
+              const cartItemsForBackend = items.map((item) => ({
+                id: item.is_course ? (item.course_id ?? item.id) : item.id,
+                title: item.title,
+                price: Number(item.price) || 0,
+                qty: item.qty,
+                is_course: Boolean(item.is_course),
+                course_id: item.is_course ? (item.course_id ?? item.id) : null,
+              }));
+
+              createdOrder = await orderService.checkoutOrder({
+                total_amount: totals.total,
+                subtotal: totals.subtotal,
+                tax_amount: totals.tax,
+                discount_amount: totals.discount,
+                order_type: needsDelivery ? "product" : "digital",
+                shipping_address: selectedAddress
+                  ? {
+                      name: selectedAddress.full_name,
+                      address: `${selectedAddress.address_line1}${selectedAddress.address_line2 ? `, ${selectedAddress.address_line2}` : ""}`,
+                      city: selectedAddress.city,
+                      state: selectedAddress.state,
+                      pincode: selectedAddress.pincode,
+                      phone: selectedAddress.phone,
+                    }
+                  : null,
+                items: cartItemsForBackend,
+                razorpay_order_id: razorpayOrderId,
+                razorpay_payment_id: razorpayPaymentId,
+                promo_code: promo.status === "applied" ? promo.code : null,
+                coupon_id: promo.status === "applied" ? promo.couponId : null,
+              });
+            } catch (orderSaveErr) {
+              console.error("[Checkout] Failed to persist order via backend:", orderSaveErr);
+            }
           }
 
           const finalOrderId = createdOrder?.id ? String(createdOrder.id) : razorpayOrderId;

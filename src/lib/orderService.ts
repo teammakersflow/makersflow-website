@@ -108,8 +108,9 @@ export const orderService = {
   },
 
   /**
-   * Persists order after checkout via POST /orders/checkout.
-   * Student identity is derived from JWT (no user_id in payload).
+   * @deprecated In Backend (6), order creation, inventory deduction, and invoice generation
+   * are handled atomically by the backend in POST /payments/verify.
+   * This method is retained only for backwards compatibility.
    */
   async checkoutOrder(dto: CheckoutOrderRequest): Promise<BackendOrder> {
     try {

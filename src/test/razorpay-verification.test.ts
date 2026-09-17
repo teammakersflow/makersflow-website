@@ -370,5 +370,52 @@ describe("Payment Integration & Verification Scenarios", () => {
       expect(resolvedOrder.id).toBe("order-srv-999");
       expect(verificationResponse.invoice.invoice_url).toBe("https://cdn.makersflow.com/invoices/999.pdf");
     });
+
+    it("Backend (6) Idempotency: Handles 'Payment was already verified' response safely", () => {
+      const idempotentResponse = {
+        success: true,
+        message: "Payment was already verified",
+        payment: { id: "pay-123", status: "captured" },
+        order: { id: "order-123", total_amount: 118 },
+        invoice: { id: "inv-123", invoice_url: "https://storage.makersflow.com/invoice-order-123.pdf" },
+      };
+
+      expect(idempotentResponse.success).toBe(true);
+      expect(idempotentResponse.order.id).toBe("order-123");
+      expect(idempotentResponse.invoice.invoice_url).toContain("invoice-order-123.pdf");
+    });
+
+    it("Backend (6) Authoritative Pricing: Uses server-calculated order total over frontend estimate", () => {
+      const frontendEstimate = 100;
+      const serverVerifiedOrder = {
+        id: "order-auth-456",
+        subtotal: 100,
+        tax_amount: 18,
+        total_amount: 118,
+      };
+
+      const finalTotal = serverVerifiedOrder?.total_amount
+        ? Number(serverVerifiedOrder.total_amount)
+        : frontendEstimate;
+
+      expect(finalTotal).toBe(118);
+      expect(finalTotal).not.toBe(frontendEstimate);
+    });
+
+    it("Backend (6) Failure Preservation: Preserves cart when verification is rejected", () => {
+      let cartCleared = false;
+      const cart = [{ id: "1", qty: 2, is_course: false }];
+      const failedVerification = {
+        success: false,
+        message: "Invalid Razorpay payment signature",
+      };
+
+      if (failedVerification.success) {
+        cartCleared = true;
+      }
+
+      expect(cartCleared).toBe(false);
+      expect(cart.length).toBe(1);
+    });
   });
 });

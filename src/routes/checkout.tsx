@@ -13,7 +13,6 @@ import { useAuth } from "@/integrations/supabase/auth";
 import { apiClient } from "@/lib/auth/apiClient";
 import { courseService } from "@/lib/courseService";
 import { productService } from "@/lib/productService";
-import { orderService } from "@/lib/orderService";
 import {
   createAddress,
   deleteAddress as deleteAddressRow,
@@ -488,52 +487,15 @@ function CheckoutPage() {
         onAmountAdjusted: (serverAmount) => {
           toast.warning(`Order total updated to ₹${serverAmount} by our server.`);
         },
-        onSuccess: async (razorpayOrderId, razorpayPaymentId, verification) => {
-          let createdOrder = verification?.order ?? null;
-
-          // If backend didn't fulfill order server-side in verify, fallback safely
-          if (!createdOrder) {
-            try {
-              const cartItemsForBackend = items.map((item) => ({
-                id: item.is_course ? (item.course_id ?? item.id) : item.id,
-                title: item.title,
-                price: Number(item.price) || 0,
-                qty: item.qty,
-                is_course: Boolean(item.is_course),
-                course_id: item.is_course ? (item.course_id ?? item.id) : null,
-              }));
-
-              createdOrder = await orderService.checkoutOrder({
-                total_amount: totals.total,
-                subtotal: totals.subtotal,
-                tax_amount: totals.tax,
-                discount_amount: totals.discount,
-                order_type: needsDelivery ? "product" : "digital",
-                shipping_address: selectedAddress
-                  ? {
-                      name: selectedAddress.full_name,
-                      address: `${selectedAddress.address_line1}${selectedAddress.address_line2 ? `, ${selectedAddress.address_line2}` : ""}`,
-                      city: selectedAddress.city,
-                      state: selectedAddress.state,
-                      pincode: selectedAddress.pincode,
-                      phone: selectedAddress.phone,
-                    }
-                  : null,
-                items: cartItemsForBackend,
-                razorpay_order_id: razorpayOrderId,
-                razorpay_payment_id: razorpayPaymentId,
-                promo_code: promo.status === "applied" ? promo.code : null,
-                coupon_id: promo.status === "applied" ? promo.couponId : null,
-              });
-            } catch (orderSaveErr) {
-              console.error("[Checkout] Failed to persist order via backend:", orderSaveErr);
-            }
-          }
-
+        onSuccess: async (razorpayOrderId, _razorpayPaymentId, verification) => {
+          // Backend (6) fulfills order, order_items, inventory, and invoice atomically in POST /payments/verify
+          const createdOrder = verification?.order ?? null;
           const finalOrderId = createdOrder?.id ? String(createdOrder.id) : razorpayOrderId;
+          const finalTotal = createdOrder?.total_amount ? Number(createdOrder.total_amount) : totals.total;
+
           navigate({
             to: "/payment-success",
-            search: { order_id: finalOrderId, total: totals.total },
+            search: { order_id: finalOrderId, total: finalTotal },
           });
           clear();
         },

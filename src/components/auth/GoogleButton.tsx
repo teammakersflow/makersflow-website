@@ -1,5 +1,5 @@
-import React from "react";
-import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
+import React, { useEffect, useRef } from "react";
+import { useGoogleOAuth } from "@react-oauth/google";
 
 export interface GoogleButtonProps {
   onSuccess?: (idToken: string) => void;
@@ -9,6 +9,32 @@ export interface GoogleButtonProps {
   onClick?: () => void;
 }
 
+// Module-scoped singleton state to ensure initialize is called only once per clientId
+let initializedClientId: string | null = null;
+let activeSuccessHandler: ((idToken: string) => void) | null = null;
+let activeErrorHandler: ((error?: string) => void) | null = null;
+
+function ensureGsiInitialized(clientId: string) {
+  if (initializedClientId === clientId) {
+    return;
+  }
+  const google = typeof window !== "undefined" ? (window as any).google : undefined;
+  if (!google?.accounts?.id) {
+    return;
+  }
+  google.accounts.id.initialize({
+    client_id: clientId,
+    callback: (response: any) => {
+      if (response?.credential) {
+        activeSuccessHandler?.(response.credential);
+      } else {
+        activeErrorHandler?.("No Google credential returned.");
+      }
+    },
+  });
+  initializedClientId = clientId;
+}
+
 export function GoogleButton({
   onSuccess,
   onError,
@@ -16,32 +42,54 @@ export function GoogleButton({
   label = "Continue with Google",
   onClick,
 }: GoogleButtonProps) {
-  const handleSuccess = (credentialResponse: CredentialResponse) => {
-    if (credentialResponse.credential) {
-      onSuccess?.(credentialResponse.credential);
-    } else {
-      onError?.("No Google credential returned.");
-    }
-  };
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { clientId, scriptLoadedSuccessfully } = useGoogleOAuth();
 
-  const handleFailure = () => {
-    onError?.("Google Sign-In failed. Please try again.");
-  };
+  useEffect(() => {
+    if (onSuccess) {
+      activeSuccessHandler = onSuccess;
+    }
+    if (onError) {
+      activeErrorHandler = onError;
+    }
+  }, [onSuccess, onError]);
+
+  useEffect(() => {
+    if (!onSuccess || !scriptLoadedSuccessfully || !clientId || !containerRef.current) {
+      return;
+    }
+
+    // 1. Single controlled initialization path
+    ensureGsiInitialized(clientId);
+
+    // 2. Clear any prior button node in this container
+    const container = containerRef.current;
+    container.innerHTML = "";
+
+    // 3. Render Google Identity Services button with valid numeric pixel width
+    // GIS docs: width must be between 200 and 400 pixels
+    const google = (window as any).google;
+    if (google?.accounts?.id) {
+      google.accounts.id.renderButton(container, {
+        type: "standard",
+        theme: "outline",
+        size: "large",
+        shape: "rectangular",
+        width: 384,
+        text: "continue_with",
+      });
+    }
+  }, [clientId, scriptLoadedSuccessfully, onSuccess]);
 
   if (onSuccess) {
     return (
       <div className="flex w-full items-center justify-center min-h-[48px]">
-        <div className="w-full flex justify-center [&>div]:w-full [&_iframe]:!w-full [&_iframe]:!max-w-full">
-          <GoogleLogin
-            onSuccess={handleSuccess}
-            onError={handleFailure}
-            theme="outline"
-            size="large"
-            shape="rectangular"
-            width="100%"
-            text="continue_with"
-          />
-        </div>
+        <div
+          ref={containerRef}
+          className={`w-full flex justify-center [&>div]:w-full [&_iframe]:!w-full [&_iframe]:!max-w-full ${
+            disabled ? "pointer-events-none opacity-60" : ""
+          }`}
+        />
       </div>
     );
   }

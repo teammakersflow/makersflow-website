@@ -18,8 +18,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CartProvider } from "../lib/cart";
 
 const GOOGLE_CLIENT_ID =
-  (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ||
-  "placeholder-google-client-id.apps.googleusercontent.com";
+  (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || "";
 
 function NotFoundComponent() {
   return (
@@ -103,6 +102,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
+      { rel: "icon", href: "/makersflow-logo-dark.png" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {

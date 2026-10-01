@@ -12,16 +12,20 @@ WORKDIR /app
 #
 # Only browser-safe values belong here. Never the Supabase service_role key or
 # the Razorpay key SECRET — those would be published to every visitor.
+ARG VITE_API_URL
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_PUBLISHABLE_KEY
 ARG VITE_RAZORPAY_KEY_ID
 ARG VITE_GOOGLE_CLIENT_ID
 
-ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
     VITE_RAZORPAY_KEY_ID=$VITE_RAZORPAY_KEY_ID \
     VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 
+RUN test -n "$VITE_API_URL" \
+ || (echo "FATAL: VITE_API_URL build arg is required" >&2; exit 1)
 # Fail loudly instead of shipping a site wired to a nonexistent backend.
 RUN test -n "$VITE_SUPABASE_URL" \
  || (echo "FATAL: VITE_SUPABASE_URL build arg is required" >&2; exit 1)

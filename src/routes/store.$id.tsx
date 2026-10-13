@@ -31,6 +31,7 @@ function ProductDetailPage() {
   const [activeImage, setActiveImage] = useState(0);
   const [added, setAdded] = useState(false);
   const heroRef = useRef<HTMLDivElement | null>(null);
+  const { user } = useAuth();
 
   const productQ = useQuery({
     queryKey: ["store", "product", id],
@@ -92,22 +93,44 @@ function ProductDetailPage() {
     if (from && to) flyToCart({ fromRect: from, toRect: to, imageUrl: p.thumbnail_url });
   };
 
-  const handleAdd = () => {
-    if (!p.in_stock) return;
-    fly();
-    addItem(p);
-    triggerBump();
-    toast.success(`Added "${p.title}" to cart`);
-    setAdded(true);
-    window.setTimeout(() => setAdded(false), 1200);
-  };
 
-  const handleBuyNow = () => {
-    if (!p.in_stock) return;
-    addItem(p);
-    triggerBump();
-    navigate({ to: "/checkout" });
-  };
+const handleAdd = () => {
+  if (!p.in_stock) return;
+
+  if (!user) {
+    navigate({
+      to: "/login",
+      search: { redirect: `/store/${p.id}` },
+    });
+    return;
+  }
+
+  fly();
+  addItem(p);
+  triggerBump();
+  toast.success(`Added "${p.title}" to cart`);
+  setAdded(true);
+  window.setTimeout(() => setAdded(false), 1200);
+};
+
+
+
+const handleBuyNow = () => {
+  if (!p.in_stock) return;
+
+  if (!user) {
+    navigate({
+      to: "/login",
+      search: { redirect: `/store/${p.id}` },
+    });
+    return;
+  }
+
+  addItem(p);
+  triggerBump();
+  navigate({ to: "/checkout" });
+};
+
 
   return (
     <div className="flex min-h-screen w-full bg-background">

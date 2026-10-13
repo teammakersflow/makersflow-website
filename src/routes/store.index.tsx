@@ -5,10 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, ShoppingBag, Package, SlidersHorizontal, X } from "lucide-react";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { CartIcon } from "@/components/store/CartIcon";
-import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { ProductCard } from "@/components/store/ProductCard";
 import { fetchProducts, getProductCategories } from "@/lib/store-data";
 import { PredictiveText } from "@/components/ui/predictive-text";
+import { Header } from "@/components/landing/Header";
+import { Footer } from "@/components/landing/Footer";
+import { useAuth } from "@/integrations/supabase/auth";
 
 export const Route = createFileRoute("/store/")({
   head: () => ({
@@ -41,14 +43,13 @@ function ProductSkeleton() {
 }
 
 function StorePage() {
-  const { user, loading } = useRequireAuth();
   const [category, setCategory] = useState("All");
   const [search, setSearch] = useState("");
   const [priceFilter, setPriceFilter] = useState<"all" | "under1000" | "1000to2000" | "above2000">(
     "all",
   );
   const [sortOrder, setSortOrder] = useState<"default" | "price-asc" | "price-desc" | "rating">("default");
-
+  const { user, loading } = useAuth();
   const productsQ = useQuery({
     queryKey: ["store", "products"],
     queryFn: fetchProducts,
@@ -84,7 +85,7 @@ function StorePage() {
     return result;
   }, [productsQ.data, category, search, priceFilter, sortOrder]);
 
-  if (loading || !user) return null;
+  
 
   const isLoading = productsQ.isLoading;
   const hasFilters = search || category !== "All" || priceFilter !== "all";
@@ -96,8 +97,8 @@ function StorePage() {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <AppSidebar />
+    <div className={user ? "flex min-h-screen w-full bg-background" : "min-h-screen w-full bg-background"}>
+      {loading ? null : user ? <AppSidebar /> : <Header />}
       <main className="flex-1 overflow-x-hidden">
         {/* Sticky header */}
         <div className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-xl">
@@ -278,6 +279,7 @@ function StorePage() {
           )}
         </div>
       </main>
+      {!user && <Footer />}
     </div>
   );
 }

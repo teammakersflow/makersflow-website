@@ -143,18 +143,37 @@ export function ProductCard({ p, index }: { p: Product; index: number }) {
       return;
     }
 
-    // Physical product → add to cart
+
+    // Physical product → require login before adding to cart
+    if (!userId) {
+      navigate({
+        to: "/login",
+        search: { redirect: "/store" },
+      });
+      return;
+    }
+
     const from = thumbRef.current?.getBoundingClientRect();
     const to = cartIconRef.current?.getBoundingClientRect();
-    if (from && to) flyToCart({ fromRect: from, toRect: to, imageUrl: p.thumbnail_url });
+
+    if (from && to) {
+      flyToCart({
+        fromRect: from,
+        toRect: to,
+        imageUrl: p.thumbnail_url,
+      });
+    }
+
     addItem(p);
     triggerBump();
+
     toast.success("Added to cart 🛒", {
       action: {
         label: "Checkout",
         onClick: () => navigate({ to: "/checkout" }),
       },
     });
+
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1300);
   };

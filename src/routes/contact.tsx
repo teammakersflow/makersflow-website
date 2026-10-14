@@ -250,10 +250,10 @@ function ContactPage() {
                     <div>
                       <p className="font-semibold text-foreground">Email Us</p>
                       <a
-                        href="mailto:[Add your contact email]"
+                        href="mailto:[contact@edodwaja.com]"
                         className="text-muted-foreground hover:text-primary transition-colors mt-0.5 block"
                       >
-                        [Add your contact email]
+                        contact@edodwaja.com
                       </a>
                     </div>
                   </div>
@@ -266,7 +266,7 @@ function ContactPage() {
                     <div>
                       <p className="font-semibold text-foreground">Call Us</p>
                       <p className="text-muted-foreground mt-0.5">
-                        [Add your contact phone number]
+                        8309589858, 9010388921
                       </p>
                     </div>
                   </div>
@@ -279,7 +279,10 @@ function ContactPage() {
                     <div>
                       <p className="font-semibold text-foreground">Our Office</p>
                       <p className="text-muted-foreground mt-0.5 leading-relaxed">
-                        [Add your physical/office address]
+                        <span>FLAT NO 7 HMT ROAD,SATAVAHANA NAGAR,
+                          Kukatpally Housing Board Colony,
+                          Hyderabad,Telangana 500072
+                        </span>
                       </p>
                     </div>
                   </div>

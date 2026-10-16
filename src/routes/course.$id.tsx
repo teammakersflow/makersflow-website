@@ -188,7 +188,7 @@ function CourseDetailPage() {
   if (courseQ.isLoading) {
     return (
       <div className="flex min-h-screen w-full bg-background">
-        <AppSidebar />
+        {user && <AppSidebar />}
         <div className="grid flex-1 place-items-center">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
         </div>
@@ -199,7 +199,7 @@ function CourseDetailPage() {
   if (courseQ.isError || !course) {
     return (
       <div className="flex min-h-screen w-full bg-background">
-        <AppSidebar />
+        {user && <AppSidebar />}
         <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">
           <h2 className="text-2xl font-bold mb-2 text-foreground">Course Not Found</h2>
           <p className="text-muted-foreground mb-6 max-w-md">
@@ -218,7 +218,7 @@ function CourseDetailPage() {
 
   return (
     <div className="flex min-h-screen w-full bg-background">
-      <AppSidebar />
+      {user && <AppSidebar />}
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
         <StickyEnrollBar
           course={course}

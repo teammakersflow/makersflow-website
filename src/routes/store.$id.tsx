@@ -41,7 +41,7 @@ function ProductDetailPage() {
   if (productQ.isLoading) {
     return (
       <div className="flex min-h-screen w-full bg-background">
-        <AppSidebar />
+        {user && <AppSidebar />}
         <main className="flex-1">
           <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
             <div className="grid gap-8 lg:grid-cols-2">
@@ -64,7 +64,7 @@ function ProductDetailPage() {
   if (!p) {
     return (
       <div className="flex min-h-screen w-full bg-background">
-        <AppSidebar />
+        {user && <AppSidebar />}
         <main className="grid flex-1 place-items-center px-6 text-center">
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground">Product not found</h1>
@@ -134,7 +134,7 @@ const handleBuyNow = () => {
 
   return (
     <div className="flex min-h-screen w-full bg-background">
-      <AppSidebar />
+      {user && <AppSidebar />}
       <main className="flex-1">
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">
           <div className="mb-6 flex items-center justify-between">

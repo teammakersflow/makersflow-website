@@ -1,4 +1,3 @@
-import { supabase } from "@/integrations/supabase/client";
 import { apiClient } from "./auth/apiClient";
 import type { BackendUser } from "./auth/customAuthService";
 import { tokenStorage } from "./auth/tokenStorage";
@@ -39,28 +38,20 @@ export async function exportUserData(userId: string): Promise<{ ok: boolean; err
       apiClient.get<any[]>("/watch-later").then((r) => r.data ?? []).catch(() => []),
       apiClient.get<any[]>("/quiz-attempts/me")
         .then((r) => r.data ?? (Array.isArray(r) ? r : []))
-        .catch(async () => {
-          try {
-            const { data } = await supabase.from("quiz_attempts").select("*").eq("user_id", userId);
-            return data ?? [];
-          } catch {
-            return [];
-          }
-        }),
-      apiClient.get<any[]>("/reviews/me")
+        .catch(() => []),
+
+      apiClient.get<any>("/reviews/me")
         .then((r) => r.data ?? (Array.isArray(r) ? r : []))
-        .catch(async () => {
-          try {
-            const { data } = await supabase.from("reviews").select("*").eq("user_id", userId);
-            return data ?? [];
-          } catch {
-            return [];
-          }
-        }),
+        .catch(() => []),
     ]);
 
     const quizAttempts = Array.isArray(quizAttemptsRes) ? quizAttemptsRes : [];
-    const reviews = Array.isArray(reviewsRes) ? reviewsRes : [];
+    const reviews = Array.isArray(reviewsRes)
+  ? reviewsRes
+  : [
+      ...(reviewsRes?.course_reviews ?? []),
+      ...(reviewsRes?.product_reviews ?? []),
+    ];
 
     const favorites = Array.isArray(favoritesRes) ? favoritesRes : [];
     const watchLater = Array.isArray(watchLaterRes) ? watchLaterRes : [];

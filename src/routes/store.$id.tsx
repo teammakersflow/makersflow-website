@@ -7,7 +7,14 @@ import { toast } from "sonner";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { CartIcon } from "@/components/store/CartIcon";
 import { useAuth } from "@/integrations/supabase/auth";
-import { fetchProduct, formatPrice, fetchProductReviews, submitProductReview } from "@/lib/store-data";
+import { fetchProduct,
+         formatPrice, 
+         fetchProductReviews, 
+         submitProductReview,
+         fetchMyProductReview,
+         updateProductReview, 
+        } from "@/lib/store-data";
+import { reviewService } from "@/lib/reviewService";
 import { useCart, flyToCart } from "@/lib/cart";
 import { ImageCarousel } from "@/components/common/ImageCarousel";
 
@@ -344,35 +351,76 @@ const handleBuyNow = () => {
   );
 }
 
+
 function ProductReviewsSection({ productId }: { productId: string }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const reviewsQ = useQuery({
     queryKey: ["product-reviews", productId],
     queryFn: () => fetchProductReviews(productId),
   });
 
+  const myReviewQ = useQuery({
+    queryKey: ["my-product-review", productId, user?.id],
+    queryFn: () => fetchMyProductReview(productId),
+    enabled: Boolean(user),
+  });
+
+  const myReview = myReviewQ.data ?? null;
+
+  const handleEdit = () => {
+    if (!myReview) return;
+    setRating(myReview.rating);
+    setComment(myReview.comment ?? "");
+    setEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditing(false);
+    setRating(5);
+    setComment("");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!user) {
       toast.error("Please sign in to submit a review");
       return;
     }
+
     setSubmitting(true);
-    const res = await submitProductReview(user.id, productId, rating, comment);
+
+    const res = editing && myReview
+      ? await updateProductReview(myReview.id, rating, comment)
+      : await submitProductReview(user.id, productId, rating, comment);
+
     setSubmitting(false);
+
     if (res.ok) {
-      toast.success("Review submitted! Thank you for your feedback. ⭐");
+      toast.success(
+        editing
+          ? "Review updated! It is pending admin approval."
+          : "Review submitted! Thank you for your feedback. ⭐",
+      );
+
+      setEditing(false);
+      setRating(5);
       setComment("");
-      qc.invalidateQueries({ queryKey: ["product-reviews", productId] });
-      qc.invalidateQueries({ queryKey: ["store", "product", productId] });
-      qc.invalidateQueries({ queryKey: ["store", "products"] });
+
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["product-reviews", productId] }),
+        qc.invalidateQueries({ queryKey: ["my-product-review", productId] }),
+        qc.invalidateQueries({ queryKey: ["store", "product", productId] }),
+        qc.invalidateQueries({ queryKey: ["store", "products"] }),
+      ]);
     } else {
-      toast.error(res.error ?? "Could not submit review");
+      toast.error(res.error ?? "Could not save review");
     }
   };
 
@@ -381,71 +429,135 @@ function ProductReviewsSection({ productId }: { productId: string }) {
   return (
     <div className="space-y-6">
       {user ? (
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-card p-6 space-y-4 max-w-2xl">
-          <h3 className="font-display text-base font-bold text-foreground">Write a Product Review</h3>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              Rating
-            </label>
-            <div className="flex items-center gap-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setRating(star)}
-                  className="p-1 hover:scale-110 transition-transform"
-                >
-                  <Star
-                    className={`h-6 w-6 ${
-                      star <= rating ? "fill-accent text-accent" : "text-muted-foreground/30"
-                    }`}
-                  />
-                </button>
-              ))}
+        <div className="max-w-2xl space-y-3">
+          {myReview && !editing && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  Your Review
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Status: {myReview.status}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleEdit}
+                disabled={myReviewQ.isLoading}
+                className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-secondary disabled:opacity-50"
+              >
+                Edit Review
+              </button>
             </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              Your Review
-            </label>
-            <textarea
-              rows={3}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Share your experience with this item..."
-              className="w-full rounded-xl border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-all"
+          )}
+
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-2xl border border-border bg-card p-6 space-y-4 max-w-2xl"
           >
-            {submitting ? "Submitting..." : "Submit Review"}
-          </button>
-        </form>
+            <h3 className="font-display text-base font-bold text-foreground">
+              {editing ? "Edit Your Product Review" : "Write a Product Review"}
+            </h3>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Rating
+              </label>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(star)}
+                    aria-label={`${star} star${star === 1 ? "" : "s"}`}
+                    className="p-1 transition-transform hover:scale-110"
+                  >
+                    <Star
+                      className={`h-6 w-6 ${
+                        star <= rating
+                          ? "fill-accent text-accent"
+                          : "text-muted-foreground/30"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Your Review
+              </label>
+              <textarea
+                rows={3}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Share your experience with this item..."
+                className="w-full rounded-xl border border-border bg-background p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                disabled={submitting || myReviewQ.isLoading}
+                className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50"
+              >
+                {submitting
+                  ? editing
+                    ? "Updating..."
+                    : "Submitting..."
+                  : editing
+                    ? "Update Review"
+                    : "Submit Review"}
+              </button>
+
+              {editing && (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  disabled={submitting}
+                  className="rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-secondary disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
       ) : (
-        <div className="rounded-2xl border border-border bg-card p-5 text-center max-w-2xl">
-          <p className="text-sm text-muted-foreground">Sign in to leave a review for this product.</p>
+        <div className="max-w-2xl rounded-2xl border border-border bg-card p-5 text-center">
+          <p className="text-sm text-muted-foreground">
+            Sign in to leave a review for this product.
+          </p>
         </div>
       )}
 
       {reviews.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border p-8 text-center max-w-2xl">
-          <p className="text-muted-foreground text-sm">No reviews yet for this product. Be the first to review!</p>
+        <div className="max-w-2xl rounded-2xl border border-dashed border-border p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            No reviews yet for this product. Be the first to review!
+          </p>
         </div>
       ) : (
-        <div className="space-y-4 max-w-2xl">
+        <div className="max-w-2xl space-y-4">
           {reviews.map((r) => (
-            <article key={r.id} className="rounded-2xl border border-border bg-card p-5 space-y-2">
+            <article
+              key={r.id}
+              className="space-y-2 rounded-2xl border border-border bg-card p-5"
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-sm font-bold text-white">
                     {(r.user_name ?? "A").slice(0, 1)}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">{r.user_name ?? "Verified Buyer"}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
+                    <p className="text-sm font-semibold text-foreground">
+                      {r.user_name ?? "Verified Buyer"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(r.created_at).toLocaleDateString()}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-0.5">
@@ -453,13 +565,19 @@ function ProductReviewsSection({ productId }: { productId: string }) {
                     <Star
                       key={i}
                       className={
-                        i < r.rating ? "h-4 w-4 fill-accent text-accent" : "h-4 w-4 text-muted-foreground/30"
+                        i < r.rating
+                          ? "h-4 w-4 fill-accent text-accent"
+                          : "h-4 w-4 text-muted-foreground/30"
                       }
                     />
                   ))}
                 </div>
               </div>
-              {r.comment && <p className="text-sm leading-relaxed text-foreground">{r.comment}</p>}
+              {r.comment && (
+                <p className="text-sm leading-relaxed text-foreground">
+                  {r.comment}
+                </p>
+              )}
             </article>
           ))}
         </div>
@@ -467,3 +585,4 @@ function ProductReviewsSection({ productId }: { productId: string }) {
     </div>
   );
 }
+

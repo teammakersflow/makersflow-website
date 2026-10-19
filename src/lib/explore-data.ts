@@ -14,6 +14,25 @@ export const CATEGORIES = [
 ] as const;
 export type Category = string;
 
+function getCourseRatingSummary(
+  courseId: string | number,
+  summaries: Awaited<
+    ReturnType<typeof reviewService.fetchCourseRatingsSummary>
+  >,
+) {
+  const matching = summaries.filter(
+    (item) => Number(item.course_id) === Number(courseId),
+  );
+
+  const totalReviews = matching.length;
+  const rating =
+    totalReviews > 0
+      ? matching.reduce((sum, item) => sum + item.rating, 0) / totalReviews
+      : 0;
+
+  return { rating, total_reviews: totalReviews };
+}
+
 export async function fetchCategories(): Promise<string[]> {
   try {
     const list = await categoryService.getCategories();
@@ -190,6 +209,8 @@ function applyClientFilters(list: CourseCard[], filters: ExploreFilters): Course
 export async function fetchExploreCourses(filters: ExploreFilters): Promise<CourseCard[]> {
   try {
     const all = await courseService.getCourses();
+    const ratingSummaries =
+    await reviewService.fetchCourseRatingsSummary();
     let courses = all.filter((c) => c.is_published !== false);
 
     if (filters.category !== "All") {
@@ -205,26 +226,37 @@ export async function fetchExploreCourses(filters: ExploreFilters): Promise<Cour
       );
     }
 
-    switch (filters.sort) {
-      case "newest":
-        courses.sort((a, b) => {
-          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return dateB - dateA;
-        });
-        break;
-      case "price-asc":
-        courses.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
-        break;
-      case "rating":
-      case "popular":
-      default:
-        courses.sort((a, b) => {
-          const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return dateB - dateA;
-        });
-    }
+    
+switch (filters.sort) {
+  case "newest":
+    courses.sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return dateB - dateA;
+    });
+    break;
+
+  case "price-asc":
+    courses.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+    break;
+
+  case "rating":
+    courses.sort(
+      (a, b) =>
+        getCourseRatingSummary(b.id, ratingSummaries).rating -
+        getCourseRatingSummary(a.id, ratingSummaries).rating,
+    );
+    break;
+
+  case "popular":
+  default:
+    courses.sort((a, b) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return dateB - dateA;
+    });
+}
+
 
     return courses.slice(0, 48).map((c) => ({
       id: String(c.id),
@@ -236,8 +268,7 @@ export async function fetchExploreCourses(filters: ExploreFilters): Promise<Cour
       gst_rate: c.gst_rate ?? 18,
       is_free: c.is_free,
       thumbnail_url: c.thumbnail_url,
-      rating: 4.8,
-      total_reviews: 24,
+      ...getCourseRatingSummary(c.id, ratingSummaries),
       instructor_name: null,
     }));
   } catch (err: any) {
@@ -392,6 +423,14 @@ export async function fetchCourseDetail(id: string): Promise<CourseDetail> {
       throw new Error(`Course not found: ${id}`);
     }
 
+    const ratingSummaries =
+      await reviewService.fetchCourseRatingsSummary();
+
+    const ratingSummary = getCourseRatingSummary(
+      c.id,
+      ratingSummaries,
+    );
+
     const result: CourseDetail = {
       id: String(c.id),
       title: c.title,
@@ -402,8 +441,7 @@ export async function fetchCourseDetail(id: string): Promise<CourseDetail> {
       gst_rate: c.gst_rate ?? 18,
       is_free: c.is_free ?? false,
       thumbnail_url: c.thumbnail_url,
-      rating: 4.8,
-      total_reviews: 24,
+      ...ratingSummary,
       instructor_name: null,
       description: c.description ?? "No description available.",
       enrolled_count: 0,

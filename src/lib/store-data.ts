@@ -166,6 +166,20 @@ export async function submitProductReview(
   return reviewService.submitProductReview(productId, rating, comment);
 }
 
+
+export async function fetchMyProductReview(productId: string) {
+  return reviewService.fetchMyProductReview(productId);
+}
+
+export async function updateProductReview(
+  reviewId: string,
+  rating: number,
+  comment: string,
+): Promise<{ ok: boolean; error?: string }> {
+  return reviewService.updateProductReview(reviewId, rating, comment);
+}
+
+
 export function getProductCategories(items: Product[]): string[] {
   const set = new Set<string>();
   items.forEach((p) => p.category && set.add(p.category));

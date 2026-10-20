@@ -34,15 +34,13 @@ export async function exportUserData(userId: string): Promise<{ ok: boolean; err
       enrollmentService.getMyEnrollments(),
       orderService.getMyOrders(),
       wishlistService.getWishlistItems(userId),
-      apiClient.get<any[]>("/course-favorites").then((r) => r.data ?? []).catch(() => []),
-      apiClient.get<any[]>("/watch-later").then((r) => r.data ?? []).catch(() => []),
+      apiClient.get<any[]>("/course-favorites").then((r) => r.data ?? []),
+      apiClient.get<any[]>("/watch-later").then((r) => r.data ?? []),
       apiClient.get<any[]>("/quiz-attempts/me")
-        .then((r) => r.data ?? (Array.isArray(r) ? r : []))
-        .catch(() => []),
+        .then((r) => r.data ?? (Array.isArray(r) ? r : [])),
 
       apiClient.get<any>("/reviews/me")
-        .then((r) => r.data ?? (Array.isArray(r) ? r : []))
-        .catch(() => []),
+        .then((r) => r.data ?? (Array.isArray(r) ? r : [])),
     ]);
 
     const quizAttempts = Array.isArray(quizAttemptsRes) ? quizAttemptsRes : [];

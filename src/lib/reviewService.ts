@@ -555,6 +555,48 @@ class ReviewService {
     }
   }
 
+  
+  /**
+   * Update an existing product review (PATCH /reviews/:id).
+   * The backend verifies ownership and returns edited reviews to pending.
+   */
+  public async updateProductReview(
+    reviewId: string,
+    rating: number,
+    comment?: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (!reviewId.trim()) {
+      return { ok: false, error: "Invalid review ID" };
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return { ok: false, error: "Please select a star rating (1-5)" };
+    }
+
+    try {
+      await apiClient.patch(`/reviews/${encodeURIComponent(reviewId)}`, {
+        rating,
+        comment: comment?.trim() ?? "",
+      });
+
+      return { ok: true };
+    } catch (err: any) {
+      const message =
+        err?.data?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Could not update review";
+
+      console.error(
+        `[ReviewService] updateProductReview failed for ${reviewId}:`,
+        err,
+      );
+
+      return { ok: false, error: message };
+    }
+  }
+
+
   /**
    * Fetch lightweight product ratings summary (GET /reviews/ratings/products).
    * Normalizes backend Prisma groupBy format (_avg, _count) into compatible entries.

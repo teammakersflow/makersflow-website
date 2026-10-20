@@ -63,11 +63,35 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 /**
  * Stubs for password authentication (Backend currently uses Google OAuth)
  */
-export async function signInWithPassword(_email: string, _password: string) {
-  return {
-    data: null,
-    error: { message: "Password authentication is disabled. Please sign in with Google." },
-  };
+export async function signInWithPassword(
+  email: string,
+  password: string,
+) {
+  try {
+    const result = await customAuthService.login(email, password);
+
+    if (!result.success) {
+      return {
+        data: null,
+        error: { message: result.error },
+      };
+    }
+
+    return {
+      data: { user: customAuthService.getCachedUser() },
+      error: null,
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: {
+        message:
+          error instanceof Error
+            ? error.message
+            : "Login failed. Please try again.",
+      },
+    };
+  }
 }
 
 export async function signUpWithPassword(

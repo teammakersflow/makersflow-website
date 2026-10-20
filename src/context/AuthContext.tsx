@@ -144,12 +144,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const login = async (
-    email?: string,
-    password?: string,
-  ): Promise<{ success: boolean; error?: string }> => {
-    return customAuthService.login(email, password);
-  };
+const login = async (
+  email?: string,
+  password?: string,
+): Promise<{ success: boolean; error?: string }> => {
+  const result = await customAuthService.login(email, password);
+  if (!result.success) return result;
+
+  // Tokens + user are stored by customAuthService.login; sync React state.
+  try {
+    const res = await customAuthService.getCurrentUser();
+    if (res.data) {
+      setUser(mapBackendUserToAuthUser(res.data));
+      setLoading(false);
+      return result;
+    }
+  } catch (e) {
+    console.warn("[AuthProvider] Post-login profile hydration failed, using cached user:", e);
+  }
+  const cached = customAuthService.getCachedUser();
+  if (cached) setUser(cached);
+  setLoading(false);
+  return result;
+};
 
   const logout = async (): Promise<void> => {
     setLoading(true);

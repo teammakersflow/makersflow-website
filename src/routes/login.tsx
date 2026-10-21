@@ -7,7 +7,7 @@ import { SubmitButton } from "@/components/auth/SubmitButton";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
 import { useAuthContext } from "@/context/AuthContext";
-import { signInWithPassword, resendConfirmationEmail } from "@/integrations/supabase/auth";
+import { resendConfirmationEmail } from "@/integrations/supabase/auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 
@@ -57,7 +57,7 @@ const schema = z.object({
 function LoginPage() {
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
-  const { loginWithGoogle } = useAuthContext();
+  const { loginWithGoogle, login } = useAuthContext();
   const [values, setValues] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -87,14 +87,14 @@ function LoginPage() {
       return;
     }
     setLoading(true);
-    const { error } = await signInWithPassword(parsed.data.email, parsed.data.password);
-    setLoading(false);
-    if (error) {
-      console.error("[login] Password sign-in failed:", error);
-      setFormError(mapSignInError(error));
-      return;
-    }
-    navigate({ to: redirect || "/dashboard" });
+const result = await login(parsed.data.email, parsed.data.password);
+setLoading(false);
+if (!result.success) {
+  console.error("[login] Password sign-in failed:", result.error);
+  setFormError(mapSignInError({ message: result.error }));
+  return;
+}
+navigate({ to: redirect || "/dashboard" });
   };
 
   const onGoogleSuccess = async (idToken: string) => {

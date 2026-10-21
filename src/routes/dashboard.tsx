@@ -25,7 +25,7 @@ import { AnnouncementBanner } from "@/components/dashboard/AnnouncementBanner";
 const WeeklyActivity = lazy(() =>
   import("@/components/dashboard/WeeklyActivity").then((m) => ({ default: m.WeeklyActivity })),
 );
-import { useAuth } from "@/integrations/supabase/auth";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import {
   fetchProfile,
   fetchStreak,
@@ -49,8 +49,9 @@ function greetingFor(d = new Date()) {
 }
 
 function DashboardPage() {
-  const { user, loading } = useAuth();
-  const userId = user?.id ?? null;
+const { user, loading } = useRequireAuth();
+const userId = user?.id ?? null;
+const enabled = !loading && !!userId;
 
   const profileQ = useQuery({
     queryKey: ["dashboard", "profile", userId],
@@ -89,48 +90,29 @@ function DashboardPage() {
   });
 
   const profile = profileQ.data ?? null;
-  const stats = statsQ.data ?? {
-    enrolled: userId ? 0 : 4,
-    completed: userId ? 0 : 2,
-    avgProgress: userId ? 0 : 65,
-    totalHours: userId ? 0 : 18,
-  };
-  const streak = streakQ.data ?? { current_streak: userId ? 0 : 5, longest_streak: userId ? 0 : 7 };
-  const continueLesson =
-    continueQ.data ??
-    (userId
-      ? null
-      : {
-          course_id: "demo-robotics-101",
-          course_title: "Robotics & Hardware Fundamentals",
-          course_thumbnail:
-            "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=800&auto=format&fit=crop&q=80",
-          lesson_id: "demo-robotics-101-1",
-          lesson_title: "Introduction to Microcontrollers & Sensors",
-          progress: 65,
-          last_watched_at: new Date().toISOString(),
-        });
-  const weekly =
-    weeklyQ.data ??
-    (userId
-      ? Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - (6 - i));
-          const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-          const dateStr = d.toLocaleDateString("en-CA");
-          const isToday = i === 6;
-          return { day: dayName, date: dateStr, count: 0, isToday };
-        })
-      : [
-          { day: "Mon", date: "Mon", count: 2, isToday: false },
-          { day: "Tue", date: "Tue", count: 4, isToday: false },
-          { day: "Wed", date: "Wed", count: 1, isToday: false },
-          { day: "Thu", date: "Thu", count: 3, isToday: false },
-          { day: "Fri", date: "Fri", count: 5, isToday: true },
-          { day: "Sat", date: "Sat", count: 0, isToday: false },
-          { day: "Sun", date: "Sun", count: 0, isToday: false },
-        ]);
-  const achievements = fetchAchievements(stats, streak);
+const stats = statsQ.data ?? {
+  enrolled: 0,
+  completed: 0,
+  avgProgress: 0,
+  totalHours: 0,
+  formattedTime: "0m",
+  timeUnit: "m" as const,
+};
+const streak = streakQ.data ?? { current_streak: 0, longest_streak: 0 };
+const continueLesson = continueQ.data ?? null;
+const weekly =
+  weeklyQ.data ??
+  Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return {
+      day: d.toLocaleDateString("en-US", { weekday: "short" }),
+      date: d.toLocaleDateString("en-CA"),
+      count: 0,
+      isToday: i === 6,
+    };
+  });
+const achievements = fetchAchievements(stats, streak);
 
   const firstName = (
     profile?.full_name ??
@@ -141,7 +123,7 @@ function DashboardPage() {
     .split(" ")[0];
   const greeting = greetingFor();
 
-  if (loading) {
+  if (loading || !user) {
     return (
       <div className="grid min-h-screen place-items-center bg-background">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />

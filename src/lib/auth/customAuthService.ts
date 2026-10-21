@@ -308,22 +308,85 @@ export const customAuthService = {
   /**
    * Controlled handler for legacy password login
    */
-  async login(_email?: string, _password?: string): Promise<{ success: boolean; error: string }> {
-    return {
-      success: false,
-      error: "Password authentication is not supported. Please sign in with Google.",
-    };
+
+  /**
+   * Email/password login via POST /auth/login
+   */
+  async login(
+    email?: string,
+    password?: string,
+  ): Promise<{ success: boolean; error: string }> {
+    try {
+      if (!email?.trim() || !password) {
+        return { success: false, error: "Email and password are required" };
+      }
+
+      const res = await apiClient.post<GoogleLoginResponseData>(
+        "/auth/login",
+        { email: email.trim().toLowerCase(), password },
+        { skipAuth: true },
+      );
+
+      if (!res.data?.accessToken || !res.data?.refreshToken || !res.data?.user) {
+        return { success: false, error: "Invalid login response from server" };
+      }
+
+      tokenStorage.setTokens({
+        accessToken: res.data.accessToken,
+        refreshToken: res.data.refreshToken,
+      });
+      tokenStorage.setUser(res.data.user);
+
+      return { success: true, error: "" };
+    } catch (e) {
+      return {
+        success: false,
+        error: e instanceof Error ? e.message : "Login failed",
+      };
+    }
   },
 
   /**
-   * Controlled handler for legacy password signup
+   * Email/password registration via POST /auth/register
    */
-  async signUp(_data?: unknown): Promise<{ success: boolean; error: string }> {
-    return {
-      success: false,
-      error: "Account registration is managed via Google Sign-In. Please sign up with Google.",
-    };
+  async signUp(
+    data?: unknown,
+  ): Promise<{ success: boolean; error: string }> {
+    try {
+      const input = data as {
+        email?: string;
+        password?: string;
+        fullName?: string;
+        full_name?: string;
+        name?: string;
+      } | undefined;
+
+      const email = input?.email?.trim().toLowerCase();
+      const password = input?.password;
+      const fullName = (input?.fullName || input?.full_name || input?.name)?.trim();
+
+      if (!email || !password || !fullName) {
+        return {
+          success: false,
+          error: "Email, password, and full name are required",
+        };
+      }
+
+      await apiClient.post(
+        "/auth/register",
+        { email, password, fullName },
+        { skipAuth: true },
+      );
+
+      return { success: true, error: "" };
+    } catch (e) {
+      return {
+        success: false,
+        error: e instanceof Error ? e.message : "Registration failed",
+      };
+    }
   },
+
 
   /**
    * Check if a stored session exists

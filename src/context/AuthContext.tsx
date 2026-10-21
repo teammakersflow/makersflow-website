@@ -9,8 +9,10 @@ import React, {
   useEffect,
   useState,
   useCallback,
+  useRef,
   ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   customAuthService,
   AuthUser,
@@ -18,6 +20,8 @@ import {
   UpdateProfileInput,
 } from "@/lib/auth/customAuthService";
 import { tokenStorage } from "@/lib/auth/tokenStorage";
+import { enrollmentService } from "@/lib/enrollmentService";
+import { progressService } from "@/lib/progressService";
 
 export interface AuthContextType {
   user: AuthUser | null;
@@ -35,6 +39,28 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => customAuthService.getCachedUser());
   const [loading, setLoading] = useState<boolean>(true);
+  const queryClient = useQueryClient();
+  const prevUserId = useRef<string | null>(user?.id ?? null);
+
+  /**
+   * Clears every user-specific cache: React Query plus the in-memory caches
+   * inside enrollmentService and progressService. Called on login, logout and
+   * account switch so one user's data is never shown to another.
+   */
+  const clearUserCaches = useCallback(() => {
+    queryClient.clear();
+    enrollmentService.invalidateCache();
+    progressService.invalidateCourseCache(); // no argument clears every course
+  }, [queryClient]);
+
+  // Logout in another tab, or a direct switch from one account to another.
+  useEffect(() => {
+    const currentId = user?.id ?? null;
+    if (prevUserId.current !== null && prevUserId.current !== currentId) {
+      clearUserCaches();
+    }
+    prevUserId.current = currentId;
+  }, [user?.id, clearUserCaches]);
 
   const restoreSession = useCallback(async () => {
     if (!customAuthService.hasStoredSession()) {
@@ -121,6 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       const res = await customAuthService.loginWithGoogle(idToken);
+      // Drop the previous account's cached data before any new request runs.
+      clearUserCaches();
       if (res.data?.user) {
         // Hydrate full user profile if needed
         try {
@@ -148,7 +176,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email?: string,
     password?: string,
   ): Promise<{ success: boolean; error?: string }> => {
-    return customAuthService.login(email, password);
+    const result = await customAuthService.login(email, password);
+    if (!result.success) return result;
+
+    // Drop the previous account's cached data before any new request runs.
+    clearUserCaches();
+
+    // Tokens + user are stored by customAuthService.login; sync React state.
+    try {
+      const res = await customAuthService.getCurrentUser();
+      if (res.data) {
+        setUser(mapBackendUserToAuthUser(res.data));
+        setLoading(false);
+        return result;
+      }
+    } catch (e) {
+      console.warn("[AuthProvider] Post-login profile hydration failed, using cached user:", e);
+    }
+    const cached = customAuthService.getCachedUser();
+    if (cached) setUser(cached);
+    setLoading(false);
+    return result;
   };
 
   const logout = async (): Promise<void> => {
@@ -156,6 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await customAuthService.logout();
     } finally {
+      clearUserCaches();
       setUser(null);
       setLoading(false);
     }

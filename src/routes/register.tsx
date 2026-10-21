@@ -11,7 +11,7 @@ import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
 import { useAuthContext } from "@/context/AuthContext";
-import { signUpWithPassword } from "@/integrations/supabase/auth";
+import { customAuthService } from "@/lib/auth/customAuthService";
 
 export const Route = createFileRoute("/register")({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
@@ -143,52 +143,67 @@ function RegisterPage() {
       setFormError(null);
     };
 
+  
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    let valid = true;
+    setFormError(null);
+    setSuccess(false);
+    setTermsError(null);
+
     if (!agreed) {
-      setTermsError("You must agree to the Terms of Service and Privacy Policy to continue");
-      valid = false;
-    }
-    const parsed = schema.safeParse(values);
-    if (!parsed.success) {
-      const fe: Partial<Record<keyof FormValues, string>> = {};
-      for (const issue of parsed.error.issues) {
-        fe[issue.path[0] as keyof FormValues] = issue.message;
-      }
-      setErrors(fe);
-      valid = false;
-    }
-    if (!valid || !parsed.success) return;
-    const formData = parsed.data;
-    setLoading(true);
-    const res = (await signUpWithPassword(
-      formData.email,
-      formData.password,
-      {
-        full_name: formData.full_name,
-        name: formData.full_name,
-        phone: formData.phone || null,
-        grade: formData.grade,
-        school: formData.school,
-        role: "student",
-      },
-      redirect,
-    )) as { error: any; data: any };
-
-    setLoading(false);
-
-    if (res.error) {
-      setFormError(mapSignUpError(res.error));
+      setTermsError(
+        "You must agree to the Terms of Service and Privacy Policy to continue.",
+      );
       return;
     }
 
-    if (res.data?.session) {
-      navigate({ to: redirect || "/dashboard" });
-    } else {
+    const parsed = schema.safeParse(values);
+
+    if (!parsed.success) {
+      const fieldErrors: Partial<Record<keyof FormValues, string>> = {};
+
+      for (const issue of parsed.error.issues) {
+        const field = issue.path[0] as keyof FormValues;
+        fieldErrors[field] = issue.message;
+      }
+
+      setErrors(fieldErrors);
+      return;
+    }
+
+    setErrors({});
+    setLoading(true);
+
+    try {
+      const formData = parsed.data;
+
+      const result = await customAuthService.signUp({
+        email: formData.email,
+        password: formData.password,
+        fullName: formData.full_name,
+      });
+
+      if (!result.success) {
+        setFormError(result.error || "Could not create your account.");
+        return;
+      }
+
+      // Registration does not create an authenticated session.
+      // The backend currently asks the user to sign in separately.
       setSuccess(true);
+    } catch (error) {
+      console.error("[register] Registration failed:", error);
+
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Registration failed. Please try again.",
+      );
+    } finally {
+      setLoading(false);
     }
   };
+
 
   const onGoogleSuccess = async (idToken: string) => {
     setGoogleLoading(true);
@@ -339,7 +354,7 @@ function RegisterPage() {
               className="flex items-start gap-2 rounded-xl border border-success/30 bg-success/10 p-3 text-sm text-success"
             >
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>Account created. Check your email to confirm, then sign in.</span>
+              <span>Account created successfully. Please sign in with your email and password.</span>
             </motion.div>
           )}
         </AnimatePresence>

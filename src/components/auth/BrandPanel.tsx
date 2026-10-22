@@ -22,7 +22,7 @@ export function BrandPanel() {
         }}
       />
       {/* Grid overlay */}
-      <div
+      {/*<div
         className="absolute inset-0 opacity-[0.18]"
         style={{
           backgroundImage:
@@ -30,7 +30,7 @@ export function BrandPanel() {
           backgroundSize: "44px 44px",
           maskImage: "radial-gradient(ellipse at center, black 40%, transparent 75%)",
         }}
-      />
+      />*/}
 
       {/* Floating shapes */}
       <motion.div
@@ -44,7 +44,7 @@ export function BrandPanel() {
         transition={floatTransition(7, 0.5)}
       />
       <motion.svg
-        className="absolute bottom-24 left-16 h-28 w-28 text-white/70"
+        className="pointer-events-none absolute bottom-12 left-8 h-24 w-24 text-white/70"
         viewBox="0 0 100 100"
         fill="none"
         stroke="currentColor"

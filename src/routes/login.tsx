@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/auth/SubmitButton";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { AuthLegalModal } from "@/components/auth/AuthLegalModal";
 import { useAuthContext } from "@/context/AuthContext";
+import { apiClient } from "@/lib/auth/apiClient";
 import { resendConfirmationEmail } from "@/integrations/supabase/auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
@@ -127,10 +128,43 @@ navigate({ to: redirect || "/dashboard" });
     }
   };
 
-  const onForgot = async () => {
-    setFormError(null);
-    setFormError("Password recovery is managed via Google Account security for Google sign-in.");
-  };
+
+const onForgot = async () => {
+  setFormError(null);
+  setResetSent(false);
+
+  const email = values.email.trim();
+
+  const emailValidation = z.string().email().safeParse(email);
+  if (!emailValidation.success) {
+    setErrors((er) => ({
+      ...er,
+      email: "Enter a valid email address to reset your password",
+    }));
+    return;
+  }
+
+  setErrors((er) => ({ ...er, email: "" }));
+
+  try {
+    await apiClient.post(
+      "/auth/forgot-password",
+      { email },
+      { skipAuth: true },
+    );
+
+    setResetSent(true);
+  } catch (error) {
+    console.error("[forgot-password] Request failed:", error);
+
+    setFormError(
+      error instanceof Error
+        ? error.message
+        : "Unable to request a password reset. Please try again.",
+    );
+  }
+};
+
 
   return (
     <AuthLayout

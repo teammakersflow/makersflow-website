@@ -44,6 +44,7 @@ export function GoogleButton({
 }: GoogleButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { clientId, scriptLoadedSuccessfully } = useGoogleOAuth();
+  const hasSuccessHandler = Boolean(onSuccess);
 
   useEffect(() => {
     if (onSuccess) {
@@ -55,7 +56,7 @@ export function GoogleButton({
   }, [onSuccess, onError]);
 
   useEffect(() => {
-    if (!onSuccess || !scriptLoadedSuccessfully || !clientId || !containerRef.current) {
+    if (!hasSuccessHandler || !scriptLoadedSuccessfully || !clientId || !containerRef.current) {
       return;
     }
 
@@ -79,7 +80,7 @@ export function GoogleButton({
         text: "continue_with",
       });
     }
-  }, [clientId, scriptLoadedSuccessfully, onSuccess]);
+  }, [clientId, scriptLoadedSuccessfully, hasSuccessHandler]);
 
   if (onSuccess) {
     return (

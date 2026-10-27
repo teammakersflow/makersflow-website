@@ -40,6 +40,13 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+
+RUN echo "=== GENERATED CSS FILES ===" \
+ && find .output/public -type f -name '*.css' -print \
+ && echo "=== CSS REFERENCES IN GENERATED OUTPUT ===" \
+ && grep -RohE 'styles-[^"]+\.css' .output/public 2>/dev/null | sort -u || true
+
+
 # Safety net: refuse to produce an image that leaks a service_role key into
 # the client bundle. Cheap to run, catches a catastrophic mistake.
 RUN if grep -rqs 'service_role' .output/public; then \

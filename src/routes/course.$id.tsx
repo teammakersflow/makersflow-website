@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { CourseTabs, type TabKey } from "@/components/course/CourseTabs";
 import { PriceCard } from "@/components/course/PriceCard";
+import { CourseKitCard } from "@/components/course/CourseKitCard";
 import {
   StickyEnrollBar,
   CourseHero,
@@ -281,6 +282,7 @@ function CourseDetailPage() {
                 onToggleWatchLater={handleToggleWatchLater}
                 onShare={handleShare}
               />
+              <CourseKitCard courseId={id} />
             </aside>
           </div>
         </main>

@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/auth/apiClient";
+import { productService } from "@/lib/productService";
+import { useCart } from "@/lib/cart";
 
 type KitItem = {
   product_id: string;
@@ -48,6 +51,8 @@ function ItemImage({ src, alt }: { src: string | null; alt: string }) {
 }
 
 export function CourseKitCard({ courseId }: { courseId: string }) {
+  const { addItem } = useCart();
+  const [adding, setAdding] = useState(false);
   const q = useQuery({
     queryKey: ["course-kit", courseId],
     queryFn: () => fetchCourseKit(courseId),
@@ -61,6 +66,29 @@ export function CourseKitCard({ courseId }: { courseId: string }) {
   const included = !!q.data?.kit_included;
   const formatPrice = (p: KitItem["price"]) =>
     p === null || p === undefined || p === "" ? null : `₹${Number(p).toLocaleString("en-IN")}`;
+
+  const kitTotal = kit.items.reduce((sum, i) => sum + Number(i.price ?? 0) * i.quantity, 0);
+
+  const addKitToCart = async () => {
+    setAdding(true);
+    try {
+      const products = await productService.getProductsByIds(kit.items.map((i) => i.product_id));
+      const byId = new Map(products.map((p) => [String(p.id), p]));
+      const missing = kit.items.filter((i) => !byId.has(i.product_id));
+      if (missing.length) {
+        toast.error(`Couldn't add: ${missing.map((m) => m.title).join(", ")} is unavailable`);
+        return;
+      }
+      kit.items.forEach((i) => addItem(byId.get(i.product_id)!, i.quantity));
+      toast.success(`${kit.name} kit added to cart`, {
+        action: { label: "Go to checkout", onClick: () => (window.location.href = "/checkout") },
+      });
+    } catch {
+      toast.error("Couldn't add the kit to your cart. Please try again.");
+    } finally {
+      setAdding(false);
+    }
+  };
 
   return (
     <div className="mt-4 rounded-xl border bg-card p-5 shadow-sm">
@@ -93,10 +121,25 @@ export function CourseKitCard({ courseId }: { courseId: string }) {
         ))}
       </ul>
 
+      {!included && (
+        <button
+          type="button"
+          onClick={addKitToCart}
+          disabled={adding || !kit.all_available}
+          className="mt-4 w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {!kit.all_available
+            ? "Kit currently unavailable"
+            : adding
+              ? "Adding…"
+              : `Add kit to cart · ₹${kitTotal.toLocaleString("en-IN")}`}
+        </button>
+      )}
+
       <p className="mt-4 text-xs text-muted-foreground">
         {included
           ? "After you buy this course, confirm your shipping address to receive the kit at no extra cost."
-          : "This course is free, but the kit isn't included. You can buy the kit separately from the Store."}
+          : "This course is free, but the kit isn't included. Add it to your cart to buy it separately."}
       </p>
       {!kit.all_available && (
         <p className="mt-2 text-xs text-red-600">Some kit items are currently out of stock.</p>

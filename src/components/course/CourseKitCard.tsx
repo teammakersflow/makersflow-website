@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { apiClient } from "@/lib/auth/apiClient";
 import { productService } from "@/lib/productService";
 import { useCart } from "@/lib/cart";
+import { IncludedKitClaim } from "./IncludedKitClaim";
 
 type KitItem = {
   product_id: string;
@@ -135,6 +136,8 @@ export function CourseKitCard({ courseId }: { courseId: string }) {
               : `Add kit to cart · ₹${kitTotal.toLocaleString("en-IN")}`}
         </button>
       )}
+
+      {included && <IncludedKitClaim courseId={courseId} />}
 
       <p className="mt-4 text-xs text-muted-foreground">
         {included

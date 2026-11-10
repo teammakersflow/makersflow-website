@@ -237,6 +237,7 @@ function CourseDetailPage() {
         <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-10">
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
             <div className="min-w-0">
+              <div className="mb-6 -mt-4"><CourseKitCard courseId={id} /></div>
               <CourseTabs active={tab} onChange={setTab} />
               <div className="mt-6">
                 <AnimatePresence mode="wait">
@@ -282,7 +283,6 @@ function CourseDetailPage() {
                 onToggleWatchLater={handleToggleWatchLater}
                 onShare={handleShare}
               />
-              <CourseKitCard courseId={id} />
             </aside>
           </div>
         </main>

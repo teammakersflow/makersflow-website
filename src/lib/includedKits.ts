@@ -26,6 +26,7 @@ export type ClaimResult = {
   razorpayKeyId?: string;
   reused?: boolean;
   alreadyFulfilled?: boolean;
+  fulfilledNow?: boolean;
   requiresReconciliation?: boolean;
   message?: string;
 };

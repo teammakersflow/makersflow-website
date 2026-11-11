@@ -70,7 +70,7 @@ export function IncludedKitClaim({ courseId }: { courseId: string }) {
         rz.open();
       } else {
         if (r.requiresReconciliation) toast.message("Payment received, we are processing your kit.");
-        else toast.success(r.alreadyFulfilled ? "Your kit is already ordered." : "Your kit order is confirmed!");
+        else toast.success(r.fulfilledNow ? "Payment received, your kit order is confirmed." : r.alreadyFulfilled ? "Your kit is already ordered." : "Your kit order is confirmed!");
         setOpen(false);
         refresh();
       }

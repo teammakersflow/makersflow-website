@@ -69,13 +69,13 @@ export function IncludedKitClaim({ courseId }: { courseId: string }) {
         });
         rz.open();
       } else {
-        if (r.requiresReconciliation) toast.message(r.message ?? "Payment received. We are finalising your kit order.");
+        if (r.requiresReconciliation) toast.message("Payment received, we are processing your kit.");
         else toast.success(r.alreadyFulfilled ? "Your kit is already ordered." : "Your kit order is confirmed!");
         setOpen(false);
         refresh();
       }
     } catch (e: any) {
-      toast.error(e?.message ?? "Couldn't claim your kit. Please try again.");
+      toast.error(/No new payment order was created/i.test(e?.message ?? "") ? "Payment service is busy. Please try again shortly." : (e?.message ?? "Could not claim your kit. Please try again."));
       refresh();
     } finally {
       setBusy(false);
@@ -92,7 +92,7 @@ export function IncludedKitClaim({ courseId }: { courseId: string }) {
     );
   }
 
-  if (claim.order) {
+  if (claim.order && claim.shipping_address_id) {
     return (
       <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
         Your kit order is waiting for the shipping payment.

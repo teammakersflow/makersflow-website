@@ -11,6 +11,7 @@ export type KitClaim = {
     items: { product_id: string; title: string; quantity: number; thumbnail_url: string | null }[];
   };
   order: { id: string; status: string } | null;
+  shipping_address_id?: string | null;
   created_at: string;
 };
 
@@ -24,6 +25,9 @@ export type ClaimResult = {
   razorpayOrderId?: string | null;
   razorpayKeyId?: string;
   reused?: boolean;
+  alreadyFulfilled?: boolean;
+  requiresReconciliation?: boolean;
+  message?: string;
 };
 
 export async function fetchMyKitClaims(): Promise<KitClaim[]> {

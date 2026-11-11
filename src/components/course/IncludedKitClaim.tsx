@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/integrations/supabase/auth";
@@ -6,11 +6,6 @@ import { listAddresses, formatAddressLines, type SavedAddress } from "@/lib/addr
 import { loadRazorpayScript } from "@/lib/razorpay-checkout";
 import { fetchMyKitClaims, claimIncludedKit, verifyKitPayment } from "@/lib/includedKits";
 
-function newKey() {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 export function IncludedKitClaim({ courseId }: { courseId: string }) {
   const { user } = useAuth();
@@ -18,7 +13,6 @@ export function IncludedKitClaim({ courseId }: { courseId: string }) {
   const [open, setOpen] = useState(false);
   const [addressId, setAddressId] = useState("");
   const [busy, setBusy] = useState(false);
-  const keyRef = useRef<string>(newKey()); // one key per claim attempt, reused on retries
 
   const claimsQ = useQuery({
     queryKey: ["my-kit-claims"],
@@ -38,13 +32,13 @@ export function IncludedKitClaim({ courseId }: { courseId: string }) {
     addressId || addresses.find((a) => a.is_default)?.id || addresses[0]?.id || "";
 
   const confirm = async () => {
-    if (!claim || !selected) return;
+    if (!claim || (!selected && !claim.shipping_address_id)) return;
     setBusy(true);
     try {
       const r = await claimIncludedKit({
         coursePurchaseId: claim.course_purchase_id,
-        shippingAddressId: selected,
-        idempotencyKey: keyRef.current,
+        shippingAddressId: claim.order ? (claim.shipping_address_id ?? selected) : selected,
+        idempotencyKey: `kit-claim-${claim.id}`,
       });
       if (r.paymentRequired && r.razorpayOrderId && r.razorpayKeyId) {
         toast.message(`Shipping costs ₹${r.shippingAmount}. Complete the payment to confirm your kit.`);
@@ -75,7 +69,8 @@ export function IncludedKitClaim({ courseId }: { courseId: string }) {
         });
         rz.open();
       } else {
-        toast.success("Your kit order is confirmed!");
+        if (r.requiresReconciliation) toast.message(r.message ?? "Payment received. We are finalising your kit order.");
+        else toast.success(r.alreadyFulfilled ? "Your kit is already ordered." : "Your kit order is confirmed!");
         setOpen(false);
         refresh();
       }
@@ -100,7 +95,10 @@ export function IncludedKitClaim({ courseId }: { courseId: string }) {
   if (claim.order) {
     return (
       <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-        Your kit order is waiting for the shipping payment. If the payment window closed, please contact support.
+        Your kit order is waiting for the shipping payment.
+        <button type="button" onClick={confirm} disabled={busy} className="mt-2 block w-full rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+          {busy ? "Opening payment…" : "Complete shipping payment"}
+        </button>
       </div>
     );
   }

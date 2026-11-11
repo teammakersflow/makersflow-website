@@ -12,6 +12,7 @@ export type KitClaim = {
   };
   order: { id: string; status: string } | null;
   shipping_address_id?: string | null;
+  payment_status?: null | "not_required" | "pending" | "captured" | "failed";
   created_at: string;
 };
 
